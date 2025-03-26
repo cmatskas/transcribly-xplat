@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Bedrock Media Transcribe</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="../styles/main.css">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <!-- Notifications library -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/toastify-js/1.12.0/toastify.min.css" rel="stylesheet">
+
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-braces-asterisk"></i>   Transcribely
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a id="nav-transcribe" class="nav-link active" href="#">Transcribe</a>
+                    </li>
+                    <li class="nav-item">
+                        <a id="nav-analyze" class="nav-link" href="#">Analyze</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div id="transcribe-page" class="container-fluid py-4">
+        <div class="row g-12">
+            <!-- Left Column -->
+            <div class="col-md-6">
+                <div class="title-card">
+                    <h2>Player</h2>
+                </div>   
+                <!-- Upload Zone -->
+                <div class="upload-zone mb-3" id="uploadZone">
+                    <input type="file" id="fileInput" accept="video/*,audio/*" class="d-none">
+                    <i class="fas fa-cloud-upload-alt fa-2x mb-2"></i>
+                    <p class="mb-0">Click or drag video or audio files here to upload</p>
+                </div>
+
+                <!-- Video Container -->
+                <div class="video-container rounded d-none" id="videoContainer">
+                    <video id="videoPlayer" controls>
+                        Your browser doesn't support HTML5 video.
+                    </video>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="title-card">
+                    <h2>Transcript</h2>
+                </div>
+                
+                <div class="transcription-content" id="transcriptionContent">
+                    <div class="loading-spinner" id="loadingSpinner"></div>
+                    <div id="transcriptionText" class="text-gray-500 text-center">
+                        Upload a file to see transcription
+                    </div>
+                </div>
+                <button id="downloadTranscript" class="btn btn-outline-primary w-100 d-none">
+                    <i class="fas fa-download me-2"></i>Download Transcript
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="analyze-page" class="container-fluid py-4">
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../renderer/index.js"></script>
+</body>
+
+</html>
