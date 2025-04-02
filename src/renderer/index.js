@@ -5,6 +5,7 @@ const videoPlayer = document.getElementById('videoPlayer');
 const transcriptionContent = document.getElementById('transcriptionContent');
 const loadingSpinner = document.getElementById('loadingSpinner');
 const transcriptionText = document.getElementById('transcriptionText');
+const templateSelect = document.getElementById('promptTemplateSelect');
 
 function showSuccessToast(message) {
     window.electronAPI.showToast(message, 'success');
@@ -21,7 +22,6 @@ function showInfoToast(message) {
 function showWarningToast(message) {
     window.electronAPI.showToast(message, 'warning');
 }
-
 
 function showTranscribePage() {
     document.getElementById('transcribe-page').style.display = 'block';
@@ -40,8 +40,65 @@ function showAnalyzePage() {
     document.getElementById('nav-analyze').classList.add('active');
 }
 
+function downloadAnalysis() {
+    if (!currentAnalysis) {
+        showWarningToast('No analysis available to download');
+        return;
+    }
+    
+    // Create a Blob with the analysis text
+    const analysisText = cleanupAnalysisText(currentAnalysis);
+    const blob = new Blob([analysisText], { type: 'text/plain' });
+
+    // Create a download link
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'analysis_results.txt'; // Default file name
+    link.click();
+
+    // Clean up
+    URL.revokeObjectURL(link.href);
+    
+    // Show success toast
+    showSuccessToast('Analysis downloaded successfully');
+}
+
+function copyAnalysis() {
+    if (!currentAnalysis) {
+        showWarningToast('No analysis available to copy');
+        return;
+    }
+    
+    const analysisText = cleanupAnalysisText(currentAnalysis);
+
+    navigator.clipboard.writeText(analysisText)
+        .then(() => {
+            // Show success toast
+            showSuccessToast('Analysis copied to clipboard');
+            
+            // Optional: Show a brief success message
+            const copyBtn = document.querySelector('.header-button');
+            const originalText = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            setTimeout(() => {
+                copyBtn.innerHTML = originalText;
+            }, 2000);
+        })
+        .catch(err => {
+            console.error('Failed to copy text:', err);
+            showErrorToast('Failed to copy to clipboard');
+        });
+}
+
 document.getElementById('nav-analyze').addEventListener('click', showAnalyzePage);
 document.getElementById('nav-transcribe').addEventListener('click', showTranscribePage);
+
+templateSelect.addEventListener('change', () =>{
+    const selectedOption = templateSelect.options[templateSelect.selectedIndex];
+    const selectedPrompt = selectedOption.getAttribute('value');
+    const promptInput = document.getElementById('promptEditor');
+    promptInput.value = selectedPrompt;
+})
 
 // Handle file selection
 fileInput.addEventListener('change', (e) => {
@@ -99,7 +156,7 @@ fileInput.addEventListener('change', (e) => {
         
         const mediaUrl = URL.createObjectURL(file);
         videoPlayer.src = mediaUrl;
-        uploadZone.classList.add('d-none');ß
+        uploadZone.classList.add('d-none');
         videoContainer.classList.remove('d-none');
         uploadFile(file);
 
@@ -300,8 +357,8 @@ async function loadBedrockModels() {
 
         models.forEach(model => {
             const option = document.createElement('option');
-            option.value = model.modelId;
-            option.textContent = model.modelName;
+            option.value = model.id;
+            option.text = model.name;
             modelSelect.appendChild(option);
         });
     } catch (error) {
@@ -309,9 +366,34 @@ async function loadBedrockModels() {
     }
 }
 
+async function loadPromptTemplates() {
+    try {
+        const templates = await window.electronAPI.invoke('get-prompt-templates');
+        templateSelect.innerHTML = '';
+
+        //add a default option
+        const option = document.createElement('option');
+        option.value = '';
+        option.text = 'Select a prompt template or write a custom one';
+        option.disabled = true;
+        option.selected = true;
+        templateSelect.appendChild(option);
+
+        templates.forEach(template => {
+            const option = document.createElement('option');
+            option.value = template.prompt;
+            option.text = template.id;
+            templateSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading prompt templates:', error);
+    }
+}
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
     showInfoToast('Welcome to Transcribely! Upload a video or audio file to get started.');
+    loadPromptTemplates();
     loadBedrockModels();
 });
 

@@ -11,6 +11,24 @@ const region = 'us-east-1';
 const timeout = 30000;
 const retryAttempts = 3;
 const bedrockInferenceProfileArn = 'arn:aws:bedrock:us-east-1:544610684157:inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0';
+const defaultPrompts =  [
+    {
+        id: 'Summarize Text',
+        prompt: 'Use this transcript to analyze the text'
+    },
+    {
+        id: 'Analyze Sentiment',
+        prompt: 'Use this transcript to analyze the sentiment'
+    },
+    {
+        id: 'Extract key points',
+        prompt: 'Use this transcript to extract the key points'
+    },
+    {
+        id: 'Custom Prompt',
+        prompt: ''
+    }
+];
 
 module.exports = {
     port,
@@ -25,5 +43,6 @@ module.exports = {
     region,
     timeout,
     retryAttempts,
-    bedrockInferenceProfileArn
+    bedrockInferenceProfileArn,
+    defaultPrompts
 };

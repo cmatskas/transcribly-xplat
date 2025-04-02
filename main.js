@@ -85,6 +85,10 @@ ipcMain.handle('transcribe-media', async (event, { filePath }) => {
   }
 });
 
+ipcMain.handle('get-prompt-templates', () => {
+  return config.defaultPrompts;
+})
+
 // Modified to use cache
 ipcMain.handle('get-bedrock-models', async () => {
   try {
@@ -93,11 +97,14 @@ ipcMain.handle('get-bedrock-models', async () => {
       return modelCache;
     }
 
-    const inputFilter ={
-      byOutputModality: "TEXT",
-      byInferenceType: "ON_DEMAND"
-    }
-    const command = new ListFoundationModelsCommand({inputFilter});
+    const command = new ListFoundationModelsCommand({
+      filters: {  // Changed from inputFilter to filters
+        byOutputModality: "TEXT",
+        byInferenceType: "ON_DEMAND",
+        byLifecycleStatus: "ACTIVE"
+      }
+    });
+
     const response = await bedrockManager.send(command);
 
     // Store in cache

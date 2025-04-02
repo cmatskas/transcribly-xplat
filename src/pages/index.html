@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="../styles/main.css">
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
     <!-- Notifications library -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/toastify-js/1.12.0/toastify.min.css" rel="stylesheet">
 
@@ -76,8 +77,71 @@
         </div>
     </div>
 
-    <div id="analyze-page" class="container-fluid py-4">
-
+    <div id="analyze-page" class="container-fluid py-4" style="display:none;">
+        <div class="row g-12">
+            <!-- Model Selection Column -->
+            <div class="col-md-6">
+                <div class="title-card">
+                    <h2>Bedrock Configuration</h2>
+                </div>
+                
+                <!-- Model Selection -->
+                <div class="mb-3">
+                    <label for="modelSelect" class="form-label">Select Bedrock Model</label>
+                    <select class="form-select" id="modelSelect">
+                        <option selected disabled>Loading models...</option>
+                    </select>
+                </div>
+                
+                <!-- Prompt Templates -->
+                <div class="mb-3">
+                    <label for="promptTemplate" class="form-label">Select Prompt Template</label>
+                    <select class="form-select" id="promptTemplateSelect">
+                    </select>
+                </div>
+                
+                <!-- Prompt Editor -->
+                <div class="mb-3">
+                    <label for="promptEditor" class="form-label">Edit Prompt</label>
+                    <textarea class="form-control" id="promptEditor" rows="6" placeholder="Edit or write your prompt here..."></textarea>
+                </div>
+                
+                <!-- Invoke Button -->
+                <button id="invokeBedrockBtn" class="btn btn-primary w-100 mb-3">
+                    <i class="bi bi-lightning-charge"></i> Invoke Bedrock
+                </button>
+            </div>
+            
+            <!-- Results Column -->
+            <div class="col-md-6">
+                <div class="title-card">
+                    <h2>Results</h2>
+                </div>
+                
+                <!-- Results Display -->
+                <div id="analysisContent">
+                    <div class="analysis-header">
+                        <button class="header-button" onclick="copyAnalysis()">
+                            <i class="fas fa-copy"></i>
+                            Copy
+                        </button>
+                        <button class="header-button" onclick="downloadAnalysis()">
+                            <i class="fas fa-download"></i>
+                            Download
+                        </button>
+                    </div>
+                    <div class="analysis-content-body">
+                        <!-- Analysis Loader -->
+                        <div class="analysis-loader" id="analysisLoader">
+                            <div class="spinner"></div>
+                            <div class="message">Analyzing with Bedrock...</div>
+                        </div>
+                        <div id="analysisText"></div>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
