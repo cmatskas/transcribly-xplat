@@ -7,11 +7,13 @@ const logger = require('./logger');
 
 const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
 const { BedrockClient, ListFoundationModelsCommand} = require('@aws-sdk/client-bedrock');
+const { BedrockAgentRuntimeClient, ListKnowledgeBasesCommand } = require('@aws-sdk/client-bedrock-agent-runtime');
 const { TranscribeClient, StartTranscriptionJobCommand } = require('@aws-sdk/client-transcribe');
 
 // initialize aws clients
 const bedrockClient = new BedrockRuntimeClient({ region: config.region });
 const bedrockManager = new BedrockClient({ region: config.region });
+const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: config.region });
 const transcribeClient = new TranscribeClient({ region: config.region });
 const s3Client = new S3Client({
   region: config.region,
@@ -89,45 +91,34 @@ ipcMain.handle('get-prompt-templates', () => {
   return config.defaultPrompts;
 })
 
-// Modified to use cache
-ipcMain.handle('get-bedrock-models', async () => {
+// Add handler to get Bedrock models from config
+ipcMain.handle('get-bedrock-models', () => {
+  return config.bedrockModels;
+})
+
+// Add handler to get Bedrock knowledge bases
+ipcMain.handle('get-knowledge-bases', async () => {
   try {
-    // Return cached models if available
-    if (modelCache) {
-      return modelCache;
-    }
-
-    const command = new ListFoundationModelsCommand({
-      filters: {  // Changed from inputFilter to filters
-        byOutputModality: "TEXT",
-        byInferenceType: "ON_DEMAND",
-        byLifecycleStatus: "ACTIVE"
-      }
+    const command = new ListKnowledgeBasesCommand({
+      maxResults: 20 // Adjust as needed
     });
-
-    const response = await bedrockManager.send(command);
-
-    // Store in cache
-    modelCache = response.modelSummaries.map(model => ({
-      id: model.modelId,
-      name: model.modelName,
-      provider: model.providerName
+    
+    const response = await bedrockAgentClient.send(command);
+    
+    // Format the knowledge bases for the dropdown
+    const knowledgeBases = response.knowledgeBaseSummaries.map(kb => ({
+      id: kb.knowledgeBaseId,
+      name: kb.name || kb.knowledgeBaseId,
+      description: kb.description || ''
     }));
-
-    return modelCache;
+    
+    return knowledgeBases;
   } catch (error) {
-    console.error('Error fetching Bedrock models:', error);
-    throw error;
+    console.error('Error retrieving knowledge bases:', error);
+    throw new Error(`Failed to retrieve knowledge bases: ${error.message}`);
   }
 });
 
-// Add handler to force refresh models
-ipcMain.handle('refresh-bedrock-models', async () => {
-  // Clear the cache
-  modelCache = null;
-  // Fetch fresh models
-  return await ipcMain.handle('get-bedrock-models');
-});
 
 async function startTranscription(file) {
   const bigFileSize = 20 * 1024 * 1024;

@@ -98,7 +98,19 @@ templateSelect.addEventListener('change', () =>{
     const selectedPrompt = selectedOption.getAttribute('value');
     const promptInput = document.getElementById('promptEditor');
     promptInput.value = selectedPrompt;
-})
+});
+
+// Add this to handle the checkbox toggle
+document.getElementById('useKnowledgeBase').addEventListener('change', async() => {
+    await loadKnowledgeBases();
+});
+
+// Store the knowledge base selection
+document.getElementById('knowledgeBaseSelect').addEventListener('change', function() {
+    const selectedKnowledgeBaseId = this.value;
+    localStorage.setItem('selectedKnowledgeBaseId', selectedKnowledgeBaseId);
+    localStorage.setItem('useKnowledgeBase', 'true');
+});
 
 // Handle file selection
 fileInput.addEventListener('change', (e) => {
@@ -351,14 +363,15 @@ document.getElementById('transcribeButton').addEventListener('click', async () =
 // Load available Bedrock models on startup
 async function loadBedrockModels() {
     try {
-        const models = await window.electronAPI.invokeAsync('get-bedrock-models');
+        // Get models from config instead of API call
+        const bedrockModels = await window.electronAPI.invoke('get-bedrock-models');
         const modelSelect = document.getElementById('modelSelect');
         modelSelect.innerHTML = '';
 
-        models.forEach(model => {
+        bedrockModels.forEach(model => {
             const option = document.createElement('option');
-            option.value = model.id;
-            option.text = model.name;
+            option.value = model.inferenceArn;
+            option.text = model.id;
             modelSelect.appendChild(option);
         });
     } catch (error) {
@@ -397,3 +410,42 @@ document.addEventListener('DOMContentLoaded', () => {
     loadBedrockModels();
 });
 
+// Function to load knowledge bases
+async function loadKnowledgeBases() {
+    try {
+        const knowledgeBases = localStorage.getItem('knowledgeBases');
+        if (knowledgeBases === null) {
+            knowledgeBases = await window.electronAPI.invoke('get-knowledge-bases');
+            localStorage.setItem('knowledgeBases', knowledgeBases);
+        }
+         
+        const knowledgeBaseSelect = document.getElementById('knowledgeBaseSelect');
+        
+        // Clear existing options except the first one (placeholder)
+        while (knowledgeBaseSelect.options.length > 1) {
+            knowledgeBaseSelect.remove(1);
+        }
+        
+        // Add knowledge bases to the dropdown
+        knowledgeBases.forEach(kb => {
+            const option = document.createElement('option');
+            option.value = kb.id;
+            option.textContent = kb.name;
+            option.title = kb.description || '';
+            knowledgeBaseSelect.appendChild(option);
+        });
+
+        const useKnowledgeBaseIsChecked = localStorage.getItem('useKnowledgeBase');
+        if ( useKnowledgeBaseIsChecked === 'true') {
+            document.getElementById('useKnowledgeBase').checked = true;
+            document.getElementById('knowledgeBaseSection').style.display = 'block';
+        }
+        else {
+
+        }
+        showSuccessToast('Knowledge bases loaded successfully');
+    } catch (error) {
+        console.error('Error loading knowledge bases:', error);
+        showErrorToast('Failed to load knowledge bases: ' + error.message);
+    }
+}

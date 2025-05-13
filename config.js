@@ -10,8 +10,22 @@ const outputBucketName = 'cmtranscriptionresults';
 const region = 'us-east-1';
 const timeout = 30000;
 const retryAttempts = 3;
-const bedrockInferenceProfileArn = 'arn:aws:bedrock:us-east-1:544610684157:inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0';
-const defaultPrompts =  [
+const bedrockModels = [
+    {
+        id: "Nova Pro",
+        inferenceArn: "arn:aws:bedrock:us-east-1:544610684157:inference-profile/us.amazon.nova-pro-v1:0"
+    },
+    {
+        id: "Claude 3.7 Sonnet",
+        inferenceArn: "arn:aws:bedrock:us-east-1:544610684157:inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+    },
+    {
+        id: "DeepSeek R1",
+        inferenceArn: "arn:aws:bedrock:us-east-1:544610684157:inference-profile/us.deepseek.r1-v1:0"
+    },
+
+];
+const defaultPrompts = [
     {
         id: 'Summarize Text',
         prompt: 'Use this transcript to analyze the text'
@@ -43,6 +57,6 @@ module.exports = {
     region,
     timeout,
     retryAttempts,
-    bedrockInferenceProfileArn,
+    bedrockModels,
     defaultPrompts
 };

@@ -105,7 +105,23 @@
                     <label for="promptEditor" class="form-label">Edit Prompt</label>
                     <textarea class="form-control" id="promptEditor" rows="6" placeholder="Edit or write your prompt here..."></textarea>
                 </div>
-                
+
+                <!-- Add this after the Prompt Editor div and before the Invoke Button -->
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="useKnowledgeBase">
+                        <label class="form-check-label" for="useKnowledgeBase">
+                            Use Knowledge Base
+                        </label>
+                    </div>
+                </div>
+
+                <div id="knowledgeBaseSection" class="mb-3" style="display:none;">
+                    <label for="knowledgeBaseSelect" class="form-label">Select Knowledge Base</label>
+                    <select class="form-select" id="knowledgeBaseSelect">
+                        <option selected disabled>Select a knowledge base...</option>
+                    </select>
+                </div>                              
                 <!-- Invoke Button -->
                 <button id="invokeBedrockBtn" class="btn btn-primary w-100 mb-3">
                     <i class="bi bi-lightning-charge"></i> Invoke Bedrock
