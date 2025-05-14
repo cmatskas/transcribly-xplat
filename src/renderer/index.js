@@ -112,7 +112,6 @@ document.getElementById('knowledgeBaseSelect').addEventListener('change', functi
     localStorage.setItem('useKnowledgeBase', 'true');
 });
 
-// Handle file selection
 fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -133,6 +132,9 @@ fileInput.addEventListener('change', (e) => {
         window.addEventListener('resize', updateTranscriptionHeight);
     }
 });
+
+// Handle click to upload
+uploadZone.addEventListener('click', () => fileInput.click());
 
 // Handle drag and drop
 uploadZone.addEventListener('dragover', (e) => {
@@ -156,56 +158,6 @@ uploadZone.addEventListener('drop', (e) => {
         showErrorToast('Please upload a valid video or audio file');
     }
 });
-
-// Handle click to upload
-uploadZone.addEventListener('click', () => fileInput.click());
-
-fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        // Show info toast when file is selected
-        showInfoToast(`File selected: ${file.name}`);
-        
-        const mediaUrl = URL.createObjectURL(file);
-        videoPlayer.src = mediaUrl;
-        uploadZone.classList.add('d-none');
-        videoContainer.classList.remove('d-none');
-        uploadFile(file);
-
-        // Match transcription height to video
-        const updateTranscriptionHeight = () => {
-            transcriptionContent.style.height = `${videoContainer.offsetHeight}px`;
-        };
-        updateTranscriptionHeight();
-        window.addEventListener('resize', updateTranscriptionHeight);
-    }
-});
-
-// Handle drag and drop
-uploadZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    uploadZone.style.borderColor = '#3b82f6';
-});
-
-uploadZone.addEventListener('dragleave', (e) => {
-    e.preventDefault();
-    uploadZone.style.borderColor = '#ccc';
-});
-
-uploadZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && (file.type.startsWith('video/') || file.type.startsWith('audio/'))) {
-        fileInput.files = e.dataTransfer.files;
-        const event = new Event('change');
-        fileInput.dispatchEvent(event);
-    } else {
-        showErrorToast('Please upload a valid video or audio file');
-    }
-});
-
-// Handle click to upload
-uploadZone.addEventListener('click', () => fileInput.click());
 
 async function uploadFile(file) {
     try {
@@ -320,25 +272,49 @@ async function uploadFile(file) {
 }
 
 // Handle prompt submission
-/*document.getElementById('sendPrompt').addEventListener('click', async () => {
+document.getElementById('invokeBedrockBtn').addEventListener('click', async () => {
     const model = document.getElementById('modelSelect').value;
-    const prompt = document.getElementById('promptInput').value;
-    const responseArea = document.getElementById('modelResponse');
+    const prompt = document.getElementById('promptEditor').value;
+    const responseArea = document.getElementById('analysisText');
+    const useKnowledgeBase = document.getElementById('useKnowledgeBase').checked;
 
+    // Check if prompt is empty
     if (!prompt) {
-        alert('Please enter a prompt');
+        showErrorToast('Please enter a prompt');
         return;
     }
 
-    responseArea.innerHTML = 'Processing...';
+    // Get knowledge base ID if checkbox is checked
+    let knowledgeBaseId = null;
+    if (useKnowledgeBase) {
+        const knowledgeBaseSelect = document.getElementById('knowledgeBaseSelect');
+        knowledgeBaseId = knowledgeBaseSelect.value;
+        
+        // Check if a valid knowledge base is selected (not the placeholder)
+        if (!knowledgeBaseId || knowledgeBaseSelect.selectedIndex === 0) {
+            knowledgeBaseId = null;
+        }
+    }
+
+    if(useKnowledgeBase && !knowledgeBaseId){
+        showErrorToast('Please select a knowledge base or uncheck the "Use Knowledge Base" checkbox');
+        return;
+    }
+
     try {
-        const response = await ipcRenderer.invoke('send-to-bedrock', { model, prompt });
-        responseArea.innerHTML = `<pre>${response}</pre>`;
+        // Pass the knowledge base ID to the backend
+        const response = await window.electronAPI.invoke('send-to-bedrock', { 
+            model, 
+            prompt, 
+            knowledgeBaseId 
+        });
+        responseArea.innerHTML = simpleCitationParser(response);
     } catch (error) {
         responseArea.innerHTML = `Error: ${error.message}`;
     }
 });
-
+  
+/*
 // Handle transcription
 document.getElementById('transcribeButton').addEventListener('click', async () => {
     const mediaFile = document.getElementById('mediaFile').files[0];
@@ -360,6 +336,7 @@ document.getElementById('transcribeButton').addEventListener('click', async () =
     }
 });
 */
+
 // Load available Bedrock models on startup
 async function loadBedrockModels() {
     try {
@@ -413,10 +390,13 @@ document.addEventListener('DOMContentLoaded', () => {
 // Function to load knowledge bases
 async function loadKnowledgeBases() {
     try {
-        const knowledgeBases = localStorage.getItem('knowledgeBases');
+        let knowledgeBases = localStorage.getItem('knowledgeBases');
         if (knowledgeBases === null) {
             knowledgeBases = await window.electronAPI.invoke('get-knowledge-bases');
-            localStorage.setItem('knowledgeBases', knowledgeBases);
+            localStorage.setItem('knowledgeBases', JSON.stringify(knowledgeBases));
+        }
+        else{
+            knowledgeBases = JSON.parse(knowledgeBases);
         }
          
         const knowledgeBaseSelect = document.getElementById('knowledgeBaseSelect');
@@ -435,17 +415,85 @@ async function loadKnowledgeBases() {
             knowledgeBaseSelect.appendChild(option);
         });
 
-        const useKnowledgeBaseIsChecked = localStorage.getItem('useKnowledgeBase');
-        if ( useKnowledgeBaseIsChecked === 'true') {
+        const useKnowledgeBaseCheckbox = document.getElementById('useKnowledgeBase');
+        if ( useKnowledgeBaseCheckbox.checked) {
             document.getElementById('useKnowledgeBase').checked = true;
             document.getElementById('knowledgeBaseSection').style.display = 'block';
         }
         else {
-
+            document.getElementById('useKnowledgeBase').checked = false;
+            document.getElementById('knowledgeBaseSection').style.display = 'none';
         }
+
         showSuccessToast('Knowledge bases loaded successfully');
     } catch (error) {
         console.error('Error loading knowledge bases:', error);
         showErrorToast('Failed to load knowledge bases: ' + error.message);
     }
+}
+
+function simpleCitationParser(responseData) {
+    // Check if we have valid data
+    if (!responseData || !responseData.citations || !Array.isArray(responseData.citations)) {
+        return '<div class="error">No citation data found</div>';
+    }
+    
+    let htmlOutput = '';
+    
+    // Loop through each citation
+    responseData.citations.forEach((citation, index) => {
+      // Extract the text content if available
+      let citationText = '';
+      if (citation.generatedResponsePart && 
+          citation.generatedResponsePart.textResponsePart && 
+          citation.generatedResponsePart.textResponsePart.text) {
+        citationText = citation.generatedResponsePart.textResponsePart.text;
+      }
+      
+      // Skip if no text content
+      if (!citationText) return;
+      
+      // Start building the citation block
+      htmlOutput += `<div class="citation-item">`;
+      
+      // Add the citation text
+      htmlOutput += `<div class="citation-content">${formatText(citationText)}</div>`;
+      
+      // Add citation sources if available
+      if (citation.retrievedReferences && Array.isArray(citation.retrievedReferences)) {
+        htmlOutput += `<div class="citation-sources">`;
+        
+        citation.retrievedReferences.forEach(reference => {
+          if (reference.location && reference.location.s3Location) {
+            const sourceUrl = reference.location.s3Location;
+            const fileName = sourceUrl.uri.split('/').pop();
+            
+            htmlOutput += `<a href="${sourceUrl}" class="source-link" title="${sourceUrl}">`;
+            htmlOutput += `[Source: ${fileName}]`;
+            htmlOutput += `</a>`;
+          }
+        });
+        
+        htmlOutput += `</div>`;
+      }
+      
+      htmlOutput += `</div>`;
+    });
+    
+    // If no content was processed, show a message
+    if (!htmlOutput) {
+      return '<div class="no-data">No citation content found in the data</div>';
+    }
+    
+    return htmlOutput;
+}
+
+function formatText(text) {
+// Handle bold markdown
+    text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+    // Handle line breaks
+    text = text.replace(/\n/g, '<br>');
+
+    return text;
 }
