@@ -1,0 +1,36 @@
+// Jest setup file for global test configuration
+
+// Import jest-dom matchers for enhanced DOM testing
+require('@testing-library/jest-dom');
+
+// Mock console methods to reduce noise in tests
+global.console = {
+  ...console,
+  // Uncomment to ignore specific console methods
+  // log: jest.fn(),
+  // debug: jest.fn(),
+  // info: jest.fn(),
+  // warn: jest.fn(),
+  // error: jest.fn(),
+};
+
+// Global test utilities
+global.createMockFile = (name = 'test.mp4', type = 'video/mp4', content = 'test') => {
+  return new File([content], name, { type });
+};
+
+// Mock IntersectionObserver if needed
+global.IntersectionObserver = class IntersectionObserver {
+  constructor() {}
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+};
+
+// Mock ResizeObserver if needed
+global.ResizeObserver = class ResizeObserver {
+  constructor() {}
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+};

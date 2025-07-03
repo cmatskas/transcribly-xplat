@@ -21,9 +21,6 @@ const s3Client = new S3Client({
   endpoint: `https://s3.${config.region}.amazonaws.com`
 });
 
-// Cache for storing Bedrock models
-let modelCache = null;
-
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -51,10 +48,7 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
 });
 
-// Handle Bedrock API calls
-// Handle Bedrock API calls
 ipcMain.handle('send-to-bedrock', async (event, { model, prompt, knowledgeBaseId }) => {
-   // Add knowledge base configuration if a knowledge base ID is provided
   if (knowledgeBaseId) {
     return await invokeBedrockWithKB(model, prompt, knowledgeBaseId);
   }
@@ -63,7 +57,6 @@ ipcMain.handle('send-to-bedrock', async (event, { model, prompt, knowledgeBaseId
   }
 });
 
-// Handle Transcribe API calls
 ipcMain.handle('transcribe-media', async (event, { filePath }) => {
   try {
     const jobName = `transcription-${Date.now()}`;

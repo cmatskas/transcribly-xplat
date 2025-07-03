@@ -6,6 +6,8 @@ const transcriptionContent = document.getElementById('transcriptionContent');
 const loadingSpinner = document.getElementById('loadingSpinner');
 const transcriptionText = document.getElementById('transcriptionText');
 const templateSelect = document.getElementById('promptTemplateSelect');
+let currentAnalysis = '';
+//test
 
 function showSuccessToast(message) {
     window.electronAPI.showToast(message, 'success');
@@ -23,10 +25,34 @@ function showWarningToast(message) {
     window.electronAPI.showToast(message, 'warning');
 }
 
+// Expose functions for testing
+if (typeof window !== 'undefined') {
+    window.showSuccessToast = showSuccessToast;
+    window.showErrorToast = showErrorToast;
+    window.showInfoToast = showInfoToast;
+    window.showWarningToast = showWarningToast;
+    window.showTranscribePage = showTranscribePage;
+    window.showAnalyzePage = showAnalyzePage;
+    window.downloadAnalysis = downloadAnalysis;
+    window.copyAnalysis = copyAnalysis;
+    window.uploadFile = uploadFile;
+    window.loadKnowledgeBases = loadKnowledgeBases;
+    window.simpleCitationParser = simpleCitationParser;
+    window.formatText = formatText;
+    window.cleanupAnalysisText = cleanupAnalysisText;
+    
+    // Expose currentAnalysis as a getter/setter to keep it synchronized
+    Object.defineProperty(window, 'currentAnalysis', {
+        get: () => currentAnalysis,
+        set: (value) => { currentAnalysis = value; },
+        configurable: true
+    });
+}
+
 function showTranscribePage() {
     document.getElementById('transcribe-page').style.display = 'block';
     document.getElementById('nav-transcribe').classList.add('active');
-    
+
     document.getElementById('analyze-page').style.display = 'none';
     document.getElementById('nav-analyze').classList.remove('active');
     // Hide other pages as needed
@@ -35,7 +61,7 @@ function showTranscribePage() {
 function showAnalyzePage() {
     document.getElementById('transcribe-page').style.display = 'none';
     document.getElementById('nav-transcribe').classList.remove('active');
-    
+
     document.getElementById('analyze-page').style.display = 'block';
     document.getElementById('nav-analyze').classList.add('active');
 }
@@ -45,7 +71,7 @@ function downloadAnalysis() {
         showWarningToast('No analysis available to download');
         return;
     }
-    
+
     // Create a Blob with the analysis text
     const analysisText = cleanupAnalysisText(currentAnalysis);
     const blob = new Blob([analysisText], { type: 'text/plain' });
@@ -58,7 +84,7 @@ function downloadAnalysis() {
 
     // Clean up
     URL.revokeObjectURL(link.href);
-    
+
     // Show success toast
     showSuccessToast('Analysis downloaded successfully');
 }
@@ -66,23 +92,25 @@ function downloadAnalysis() {
 function copyAnalysis() {
     if (!currentAnalysis) {
         showWarningToast('No analysis available to copy');
-        return;
+        return Promise.resolve();
     }
-    
+
     const analysisText = cleanupAnalysisText(currentAnalysis);
 
-    navigator.clipboard.writeText(analysisText)
+    return navigator.clipboard.writeText(analysisText)
         .then(() => {
             // Show success toast
             showSuccessToast('Analysis copied to clipboard');
-            
+
             // Optional: Show a brief success message
             const copyBtn = document.querySelector('.header-button');
-            const originalText = copyBtn.innerHTML;
-            copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-            setTimeout(() => {
-                copyBtn.innerHTML = originalText;
-            }, 2000);
+            if (copyBtn) {
+                const originalText = copyBtn.innerHTML;
+                copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(() => {
+                    copyBtn.innerHTML = originalText;
+                }, 2000);
+            }
         })
         .catch(err => {
             console.error('Failed to copy text:', err);
@@ -93,7 +121,7 @@ function copyAnalysis() {
 document.getElementById('nav-analyze').addEventListener('click', showAnalyzePage);
 document.getElementById('nav-transcribe').addEventListener('click', showTranscribePage);
 
-templateSelect.addEventListener('change', () =>{
+templateSelect.addEventListener('change', () => {
     const selectedOption = templateSelect.options[templateSelect.selectedIndex];
     const selectedPrompt = selectedOption.getAttribute('value');
     const promptInput = document.getElementById('promptEditor');
@@ -101,12 +129,12 @@ templateSelect.addEventListener('change', () =>{
 });
 
 // Add this to handle the checkbox toggle
-document.getElementById('useKnowledgeBase').addEventListener('change', async() => {
+document.getElementById('useKnowledgeBase').addEventListener('change', async () => {
     await loadKnowledgeBases();
 });
 
 // Store the knowledge base selection
-document.getElementById('knowledgeBaseSelect').addEventListener('change', function() {
+document.getElementById('knowledgeBaseSelect').addEventListener('change', function () {
     const selectedKnowledgeBaseId = this.value;
     localStorage.setItem('selectedKnowledgeBaseId', selectedKnowledgeBaseId);
     localStorage.setItem('useKnowledgeBase', 'true');
@@ -117,7 +145,7 @@ fileInput.addEventListener('change', (e) => {
     if (file) {
         // Show info toast when file is selected
         showInfoToast(`File selected: ${file.name}`);
-        
+
         const mediaUrl = URL.createObjectURL(file);
         videoPlayer.src = mediaUrl;
         uploadZone.classList.add('d-none');
@@ -164,7 +192,7 @@ async function uploadFile(file) {
         // Show loading state
         loadingSpinner.style.display = 'flex';
         transcriptionText.style.display = 'none';
-        
+
         // Show info toast when starting transcription
         showInfoToast('Starting transcription process...');
 
@@ -189,38 +217,38 @@ async function uploadFile(file) {
         const maxPollInterval = 10000; // Max interval of 10 seconds
         const maxAttempts = 90; // ~15 minutes max at varying intervals
         let attempts = 0;
-        
+
         // Update the UI to show polling status
         const updateStatus = (message) => {
             console.info(message);
         };
-        
+
         // Function to poll for transcription results
         const pollForResults = async () => {
             try {
                 attempts++;
                 updateStatus(`Checking transcription status... (Attempt ${attempts})`);
-                
+
                 const pollResponse = await fetch(`/api/transcribe/status/${jobId}`);
-                
+
                 if (!pollResponse.ok) {
                     throw new Error(`HTTP error! status: ${pollResponse.status}`);
                 }
-                
+
                 const pollData = await pollResponse.json();
-                
+
                 if (pollData.status === 'completed') {
                     // Transcription is done - show success notification
                     showSuccessToast('Transcription completed successfully!');
-                    
+
                     // Display the transcript
                     displayTranscript(pollData.data);
-                    
+
                     // If full view is selected, perform analysis
                     if (document.querySelector('input[name="viewMode"]:checked').value === 'full') {
                         await analyzeTranscript(pollData.data);
                     }
-                    
+
                     return; // Exit the polling loop
                 } else if (pollData.status === 'failed') {
                     // Show error notification
@@ -233,13 +261,13 @@ async function uploadFile(file) {
                 } else {
                     // Still in progress, continue polling with exponential backoff
                     pollInterval = Math.min(pollInterval * 1.5, maxPollInterval);
-                    
+
                     // Every 10 attempts, show an info toast to keep user updated
                     if (attempts % 10 === 0) {
-                        showInfoToast(`Transcription in progress... (${Math.round(attempts/6)} minute(s) elapsed)`);
+                        showInfoToast(`Transcription in progress... (${Math.round(attempts / 6)} minute(s) elapsed)`);
                     }
-                    
-                    updateStatus(`Transcription in progress... (${Math.round(attempts/6)} minute(s) elapsed)`);
+
+                    updateStatus(`Transcription in progress... (${Math.round(attempts / 6)} minute(s) elapsed)`);
                     setTimeout(pollForResults, pollInterval);
                 }
             } catch (error) {
@@ -249,13 +277,13 @@ async function uploadFile(file) {
                 transcriptionText.style.display = 'block';
             }
         };
-        
+
         // Start polling
         setTimeout(pollForResults, 1000); // Start first poll after 1 second
-        
+
     } catch (error) {
         console.error('Upload failed:', error);
-        
+
         // Provide more helpful error message based on error type
         if (error.name === 'AbortError') {
             showErrorToast('The transcription request was aborted. Please try with a smaller file.');
@@ -264,7 +292,7 @@ async function uploadFile(file) {
             showErrorToast(`Error uploading file: ${error.message}`);
             transcriptionText.textContent = `Error uploading file: ${error.message}`;
         }
-        
+
         transcriptionText.style.display = 'block';
     } finally {
         loadingSpinner.style.display = 'none';
@@ -289,31 +317,41 @@ document.getElementById('invokeBedrockBtn').addEventListener('click', async () =
     if (useKnowledgeBase) {
         const knowledgeBaseSelect = document.getElementById('knowledgeBaseSelect');
         knowledgeBaseId = knowledgeBaseSelect.value;
-        
+
         // Check if a valid knowledge base is selected (not the placeholder)
         if (!knowledgeBaseId || knowledgeBaseSelect.selectedIndex === 0) {
             knowledgeBaseId = null;
         }
     }
 
-    if(useKnowledgeBase && !knowledgeBaseId){
+    if (useKnowledgeBase && !knowledgeBaseId) {
         showErrorToast('Please select a knowledge base or uncheck the "Use Knowledge Base" checkbox');
         return;
     }
 
     try {
         // Pass the knowledge base ID to the backend
-        const response = await window.electronAPI.invoke('send-to-bedrock', { 
-            model, 
-            prompt, 
-            knowledgeBaseId 
+        const response = await window.electronAPI.invoke('send-to-bedrock', {
+            model,
+            prompt,
+            knowledgeBaseId
         });
-        responseArea.innerHTML = simpleCitationParser(response);
+        if (useKnowledgeBase) {
+            responseArea.innerHTML = simpleCitationParser(response);
+        }
+        else {
+            responseArea.innerHTML = response;
+        }
+        currentAnalysis = response;
+        // Also update window.currentAnalysis if it exists
+        if (typeof window !== 'undefined' && window.currentAnalysis !== undefined) {
+            window.currentAnalysis = response;
+        }
     } catch (error) {
         responseArea.innerHTML = `Error: ${error.message}`;
     }
 });
-  
+
 /*
 // Handle transcription
 document.getElementById('transcribeButton').addEventListener('click', async () => {
@@ -395,17 +433,17 @@ async function loadKnowledgeBases() {
             knowledgeBases = await window.electronAPI.invoke('get-knowledge-bases');
             localStorage.setItem('knowledgeBases', JSON.stringify(knowledgeBases));
         }
-        else{
+        else {
             knowledgeBases = JSON.parse(knowledgeBases);
         }
-         
+
         const knowledgeBaseSelect = document.getElementById('knowledgeBaseSelect');
-        
+
         // Clear existing options except the first one (placeholder)
         while (knowledgeBaseSelect.options.length > 1) {
             knowledgeBaseSelect.remove(1);
         }
-        
+
         // Add knowledge bases to the dropdown
         knowledgeBases.forEach(kb => {
             const option = document.createElement('option');
@@ -416,7 +454,7 @@ async function loadKnowledgeBases() {
         });
 
         const useKnowledgeBaseCheckbox = document.getElementById('useKnowledgeBase');
-        if ( useKnowledgeBaseCheckbox.checked) {
+        if (useKnowledgeBaseCheckbox.checked) {
             document.getElementById('useKnowledgeBase').checked = true;
             document.getElementById('knowledgeBaseSection').style.display = 'block';
         }
@@ -437,63 +475,82 @@ function simpleCitationParser(responseData) {
     if (!responseData || !responseData.citations || !Array.isArray(responseData.citations)) {
         return '<div class="error">No citation data found</div>';
     }
-    
+
     let htmlOutput = '';
-    
+
     // Loop through each citation
     responseData.citations.forEach((citation, index) => {
-      // Extract the text content if available
-      let citationText = '';
-      if (citation.generatedResponsePart && 
-          citation.generatedResponsePart.textResponsePart && 
-          citation.generatedResponsePart.textResponsePart.text) {
-        citationText = citation.generatedResponsePart.textResponsePart.text;
-      }
-      
-      // Skip if no text content
-      if (!citationText) return;
-      
-      // Start building the citation block
-      htmlOutput += `<div class="citation-item">`;
-      
-      // Add the citation text
-      htmlOutput += `<div class="citation-content">${formatText(citationText)}</div>`;
-      
-      // Add citation sources if available
-      if (citation.retrievedReferences && Array.isArray(citation.retrievedReferences)) {
-        htmlOutput += `<div class="citation-sources">`;
-        
-        citation.retrievedReferences.forEach(reference => {
-          if (reference.location && reference.location.s3Location) {
-            const sourceUrl = reference.location.s3Location;
-            const fileName = sourceUrl.uri.split('/').pop();
-            
-            htmlOutput += `<a href="${sourceUrl}" class="source-link" title="${sourceUrl}">`;
-            htmlOutput += `[Source: ${fileName}]`;
-            htmlOutput += `</a>`;
-          }
-        });
-        
+        // Extract the text content if available
+        let citationText = '';
+        if (citation.generatedResponsePart &&
+            citation.generatedResponsePart.textResponsePart &&
+            citation.generatedResponsePart.textResponsePart.text) {
+            citationText = citation.generatedResponsePart.textResponsePart.text;
+        }
+
+        // Skip if no text content
+        if (!citationText) return;
+
+        // Start building the citation block
+        htmlOutput += `<div class="citation-item">`;
+
+        // Add the citation text
+        htmlOutput += `<div class="citation-content">${formatText(citationText)}</div>`;
+
+        // Add citation sources if available
+        if (citation.retrievedReferences && Array.isArray(citation.retrievedReferences)) {
+            htmlOutput += `<div class="citation-sources">`;
+
+            citation.retrievedReferences.forEach(reference => {
+                if (reference.location && reference.location.s3Location) {
+                    const sourceUrl = reference.location.s3Location;
+                    const fileName = sourceUrl.uri.split('/').pop();
+
+                    htmlOutput += `<a href="${sourceUrl}" class="source-link" title="${sourceUrl}">`;
+                    htmlOutput += `[Source: ${fileName}]`;
+                    htmlOutput += `</a>`;
+                }
+            });
+
+            htmlOutput += `</div>`;
+        }
+
         htmlOutput += `</div>`;
-      }
-      
-      htmlOutput += `</div>`;
     });
-    
+
     // If no content was processed, show a message
     if (!htmlOutput) {
-      return '<div class="no-data">No citation content found in the data</div>';
+        return '<div class="no-data">No citation content found in the data</div>';
     }
-    
+
     return htmlOutput;
 }
 
 function formatText(text) {
-// Handle bold markdown
+    // Handle bold markdown
     text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
     // Handle line breaks
     text = text.replace(/\n/g, '<br>');
 
     return text;
+}
+
+function cleanupAnalysisText(text) {
+    // Replace erroneous /\n/g pattern
+    let cleaned = text.replace('/\\n/g', '\n');
+
+    // Replace <br> tags with newlines
+    cleaned = cleaned.replace(/<br>/g, '\n');
+
+    // Fix multiple consecutive newlines to maximum of two
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
+    // Ensure proper spacing after numbered list items
+    cleaned = cleaned.replace(/(\d+\.) (?=\*\*)/g, '$1\n');
+
+    // Add proper spacing for bullet points
+    cleaned = cleaned.replace(/(\n\s*)-\s+/g, '\n   - ');
+
+    return cleaned;
 }

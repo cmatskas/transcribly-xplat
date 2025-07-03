@@ -20,6 +20,10 @@ const bedrockModels = [
         inferenceArn: "arn:aws:bedrock:us-east-1:544610684157:inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0"
     },
     {
+        id: "Claude 4.0 Sonnet",
+        inferenceArn: "arn:aws:bedrock:us-east-1:544610684157:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0"
+    },
+    {
         id: "DeepSeek R1",
         inferenceArn: "arn:aws:bedrock:us-east-1:544610684157:inference-profile/us.deepseek.r1-v1:0"
     },

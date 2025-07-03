@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Auto Unit Test Generator",
+  "description": "Automatically creates or updates unit tests whenever JavaScript files are edited. If no tests exist for a file, creates comprehensive tests for the entire file. If tests already exist, appends new tests based on the latest code changes.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.js",
+      "src/**/*.js"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A JavaScript file has been modified. Please analyze the changes and:\n\n1. Check if unit tests already exist for this file\n2. If no tests exist, create comprehensive unit tests covering all functions, classes, and exported modules in the file\n3. If tests already exist, analyze the code changes and append new test cases to cover the modified or new functionality\n4. Follow testing best practices and use appropriate testing frameworks (Jest, Mocha, etc.)\n5. Ensure tests cover edge cases, error handling, and expected behavior\n6. Place tests in appropriate test directories following project conventions\n\nFile that was modified: {filePath}\nPlease generate or update the corresponding unit tests."
+  }
+}
