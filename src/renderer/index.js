@@ -137,6 +137,22 @@ document.getElementById('useKnowledgeBase').addEventListener('change', async () 
     await loadKnowledgeBases();
 });
 
+// Handle the use existing transcript checkbox
+document.getElementById('useExistingTranscript').addEventListener('change', () => {
+    const isChecked = document.getElementById('useExistingTranscript').checked;
+    const transcriptText = document.getElementById('transcriptionText').textContent || document.getElementById('transcriptionText').innerText;
+    
+    if (isChecked) {
+        // Check if there's actually transcript content
+        if (!transcriptText || transcriptText.trim() === '' || transcriptText.includes('Upload a file to see transcription')) {
+            showWarningToast('No transcript available. Please transcribe a file first.');
+            document.getElementById('useExistingTranscript').checked = false;
+            return;
+        }
+        showInfoToast('Transcript will be included with your prompt');
+    }
+});
+
 // Store the knowledge base selection
 document.getElementById('knowledgeBaseSelect').addEventListener('change', function () {
     const selectedKnowledgeBaseId = this.value;
@@ -306,14 +322,32 @@ async function uploadFile(file) {
 // Handle prompt submission
 document.getElementById('invokeBedrockBtn').addEventListener('click', async () => {
     const model = document.getElementById('modelSelect').value;
-    const prompt = document.getElementById('promptEditor').value;
+    let prompt = document.getElementById('promptEditor').value;
     const responseArea = document.getElementById('analysisText');
     const useKnowledgeBase = document.getElementById('useKnowledgeBase').checked;
+    const useExistingTranscript = document.getElementById('useExistingTranscript').checked;
 
     // Check if prompt is empty
     if (!prompt) {
         showErrorToast('Please enter a prompt');
         return;
+    }
+
+    // Append transcript text if checkbox is checked
+    if (useExistingTranscript) {
+        const transcriptText = document.getElementById('transcriptionText').textContent || document.getElementById('transcriptionText').innerText;
+        
+        // Validate transcript content
+        if (!transcriptText || transcriptText.trim() === '' || transcriptText.includes('Upload a file to see transcription')) {
+            showWarningToast('No transcript available. Please transcribe a file first or uncheck "Use Existing Transcript".');
+            return;
+        }
+        
+        // Clean up transcript text and append to prompt
+        const cleanTranscript = transcriptText.trim();
+        prompt = `${prompt}\n\n--- TRANSCRIPT ---\n${cleanTranscript}\n--- END TRANSCRIPT ---`;
+        
+        showInfoToast('Transcript has been included with your prompt');
     }
 
     // Get knowledge base ID if checkbox is checked
@@ -480,13 +514,15 @@ async function loadKnowledgeBases() {
         if (useKnowledgeBaseCheckbox.checked) {
             document.getElementById('useKnowledgeBase').checked = true;
             document.getElementById('knowledgeBaseSection').style.display = 'block';
+            showSuccessToast('Knowledge bases loaded successfully');
         }
         else {
             document.getElementById('useKnowledgeBase').checked = false;
             document.getElementById('knowledgeBaseSection').style.display = 'none';
+            showInfoToast('Removed knowledge bases from Bedrock query');
         }
 
-        showSuccessToast('Knowledge bases loaded successfully');
+        
     } catch (error) {
         console.error('Error loading knowledge bases:', error);
         showErrorToast('Failed to load knowledge bases: ' + error.message);

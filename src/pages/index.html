@@ -130,12 +130,18 @@
                         placeholder="Edit or write your prompt here..."></textarea>
                 </div>
 
-                <!-- Add this after the Prompt Editor div and before the Invoke Button -->
-                <div class="mb-3">
+                <!-- Transcript and Knowledge Base Options -->
+                <div class="mb-3 checkbox-options-container">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="useExistingTranscript">
+                        <label class="form-check-label" for="useExistingTranscript">
+                            <i class="bi bi-file-text me-1"></i>Use Existing Transcript
+                        </label>
+                    </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="useKnowledgeBase">
                         <label class="form-check-label" for="useKnowledgeBase">
-                            Use Knowledge Base
+                            <i class="bi bi-database me-1"></i>Use Knowledge Base
                         </label>
                     </div>
                 </div>
