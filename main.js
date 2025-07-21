@@ -11,7 +11,44 @@ const { BedrockAgentClient, ListKnowledgeBasesCommand } = require('@aws-sdk/clie
 const { BedrockAgentRuntimeClient, RetrieveAndGenerateCommand } = require('@aws-sdk/client-bedrock-agent-runtime');
 const { TranscribeClient, StartTranscriptionJobCommand } = require('@aws-sdk/client-transcribe');
 
-// initialize aws clients
+// Import credential management
+const CredentialsManager = require('./src/main/models/credentialsManager');
+const AWSValidator = require('./src/main/models/awsValidator');
+
+// Global variables for credential management
+let credentialsManager;
+let currentCredentials = null;
+let awsClients = {};
+
+// Initialize credential manager
+function initializeCredentialsManager() {
+  credentialsManager = new CredentialsManager();
+}
+
+// Initialize AWS clients with credentials
+function initializeAWSClients(credentials) {
+  const clientConfig = {
+    region: credentials.region,
+    credentials: {
+      accessKeyId: credentials.accessKeyId,
+      secretAccessKey: credentials.secretAccessKey,
+      sessionToken: credentials.sessionToken
+    }
+  };
+
+  awsClients = {
+    bedrock: new BedrockRuntimeClient(clientConfig),
+    bedrockAgent: new BedrockAgentClient(clientConfig),
+    bedrockAgentRuntime: new BedrockAgentRuntimeClient(clientConfig),
+    transcribe: new TranscribeClient(clientConfig),
+    s3: new S3Client({
+      ...clientConfig,
+      endpoint: `https://s3.${credentials.region}.amazonaws.com`
+    })
+  };
+}
+
+// Legacy clients (will be replaced by dynamic ones)
 const bedrockClient = new BedrockRuntimeClient({ region: config.region });
 const bedrockAgentClient = new BedrockAgentClient({ region: config.region });
 const bedrockAgentRuntime = new BedrockAgentRuntimeClient({ region: config.region });
@@ -21,8 +58,10 @@ const s3Client = new S3Client({
   endpoint: `https://s3.${config.region}.amazonaws.com`
 });
 
+let mainWindow;
+
 function createWindow() {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
@@ -32,20 +71,135 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadFile('src/pages/index.html');
   mainWindow.webContents.openDevTools();
 }
 
-app.whenReady().then(() => {
-  createWindow();
+async function createCredentialsWindow() {
+  const credentialsWindow = new BrowserWindow({
+    width: 800,
+    height: 900,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
+    },
+    modal: true,
+    parent: mainWindow,
+    show: false
+  });
+
+  credentialsWindow.loadFile('src/pages/credentials.html');
+  credentialsWindow.once('ready-to-show', () => {
+    credentialsWindow.show();
+  });
+
+  return credentialsWindow;
+}
+
+app.whenReady().then(async () => {
+  initializeCredentialsManager();
+  
+  // Check if credentials exist and are valid
+  const hasCredentials = await credentialsManager.hasCredentials();
+  
+  if (hasCredentials) {
+    try {
+      currentCredentials = await credentialsManager.loadCredentials();
+      initializeAWSClients(currentCredentials);
+      
+      // Validate credentials
+      const validator = new AWSValidator(currentCredentials);
+      const validation = await validator.validateCredentials();
+      
+      if (validation.valid && validation.permissions.bedrock && validation.permissions.transcribe) {
+        // Credentials are valid, load main app
+        createWindow();
+        mainWindow.loadFile('src/pages/index.html');
+      } else {
+        // Credentials exist but are invalid, show credentials setup
+        createWindow();
+        await createCredentialsWindow();
+      }
+    } catch (error) {
+      console.error('Error loading credentials:', error);
+      createWindow();
+      await createCredentialsWindow();
+    }
+  } else {
+    // No credentials, show setup
+    createWindow();
+    await createCredentialsWindow();
+  }
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
   });
 });
 
 app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
+});
+
+// Credential management IPC handlers
+ipcMain.handle('save-credentials', async (event, credentials) => {
+  try {
+    await credentialsManager.saveCredentials(credentials);
+    currentCredentials = credentials;
+    initializeAWSClients(credentials);
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to save credentials: ${error.message}`);
+  }
+});
+
+ipcMain.handle('load-credentials', async () => {
+  try {
+    return await credentialsManager.loadCredentials();
+  } catch (error) {
+    throw new Error(`Failed to load credentials: ${error.message}`);
+  }
+});
+
+ipcMain.handle('has-credentials', async () => {
+  return await credentialsManager.hasCredentials();
+});
+
+ipcMain.handle('delete-credentials', async () => {
+  try {
+    await credentialsManager.deleteCredentials();
+    currentCredentials = null;
+    awsClients = {};
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to delete credentials: ${error.message}`);
+  }
+});
+
+ipcMain.handle('validate-credentials', async () => {
+  try {
+    if (!currentCredentials) {
+      currentCredentials = await credentialsManager.loadCredentials();
+    }
+    const validator = new AWSValidator(currentCredentials);
+    return await validator.validateCredentials();
+  } catch (error) {
+    throw new Error(`Failed to validate credentials: ${error.message}`);
+  }
+});
+
+ipcMain.handle('navigate-to-main', async () => {
+  if (mainWindow) {
+    mainWindow.loadFile('src/pages/index.html');
+    // Close any credential windows
+    const allWindows = BrowserWindow.getAllWindows();
+    allWindows.forEach(window => {
+      if (window !== mainWindow) {
+        window.close();
+      }
+    });
+  }
 });
 
 ipcMain.handle('send-to-bedrock', async (event, { model, prompt, knowledgeBaseId }) => {
@@ -59,6 +213,10 @@ ipcMain.handle('send-to-bedrock', async (event, { model, prompt, knowledgeBaseId
 
 ipcMain.handle('transcribe-media', async (event, { filePath }) => {
   try {
+    if (!awsClients.transcribe) {
+      throw new Error('AWS credentials not configured');
+    }
+    
     const jobName = `transcription-${Date.now()}`;
     const command = new StartTranscriptionJobCommand({
       TranscriptionJobName: jobName,
@@ -67,7 +225,7 @@ ipcMain.handle('transcribe-media', async (event, { filePath }) => {
       LanguageCode: 'en-US'
     });
 
-    await transcribeClient.send(command);
+    await awsClients.transcribe.send(command);
     return `Transcription job started: ${jobName}`;
   } catch (error) {
     throw new Error(`Transcribe API error: ${error.message}`);
@@ -86,11 +244,15 @@ ipcMain.handle('get-bedrock-models', () => {
 // Add handler to get Bedrock knowledge bases
 ipcMain.handle('get-knowledge-bases', async () => {
   try {
+    if (!awsClients.bedrockAgent) {
+      throw new Error('AWS credentials not configured');
+    }
+    
     const command = new ListKnowledgeBasesCommand({
       maxResults: 20 // Adjust as needed
     });
 
-    const response = await bedrockAgentClient.send(command);
+    const response = await awsClients.bedrockAgent.send(command);
 
     // Format the knowledge bases for the dropdown
     const knowledgeBases = response.knowledgeBaseSummaries.map(kb => ({
@@ -170,7 +332,8 @@ async function getTranscriptionResults(outputUri) {
 
   try {
     console.info("Retrieving trascription results from storage");
-    const response = await s3Client.send(command);
+    const client = awsClients.s3 || s3Client; // Fallback to legacy client
+    const response = await client.send(command);
     const transcript = await response.Body.transformToString();
     return JSON.parse(transcript);
   } catch (error) {
@@ -183,8 +346,9 @@ async function uploadLargeFile(file, bucket, key) {
   const chunkSize = 5 * 1024 * 1024; // 5MB chunks
 
   try {
+    const client = awsClients.s3 || s3Client; // Use dynamic client or fallback
     const multipartUpload = new Upload({
-      client: s3Client,
+      client: client,
       params: {
         Bucket: bucket,
         Key: key,
@@ -210,8 +374,9 @@ async function uploadLargeFile(file, bucket, key) {
 
 async function uploadToS3(file, bucket, key) {
   try {
+    const client = awsClients.s3 || s3Client; // Use dynamic client or fallback
     const upload = new Upload({
-      client: s3Client,  // Use S3Client directly
+      client: client,
       params: {
         Bucket: bucket,
         Key: key,
@@ -235,6 +400,10 @@ async function uploadToS3(file, bucket, key) {
 
 async function invokeBedrockNoKB(model, prompt) {
   try {
+    if (!awsClients.bedrock) {
+      throw new Error('AWS credentials not configured');
+    }
+    
     // Create the base request object
     const request = {
       modelId: model,
@@ -258,7 +427,7 @@ async function invokeBedrockNoKB(model, prompt) {
     const command = new ConverseCommand(request);
 
     // Send the request to Bedrock
-    const response = await bedrockClient.send(command);
+    const response = await awsClients.bedrock.send(command);
 
     // Parse the response - ConverseCommand returns a structured response
     // with the model's output in the 'message' property
@@ -270,24 +439,27 @@ async function invokeBedrockNoKB(model, prompt) {
 }
 
 async function invokeBedrockWithKB (model, prompt, knowledgeBaseId){
-  const params = {
-    input: {
-      text: prompt // The user's question or request
-    },
-    retrieveAndGenerateConfiguration: {
-      knowledgeBaseConfiguration: {
-          knowledgeBaseId: knowledgeBaseId, // The ID of your knowledge base
-          modelArn: model // The ARN of the model to use (e.g., Anthropic Claude)
-      },
-      type: "KNOWLEDGE_BASE"
-    }
-  };
-
-  const command = new RetrieveAndGenerateCommand(params);
-
   try {
-      const response = await bedrockAgentRuntime.send(command);
-      return response;
+    if (!awsClients.bedrockAgentRuntime) {
+      throw new Error('AWS credentials not configured');
+    }
+    
+    const params = {
+      input: {
+        text: prompt // The user's question or request
+      },
+      retrieveAndGenerateConfiguration: {
+        knowledgeBaseConfiguration: {
+            knowledgeBaseId: knowledgeBaseId, // The ID of your knowledge base
+            modelArn: model // The ARN of the model to use (e.g., Anthropic Claude)
+        },
+        type: "KNOWLEDGE_BASE"
+      }
+    };
+
+    const command = new RetrieveAndGenerateCommand(params);
+    const response = await awsClients.bedrockAgentRuntime.send(command);
+    return response;
   } catch (error) {
     logger.log('error', `Bedrock retrieve and generate call failed: ${error.message}`);
     throw new Error(`Bedrock retrieve and generate call failed: ${error.message}`);

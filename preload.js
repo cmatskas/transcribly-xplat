@@ -40,5 +40,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     invokeAsync: async (channel, data) => {
         return await ipcRenderer.invoke(channel, data);
-    }
+    },
+    // Credentials management
+    saveCredentials: (credentials) => ipcRenderer.invoke('save-credentials', credentials),
+    loadCredentials: () => ipcRenderer.invoke('load-credentials'),
+    hasCredentials: () => ipcRenderer.invoke('has-credentials'),
+    deleteCredentials: () => ipcRenderer.invoke('delete-credentials'),
+    validateCredentials: () => ipcRenderer.invoke('validate-credentials'),
+    navigateToMain: () => ipcRenderer.invoke('navigate-to-main')
 });
