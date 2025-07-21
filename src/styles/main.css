@@ -314,6 +314,26 @@
     background: linear-gradient(to right, #ffc107, #ff9800) !important;
 }
 
+/* Bedrock Processing Modal Styling */
+#bedrockProcessingModal .modal-content {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+#bedrockProcessingModal .modal-body {
+    padding: 2rem;
+}
+
+#bedrockProcessingModal .spinner-border {
+    border-width: 0.25rem;
+}
+
+#bedrockProcessingModal .modal-title {
+    color: #1f2937;
+    font-weight: 600;
+}
+
 /* Credentials and settings styling */
 .dropdown-menu {
     border: 1px solid #e5e7eb;

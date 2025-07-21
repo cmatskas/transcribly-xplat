@@ -20,7 +20,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
             <a class="navbar-brand" href="#">
-                <i class="bi bi-braces-asterisk"></i>   Transcribely
+                <i class="bi bi-braces-asterisk"></i> Transcribely
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -36,7 +36,8 @@
                 </ul>
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="settingsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <a class="nav-link dropdown-toggle" href="#" id="settingsDropdown" role="button"
+                            data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-gear"></i> Settings
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="settingsDropdown">
@@ -45,7 +46,9 @@
                                     <i class="bi bi-shield-lock me-2"></i>AWS Credentials
                                 </a>
                             </li>
-                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
                             <li>
                                 <a class="dropdown-item" href="#" id="nav-connection-status">
                                     <i class="bi bi-wifi me-2"></i>Connection Status
@@ -64,7 +67,7 @@
             <div class="col-md-6">
                 <div class="title-card">
                     <h2>Player</h2>
-                </div>   
+                </div>
                 <!-- Upload Zone -->
                 <div class="upload-zone mb-3" id="uploadZone">
                     <input type="file" id="fileInput" accept="video/*,audio/*" class="d-none">
@@ -83,7 +86,7 @@
                 <div class="title-card">
                     <h2>Transcript</h2>
                 </div>
-                
+
                 <div class="transcription-content" id="transcriptionContent">
                     <div class="loading-spinner" id="loadingSpinner"></div>
                     <div id="transcriptionText" class="text-gray-500 text-center">
@@ -104,7 +107,7 @@
                 <div class="title-card">
                     <h2>Bedrock Configuration</h2>
                 </div>
-                
+
                 <!-- Model Selection -->
                 <div class="mb-3">
                     <label for="modelSelect" class="form-label">Select Bedrock Model</label>
@@ -112,18 +115,19 @@
                         <option selected disabled>Loading models...</option>
                     </select>
                 </div>
-                
+
                 <!-- Prompt Templates -->
                 <div class="mb-3">
                     <label for="promptTemplate" class="form-label">Select Prompt Template</label>
                     <select class="form-select" id="promptTemplateSelect">
                     </select>
                 </div>
-                
+
                 <!-- Prompt Editor -->
                 <div class="mb-3">
                     <label for="promptEditor" class="form-label">Edit Prompt</label>
-                    <textarea class="form-control" id="promptEditor" rows="6" placeholder="Edit or write your prompt here..."></textarea>
+                    <textarea class="form-control" id="promptEditor" rows="6"
+                        placeholder="Edit or write your prompt here..."></textarea>
                 </div>
 
                 <!-- Add this after the Prompt Editor div and before the Invoke Button -->
@@ -141,19 +145,19 @@
                     <select class="form-select" id="knowledgeBaseSelect">
                         <option selected disabled>Select a knowledge base...</option>
                     </select>
-                </div>                              
+                </div>
                 <!-- Invoke Button -->
                 <button id="invokeBedrockBtn" class="btn btn-primary w-100 mb-3">
                     <i class="bi bi-lightning-charge"></i> Invoke Bedrock
                 </button>
             </div>
-            
+
             <!-- Results Column -->
             <div class="col-md-6">
                 <div class="title-card">
                     <h2>Results</h2>
                 </div>
-                
+
                 <!-- Results Display -->
                 <div id="analysisContent">
                     <div class="analysis-header">
@@ -175,7 +179,26 @@
                         <div id="analysisText"></div>
                     </div>
                 </div>
-                
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bedrock Processing Modal -->
+    <div class="modal fade" id="bedrockProcessingModal" tabindex="-1" aria-labelledby="bedrockProcessingModalLabel"
+        aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center py-4">
+                    <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <h5 class="modal-title mb-2" id="bedrockProcessingModalLabel">
+                        <i class="bi bi-lightning-charge me-2"></i>Processing Your Request
+                    </h5>
+                    <p class="text-muted mb-0">Working on your prompt query...</p>
+                    <small class="text-muted d-block mt-2">This may take a few moments</small>
+                </div>
             </div>
         </div>
     </div>

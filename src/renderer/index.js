@@ -334,12 +334,20 @@ document.getElementById('invokeBedrockBtn').addEventListener('click', async () =
     }
 
     try {
+        // Show the processing modal
+        const modal = new bootstrap.Modal(document.getElementById('bedrockProcessingModal'));
+        modal.show();
+
         // Pass the knowledge base ID to the backend
         const response = await window.electronAPI.invoke('send-to-bedrock', {
             model,
             prompt,
             knowledgeBaseId
         });
+        
+        // Hide the modal
+        modal.hide();
+        
         if (useKnowledgeBase) {
             responseArea.innerHTML = simpleCitationParser(response);
         }
@@ -351,8 +359,19 @@ document.getElementById('invokeBedrockBtn').addEventListener('click', async () =
         if (typeof window !== 'undefined' && window.currentAnalysis !== undefined) {
             window.currentAnalysis = response;
         }
+        
+        // Show success toast
+        showSuccessToast('Bedrock analysis completed successfully!');
+        
     } catch (error) {
+        // Hide the modal in case of error
+        const modal = bootstrap.Modal.getInstance(document.getElementById('bedrockProcessingModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
         responseArea.innerHTML = `Error: ${error.message}`;
+        showErrorToast(`Bedrock analysis failed: ${error.message}`);
     }
 });
 
