@@ -274,6 +274,24 @@
     font-size: 0.875rem;
 }
 
+.credentials-container {
+    max-width: 600px;
+    margin: 2rem auto;
+}
+
+.status-badge {
+    font-size: 0.875rem;
+}
+
+.permission-item {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.permission-item:last-child {
+    border-bottom: none;
+}
+
 /* Custom styles for Toastify notifications */
 .toastify {
     font-family: inherit !important;
