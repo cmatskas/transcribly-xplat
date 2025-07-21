@@ -98,19 +98,19 @@ async function createCredentialsWindow() {
 
 app.whenReady().then(async () => {
   initializeCredentialsManager();
-  
+
   // Check if credentials exist and are valid
   const hasCredentials = await credentialsManager.hasCredentials();
-  
+
   if (hasCredentials) {
     try {
       currentCredentials = await credentialsManager.loadCredentials();
       initializeAWSClients(currentCredentials);
-      
+
       // Validate credentials
       const validator = new AWSValidator(currentCredentials);
       const validation = await validator.validateCredentials();
-      
+
       if (validation.valid && validation.permissions.bedrock && validation.permissions.transcribe) {
         // Credentials are valid, load main app
         createWindow();
@@ -202,6 +202,15 @@ ipcMain.handle('navigate-to-main', async () => {
   }
 });
 
+ipcMain.handle('open-credentials-window', async () => {
+  try {
+    await createCredentialsWindow();
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to open credentials window: ${error.message}`);
+  }
+});
+
 ipcMain.handle('send-to-bedrock', async (event, { model, prompt, knowledgeBaseId }) => {
   if (knowledgeBaseId) {
     return await invokeBedrockWithKB(model, prompt, knowledgeBaseId);
@@ -216,7 +225,7 @@ ipcMain.handle('transcribe-media', async (event, { filePath }) => {
     if (!awsClients.transcribe) {
       throw new Error('AWS credentials not configured');
     }
-    
+
     const jobName = `transcription-${Date.now()}`;
     const command = new StartTranscriptionJobCommand({
       TranscriptionJobName: jobName,
@@ -247,7 +256,7 @@ ipcMain.handle('get-knowledge-bases', async () => {
     if (!awsClients.bedrockAgent) {
       throw new Error('AWS credentials not configured');
     }
-    
+
     const command = new ListKnowledgeBasesCommand({
       maxResults: 20 // Adjust as needed
     });
@@ -403,7 +412,7 @@ async function invokeBedrockNoKB(model, prompt) {
     if (!awsClients.bedrock) {
       throw new Error('AWS credentials not configured');
     }
-    
+
     // Create the base request object
     const request = {
       modelId: model,
@@ -411,8 +420,8 @@ async function invokeBedrockNoKB(model, prompt) {
         {
           role: "user",
           content: [
-            { 
-              text: prompt 
+            {
+              text: prompt
             }
           ]
         }
@@ -438,20 +447,20 @@ async function invokeBedrockNoKB(model, prompt) {
   }
 }
 
-async function invokeBedrockWithKB (model, prompt, knowledgeBaseId){
+async function invokeBedrockWithKB(model, prompt, knowledgeBaseId) {
   try {
     if (!awsClients.bedrockAgentRuntime) {
       throw new Error('AWS credentials not configured');
     }
-    
+
     const params = {
       input: {
         text: prompt // The user's question or request
       },
       retrieveAndGenerateConfiguration: {
         knowledgeBaseConfiguration: {
-            knowledgeBaseId: knowledgeBaseId, // The ID of your knowledge base
-            modelArn: model // The ARN of the model to use (e.g., Anthropic Claude)
+          knowledgeBaseId: knowledgeBaseId, // The ID of your knowledge base
+          modelArn: model // The ARN of the model to use (e.g., Anthropic Claude)
         },
         type: "KNOWLEDGE_BASE"
       }

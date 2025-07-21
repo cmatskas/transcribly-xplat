@@ -314,6 +314,76 @@
     background: linear-gradient(to right, #ffc107, #ff9800) !important;
 }
 
+/* Credentials and settings styling */
+.dropdown-menu {
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border-radius: 0.5rem;
+}
+
+.dropdown-item {
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background-color: #f3f4f6;
+    color: #1f2937;
+}
+
+.dropdown-item i {
+    width: 1rem;
+    text-align: center;
+}
+
+.navbar-nav .dropdown-toggle::after {
+    margin-left: 0.5rem;
+}
+
+/* Connection status indicators */
+.connection-status-success {
+    color: #10b981;
+}
+
+.connection-status-warning {
+    color: #f59e0b;
+}
+
+.connection-status-error {
+    color: #ef4444;
+}
+
+/* Credentials form enhancements */
+.credentials-form-container {
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+}
+
+.credentials-status-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.credentials-status-card.success {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.credentials-status-card.warning {
+    background: #fffbeb;
+    border-color: #fed7aa;
+}
+
+.credentials-status-card.error {
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
 @media (max-width: 640px) {
     .transcript-segment {
         padding: 0.5rem;
@@ -331,5 +401,9 @@
     .speaker-label {
         font-size: 0.75rem;
         padding: 0.15rem 0.4rem;
+    }
+
+    .dropdown-menu {
+        min-width: 200px;
     }
 }

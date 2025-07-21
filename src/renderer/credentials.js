@@ -2,7 +2,7 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Check if credentials already exist
-    const hasCredentials = await window.electronAPI.hasCredentials();
+    const hasCredentials = await window.electronAPI.invoke('has-credentials');
     if (hasCredentials) {
         await loadExistingCredentials();
     }
@@ -30,7 +30,7 @@ async function saveCredentials() {
         };
 
         // Save credentials
-        await window.electronAPI.saveCredentials(credentials);
+        await window.electronAPI.invoke('save-credentials',credentials);
 
         // Test the connection
         await testConnection();
@@ -53,7 +53,7 @@ async function testConnection() {
     connectionStatus.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Testing connection...';
 
     try {
-        const result = await window.electronAPI.validateCredentials();
+        const result = await window.electronAPI.invoke('validate-credentials');
 
         let statusHtml = '';
 
@@ -114,7 +114,7 @@ async function testConnection() {
 
 async function loadExistingCredentials() {
     try {
-        const credentials = await window.electronAPI.loadCredentials();
+        const credentials = await window.electronAPI.invoke('load-credentials');
         if (credentials) {
             document.getElementById('accessKeyId').value = credentials.accessKeyId;
             document.getElementById('secretAccessKey').value = credentials.secretAccessKey;
@@ -131,5 +131,5 @@ async function loadExistingCredentials() {
 }
 
 function continueToApp() {
-    window.electronAPI.navigateToMain();
+    window.electronAPI.invoke('navigate-to-main');
 }

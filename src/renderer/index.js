@@ -40,6 +40,8 @@ if (typeof window !== 'undefined') {
     window.simpleCitationParser = simpleCitationParser;
     window.formatText = formatText;
     window.cleanupAnalysisText = cleanupAnalysisText;
+    window.openCredentialsWindow = openCredentialsWindow;
+    window.checkConnectionStatus = checkConnectionStatus;
     
     // Expose currentAnalysis as a getter/setter to keep it synchronized
     Object.defineProperty(window, 'currentAnalysis', {
@@ -120,6 +122,8 @@ function copyAnalysis() {
 
 document.getElementById('nav-analyze').addEventListener('click', showAnalyzePage);
 document.getElementById('nav-transcribe').addEventListener('click', showTranscribePage);
+document.getElementById('nav-credentials').addEventListener('click', openCredentialsWindow);
+document.getElementById('nav-connection-status').addEventListener('click', checkConnectionStatus);
 
 templateSelect.addEventListener('change', () => {
     const selectedOption = templateSelect.options[templateSelect.selectedIndex];
@@ -553,4 +557,54 @@ function cleanupAnalysisText(text) {
     cleaned = cleaned.replace(/(\n\s*)-\s+/g, '\n   - ');
 
     return cleaned;
+}
+
+// Credentials management functions
+async function openCredentialsWindow() {
+    try {
+        showInfoToast('Opening credentials management...');
+        await window.electronAPI.invoke('open-credentials-window');
+    } catch (error) {
+        console.error('Error opening credentials window:', error);
+        showErrorToast(`Failed to open credentials window: ${error.message}`);
+    }
+}
+
+async function checkConnectionStatus() {
+    try {
+        showInfoToast('Checking AWS connection status...');
+        
+        const hasCredentials = await window.electronAPI.invoke('has-credentials');
+        
+        if (!hasCredentials) {
+            showWarningToast('No AWS credentials configured. Please set up your credentials first.');
+            return;
+        }
+
+        const validation = await window.electronAPI.invoke('validate-credentials');
+        
+        if (validation.valid) {
+            let statusMessage = `Connected to AWS Account: ${validation.identity.account}`;
+            
+            if (validation.permissions.bedrock && validation.permissions.transcribe) {
+                statusMessage += '\n All required permissions available';
+                showSuccessToast(statusMessage);
+            } else {
+                statusMessage += '\n⚠️ Some permissions missing:';
+                if (!validation.permissions.bedrock) statusMessage += '\n Bedrock access denied';
+                if (!validation.permissions.transcribe) statusMessage += '\n Transcribe access denied';
+                showWarningToast(statusMessage);
+            }
+            
+            if (validation.errors.length > 0) {
+                console.warn('Permission errors:', validation.errors);
+            }
+        } else {
+            showErrorToast(` AWS connection failed: ${validation.errors.join(', ')}`);
+        }
+        
+    } catch (error) {
+        console.error('Error checking connection status:', error);
+        showErrorToast(`Failed to check connection: ${error.message}`);
+    }
 }
