@@ -14,6 +14,7 @@ const { TranscribeClient, StartTranscriptionJobCommand, GetTranscriptionJobComma
 // Import credential management
 const CredentialsManager = require('./src/main/models/credentialsManager');
 const AWSValidator = require('./src/main/models/awsValidator');
+const TranscriptMapper = require('./src/main/models/transcriptMapper.js');
 
 // Global variables for credential management
 let credentialsManager;
@@ -255,9 +256,11 @@ ipcMain.handle('transcribe-media', async (event, { file }) => {
         
         // Get the transcription results
         const results = await getTranscriptionResults(jobStatus.outputUri);
+        const transcriptMapper = new TranscriptMapper(results);
+        const transcript = transcriptMapper.getAllTimestampedText();
         return {
           status: 'COMPLETED',
-          transcript: results.results.transcripts[0].transcript,
+          transcript: transcript,
           jobName: jobName
         };
       } else if (jobStatus.status === 'FAILED') {
@@ -393,6 +396,7 @@ async function checkTranscriptionJobStatus(jobName) {
 
 // Get transcription results
 async function getTranscriptionResults(outputUri) {
+
   // Extract bucket and key from the output URI
   const url = new URL(outputUri);
   const bucket = url.pathname.split("/")[1]; // Extract bucket name from pathname
@@ -405,7 +409,7 @@ async function getTranscriptionResults(outputUri) {
 
   try {
     console.info("Retrieving trascription results from storage");
-    const client = awsClients.s3 || s3Client; // Fallback to legacy client
+    const client = awsClients.s3;
     const response = await client.send(command);
     const transcript = await response.Body.transformToString();
     return JSON.parse(transcript);
@@ -419,7 +423,7 @@ async function uploadLargeFile(file, bucket, key) {
   const chunkSize = 5 * 1024 * 1024; // 5MB chunks
 
   try {
-    const client = awsClients.s3 || s3Client; // Use dynamic client or fallback
+    const client = awsClients.s3; // Use dynamic client or fallback
     const multipartUpload = new Upload({
       client: client,
       params: {
@@ -447,7 +451,7 @@ async function uploadLargeFile(file, bucket, key) {
 
 async function uploadToS3(file, bucket, key) {
   try {
-    const client = awsClients.s3 || s3Client; // Use dynamic client or fallback
+    const client = awsClients.s3; // Use dynamic client or fallback
     const upload = new Upload({
       client: client,
       params: {

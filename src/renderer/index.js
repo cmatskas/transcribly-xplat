@@ -6,7 +6,7 @@ const transcriptionContent = document.getElementById('transcriptionContent');
 const transcriptionText = document.getElementById('transcriptionText');
 const templateSelect = document.getElementById('promptTemplateSelect');
 let currentAnalysis = '';
-//test
+let currentTranscript = [];
 
 function showSuccessToast(message) {
     window.electronAPI.showToast(message, 'success');
@@ -41,6 +41,9 @@ if (typeof window !== 'undefined') {
     window.cleanupAnalysisText = cleanupAnalysisText;
     window.openCredentialsWindow = openCredentialsWindow;
     window.checkConnectionStatus = checkConnectionStatus;
+    window.downloadTranscript = downloadTranscript;
+    window.copyTranscript = copyTranscript;
+    window.clearTranscription = clearTranscription;
 
     // Expose currentAnalysis as a getter/setter to keep it synchronized
     Object.defineProperty(window, 'currentAnalysis', {
@@ -375,6 +378,29 @@ document.addEventListener('DOMContentLoaded', () => {
             statusElement.textContent = progressData.message;
         }
     });
+
+    // Add event listeners for transcript management buttons
+    document.getElementById('downloadTranscript').addEventListener('click', downloadTranscript);
+    document.getElementById('copyTranscript').addEventListener('click', copyTranscript);
+    document.getElementById('clearTranscriptionBtn').addEventListener('click', clearTranscription);
+
+    // Add event listeners for clear confirmation modal
+    document.getElementById('saveTranscriptBeforeClear').addEventListener('click', () => {
+        downloadTranscript();
+        performClearTranscription();
+        bootstrap.Modal.getInstance(document.getElementById('clearTranscriptionModal')).hide();
+    });
+
+    document.getElementById('copyTranscriptBeforeClear').addEventListener('click', async () => {
+        await copyTranscript();
+        performClearTranscription();
+        bootstrap.Modal.getInstance(document.getElementById('clearTranscriptionModal')).hide();
+    });
+
+    document.getElementById('clearWithoutSaving').addEventListener('click', () => {
+        performClearTranscription();
+        bootstrap.Modal.getInstance(document.getElementById('clearTranscriptionModal')).hide();
+    });
 });
 
 // Function to load knowledge bases
@@ -558,6 +584,89 @@ async function checkConnectionStatus() {
         showErrorToast(`Failed to check connection: ${error.message}`);
     }
 }
+// Transcript management functions
+function downloadTranscript() {
+    const transcriptText = document.getElementById('transcriptionText').textContent || document.getElementById('transcriptionText').innerText;
+
+    if (!transcriptText || transcriptText.trim() === '' || transcriptText.includes('Upload a file to see transcription')) {
+        showWarningToast('No transcript available to download');
+        return;
+    }
+
+    // Create a Blob with the transcript text
+    const blob = new Blob([cleanupTranscript()], { type: 'text/plain' });
+
+    // Create a download link
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'transcript.txt';
+    link.click();
+
+    // Clean up
+    URL.revokeObjectURL(link.href);
+
+    // Show success toast
+    showSuccessToast('Transcript downloaded successfully');
+}
+
+function copyTranscript() {
+    const transcriptText = document.getElementById('transcriptionText').textContent || document.getElementById('transcriptionText').innerText;
+
+    if (!transcriptText || transcriptText.trim() === '' || transcriptText.includes('Upload a file to see transcription')) {
+        showWarningToast('No transcript available to copy');
+        return Promise.resolve();
+    }
+
+    return navigator.clipboard.writeText(cleanupTranscript())
+        .then(() => {
+            showSuccessToast('Transcript copied to clipboard');
+
+            // Optional: Show a brief success message on the button
+            const copyBtn = document.getElementById('copyTranscript');
+            if (copyBtn) {
+                const originalText = copyBtn.innerHTML;
+                copyBtn.innerHTML = '<i class="fas fa-check me-2"></i>Copied!';
+                setTimeout(() => {
+                    copyBtn.innerHTML = originalText;
+                }, 2000);
+            }
+        })
+        .catch(err => {
+            console.error('Failed to copy transcript:', err);
+            showErrorToast('Failed to copy transcript to clipboard');
+        });
+}
+
+function clearTranscription() {
+    // Show the confirmation modal
+    const modal = new bootstrap.Modal(document.getElementById('clearTranscriptionModal'));
+    modal.show();
+}
+
+function performClearTranscription() {
+    // Reset the file input
+    fileInput.value = '';
+
+    // Clear video player and hide video container
+    videoPlayer.src = '';
+    videoContainer.classList.add('d-none');
+    uploadZone.classList.remove('d-none');
+
+    // Clear transcription text
+    transcriptionText.innerHTML = 'Upload a file to see transcription';
+
+    // Hide transcript action buttons
+    document.getElementById('downloadTranscript').classList.add('d-none');
+    document.getElementById('copyTranscript').classList.add('d-none');
+    document.getElementById('clearTranscriptionBtn').classList.add('d-none');
+
+    // Reset upload zone border color
+    uploadZone.style.borderColor = '#ccc';
+
+    // Show success message
+    showSuccessToast('Transcription cleared successfully');
+}
+
 // Handle file upload and transcription
 async function uploadFile(file) {
     const modal = new bootstrap.Modal(document.getElementById('transcriptionProcessingModal'));
@@ -580,15 +689,21 @@ async function uploadFile(file) {
             size: file.size
         };
 
-        // Call the transcription service with cloneable data
+        // Call the transcription service with the uploaded data
         const response = await window.electronAPI.invoke('transcribe-media', { file: fileData });
 
         // Hide the modal
         modal.hide();
 
         if (response.status === 'COMPLETED') {
-            // Display the transcript
-            transcriptionText.innerHTML = response.transcript;
+            // Display the transcript with timestamps and speaker details
+            displayTranscript(response.transcript);
+
+            // Show transcript action buttons
+            document.getElementById('downloadTranscript').classList.remove('d-none');
+            document.getElementById('copyTranscript').classList.remove('d-none');
+            document.getElementById('clearTranscriptionBtn').classList.remove('d-none');
+
             showSuccessToast('Transcription completed successfully!');
         } else {
             modal.hide();
@@ -611,4 +726,89 @@ async function uploadFile(file) {
     } finally {
         modal.hide();
     }
+}
+function displayTranscript(timestampedTranscript) {
+
+    if (!timestampedTranscript || timestampedTranscript.length === 0) {
+        transcriptionText.innerHTML = 'No transcription data available';
+        showWarningToast('No transcription data was returned');
+        return;
+    }
+
+    // Format each segment
+    const formattedTranscript = timestampedTranscript.map(segment => {
+        const startTimeFormatted = formatTimestamp(segment.startTime);
+        const endTimeFormatted = formatTimestamp(segment.endTime);
+        const speakerLabel = segment.speaker ? 
+            `<span class="speaker-label">Speaker ${segment.speaker}</span>` : 
+            '<span class="speaker-label">Unknown</span>';
+        currentTranscript.push(segment.text);
+        
+        return `<div class="transcript-segment">
+            <div class="transcript-header">
+                <span class="timestamp">${startTimeFormatted} --> ${endTimeFormatted}</span>
+                ${speakerLabel}
+            </div>
+            <div class="transcript-content">
+                <span class="transcript-text">${segment.text}</span>
+            </div>
+        </div>`;
+    }).join('');
+
+    // Update the transcription text content
+    transcriptionText.innerHTML = formattedTranscript;
+
+    addTranscriptSegmentListeners();
+}
+
+function addTranscriptSegmentListeners() {
+    const transcriptSegments = document.querySelectorAll('.transcript-segment');
+
+    transcriptSegments.forEach(segment => {
+        // Check if the segment already has a click listener
+        if (!segment.hasAttribute('data-listener-attached')) {
+            segment.addEventListener('click', () => {
+                const timestampElement = segment.querySelector('.timestamp');
+                if (timestampElement) {
+                    // Extract the start timestamp from the timestamp text (e.g., "1:23:45:678 --> 1:24:00:000")
+                    const startTime = timestampElement.textContent.split('-->')[0].trim();
+                    const videoElement = document.getElementById('videoPlayer');
+
+                    if (videoElement && startTime) {
+                        moveVideoToTimestamp(videoElement, startTime);
+                    }
+                }
+            });
+
+            // Mark the segment as having a listener attached
+            segment.setAttribute('data-listener-attached', 'true');
+        }
+    });
+}
+
+function moveVideoToTimestamp(videoElement, timestamp) {
+    const [hours, minutes, seconds, milliseconds] = timestamp.split(':').map(Number);
+    const totalSeconds = (hours * 3600) + (minutes * 60) + seconds + (milliseconds / 1000);
+    videoElement.currentTime = totalSeconds;
+    videoElement.play();
+}
+
+ // Format timestamp into H:mm:ss:milliseconds format
+ function formatTimestamp(seconds) {
+    const totalMilliseconds = seconds * 1000;
+    const hours = Math.floor(totalMilliseconds / 3600000);
+    const minutes = Math.floor((totalMilliseconds % 3600000) / 60000);
+    const seconds_ = Math.floor((totalMilliseconds % 60000) / 1000);
+    const milliseconds = Math.floor(totalMilliseconds % 1000);
+
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds_).padStart(2, '0')}:${String(milliseconds).padStart(3, '0')}`;
+}
+
+function cleanupTranscript() {
+    // Combine all text segments into a single string, separated by spaces
+    return currentTranscript
+        .join(' ')
+        // Clean up any double spaces that might occur between segments
+        .replace(/\s+/g, ' ')
+        .trim();
 }

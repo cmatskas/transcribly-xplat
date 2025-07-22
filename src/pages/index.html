@@ -85,6 +85,9 @@
             <div class="col-md-6">
                 <div class="title-card">
                     <h2>Transcript</h2>
+                    <button id="clearTranscriptionBtn" class="btn btn-outline-danger btn-sm d-none" style="float: right; margin-top: -35px;">
+                        <i class="fas fa-trash me-1"></i>Clear
+                    </button>
                 </div>
 
                 <div class="transcription-content" id="transcriptionContent">
@@ -93,9 +96,14 @@
                         Upload a file to see transcription
                     </div>
                 </div>
-                <button id="downloadTranscript" class="btn btn-outline-primary w-100 d-none">
-                    <i class="fas fa-download me-2"></i>Download Transcript
-                </button>
+                <div class="d-flex gap-2 mt-2">
+                    <button id="downloadTranscript" class="btn btn-outline-primary flex-fill d-none">
+                        <i class="fas fa-download me-2"></i>Download Transcript
+                    </button>
+                    <button id="copyTranscript" class="btn btn-outline-secondary flex-fill d-none">
+                        <i class="fas fa-copy me-2"></i>Copy Transcript
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -224,6 +232,39 @@
                     </h5>
                     <p class="text-muted mb-0">Working on your prompt query...</p>
                     <small class="text-muted d-block mt-2">This may take a few moments</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clear Transcription Confirmation Modal -->
+    <div class="modal fade" id="clearTranscriptionModal" tabindex="-1" aria-labelledby="clearTranscriptionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="clearTranscriptionModalLabel">
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>Clear Transcription
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>You're about to clear the current transcription and uploaded file. Would you like to save or copy the transcript before clearing?</p>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Note:</strong> This action cannot be undone. The transcript and uploaded file will be permanently removed.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-outline-primary" id="saveTranscriptBeforeClear">
+                        <i class="fas fa-download me-1"></i>Save & Clear
+                    </button>
+                    <button type="button" class="btn btn-outline-info" id="copyTranscriptBeforeClear">
+                        <i class="fas fa-copy me-1"></i>Copy & Clear
+                    </button>
+                    <button type="button" class="btn btn-danger" id="clearWithoutSaving">
+                        <i class="fas fa-trash me-1"></i>Clear Without Saving
+                    </button>
                 </div>
             </div>
         </div>
