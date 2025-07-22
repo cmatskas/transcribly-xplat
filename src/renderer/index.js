@@ -24,6 +24,72 @@ function showWarningToast(message) {
     window.electronAPI.showToast(message, 'warning');
 }
 
+// Initialize theme on page load
+document.addEventListener('DOMContentLoaded', async function () {
+    if (window.themeManager) {
+        await window.themeManager.initializeFromSettings();
+        setupThemeToggle();
+    }
+});
+
+// Theme toggle functionality
+function setupThemeToggle() {
+    const themeToggle = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+
+    if (!themeToggle || !themeIcon) return;
+
+    // Update icon based on current theme
+    function updateThemeIcon() {
+        const effectiveTheme = window.themeManager.getEffectiveTheme();
+        const userPreference = window.themeManager.getUserPreference();
+
+        if (userPreference === 'auto') {
+            themeIcon.className = 'bi bi-circle-half';
+            themeToggle.title = `Auto Theme (Currently ${effectiveTheme})`;
+        } else if (effectiveTheme === 'dark') {
+            themeIcon.className = 'bi bi-sun-fill';
+            themeToggle.title = 'Switch to Light Theme';
+        } else {
+            themeIcon.className = 'bi bi-moon-fill';
+            themeToggle.title = 'Switch to Dark Theme';
+        }
+    }
+
+    // Cycle through themes: light -> dark -> auto -> light
+    themeToggle.addEventListener('click', async () => {
+        const currentPreference = window.themeManager.getUserPreference();
+        let nextTheme;
+
+        switch (currentPreference) {
+            case 'light':
+                nextTheme = 'dark';
+                break;
+            case 'dark':
+                nextTheme = 'auto';
+                break;
+            case 'auto':
+            default:
+                nextTheme = 'light';
+                break;
+        }
+
+        try {
+            await window.themeManager.saveThemePreference(nextTheme);
+            updateThemeIcon();
+            showInfoToast(`Theme switched to ${nextTheme === 'auto' ? 'auto (system)' : nextTheme}`);
+        } catch (error) {
+            showErrorToast('Failed to save theme preference');
+        }
+    });
+
+    // Listen for theme changes
+    window.addEventListener('themeChanged', updateThemeIcon);
+
+    // Initial icon update
+    updateThemeIcon();
+}
+
 // Expose functions for testing
 if (typeof window !== 'undefined') {
     window.showSuccessToast = showSuccessToast;
@@ -751,11 +817,11 @@ function displayTranscript(timestampedTranscript) {
     const formattedTranscript = timestampedTranscript.map(segment => {
         const startTimeFormatted = formatTimestamp(segment.startTime);
         const endTimeFormatted = formatTimestamp(segment.endTime);
-        const speakerLabel = segment.speaker ? 
-            `<span class="speaker-label">Speaker ${segment.speaker}</span>` : 
+        const speakerLabel = segment.speaker ?
+            `<span class="speaker-label">Speaker ${segment.speaker}</span>` :
             '<span class="speaker-label">Unknown</span>';
         currentTranscript.push(segment.text);
-        
+
         return `<div class="transcript-segment">
             <div class="transcript-header">
                 <span class="timestamp">${startTimeFormatted} --> ${endTimeFormatted}</span>
@@ -805,8 +871,8 @@ function moveVideoToTimestamp(videoElement, timestamp) {
     videoElement.play();
 }
 
- // Format timestamp into H:mm:ss:milliseconds format
- function formatTimestamp(seconds) {
+// Format timestamp into H:mm:ss:milliseconds format
+function formatTimestamp(seconds) {
     const totalMilliseconds = seconds * 1000;
     const hours = Math.floor(totalMilliseconds / 3600000);
     const minutes = Math.floor((totalMilliseconds % 3600000) / 60000);

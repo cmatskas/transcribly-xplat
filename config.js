@@ -1,7 +1,7 @@
 const port = process.env.PORT || 3000;
 // These are now user-configurable through settings, kept as fallbacks
 const transcriptionLanguage = 'en-US';
-const defaultTheme = 'light';
+const defaultTheme = 'auto';
 const region = 'us-east-1';
 const bucketName = 'transcriptionfiles2';
 const outputBucketName = 'cmtranscriptionresults';

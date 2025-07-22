@@ -1,6 +1,11 @@
 // Credentials page renderer script
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Initialize theme first
+    if (window.themeManager) {
+        await window.themeManager.initializeFromSettings();
+    }
+    
     // Check if credentials already exist
     const hasCredentials = await window.electronAPI.invoke('has-credentials');
     if (hasCredentials) {

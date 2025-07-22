@@ -8,7 +8,7 @@ class SettingsManager {
     this.settingsFile = path.join(this.settingsDir, 'settings.json');
     this.defaultSettings = {
       transcriptionLanguage: 'en-US',
-      defaultTheme: 'light',
+      defaultTheme: 'auto',
       bucketName: '',
       outputBucketName: '',
       region: 'us-east-1'
@@ -83,7 +83,7 @@ class SettingsManager {
     }
     
     // Validate theme
-    if (settings.defaultTheme && ['light', 'dark'].includes(settings.defaultTheme)) {
+    if (settings.defaultTheme && ['light', 'dark', 'auto'].includes(settings.defaultTheme)) {
       validated.defaultTheme = settings.defaultTheme;
     }
     

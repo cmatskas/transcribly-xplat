@@ -26,6 +26,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Load settings on page load
 document.addEventListener('DOMContentLoaded', async function() {
+    // Initialize theme first
+    if (window.themeManager) {
+        await window.themeManager.initializeFromSettings();
+    }
     await loadSettings();
 });
 
@@ -53,7 +57,7 @@ function populateForm(settings) {
     regionSelect.value = settings.region || 'us-east-1';
     bucketNameInput.value = settings.bucketName || '';
     outputBucketNameInput.value = settings.outputBucketName || '';
-    defaultThemeSelect.value = settings.defaultTheme || 'light';
+    defaultThemeSelect.value = settings.defaultTheme || 'auto';
 }
 
 async function saveSettings(event) {
@@ -83,6 +87,11 @@ async function saveSettings(event) {
 
         await window.electronAPI.invokeAsync('save-settings', settings);
         currentSettings = settings;
+        
+        // Apply theme immediately if it changed
+        if (window.themeManager && settings.defaultTheme !== window.themeManager.getUserPreference()) {
+            window.themeManager.applyTheme(settings.defaultTheme);
+        }
         
         loadingModal.hide();
         window.electronAPI.showToast('Settings saved successfully!', 'success');
