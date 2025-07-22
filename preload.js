@@ -40,5 +40,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     invokeAsync: async (channel, data) => {
         return await ipcRenderer.invoke(channel, data);
-    },
+    }
 });

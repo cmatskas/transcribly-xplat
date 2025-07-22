@@ -124,6 +124,7 @@ function copyAnalysis() {
 
 document.getElementById('nav-analyze').addEventListener('click', showAnalyzePage);
 document.getElementById('nav-transcribe').addEventListener('click', showTranscribePage);
+document.getElementById('nav-app-settings').addEventListener('click', openSettingsWindow);
 document.getElementById('nav-credentials').addEventListener('click', openCredentialsWindow);
 document.getElementById('nav-connection-status').addEventListener('click', checkConnectionStatus);
 
@@ -543,6 +544,17 @@ async function openCredentialsWindow() {
     } catch (error) {
         console.error('Error opening credentials window:', error);
         showErrorToast(`Failed to open credentials window: ${error.message}`);
+    }
+}
+
+// Settings management functions
+async function openSettingsWindow() {
+    try {
+        showInfoToast('Opening application settings...');
+        await window.electronAPI.invokeAsync('open-settings-window');
+    } catch (error) {
+        console.error('Error opening settings window:', error);
+        showErrorToast(`Failed to open settings window: ${error.message}`);
     }
 }
 

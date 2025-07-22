@@ -15,15 +15,22 @@ const { TranscribeClient, StartTranscriptionJobCommand, GetTranscriptionJobComma
 const CredentialsManager = require('./src/main/models/credentialsManager');
 const AWSValidator = require('./src/main/models/awsValidator');
 const TranscriptMapper = require('./src/main/models/transcriptMapper.js');
+const SettingsManager = require('./src/main/models/settingsManager');
 
-// Global variables for credential management
+// Global variables for credential and settings management
 let credentialsManager;
+let settingsManager;
 let currentCredentials = null;
+let currentSettings = null;
 let awsClients = {};
 
-// Initialize credential manager
+// Initialize credential and settings managers
 function initializeCredentialsManager() {
   credentialsManager = new CredentialsManager();
+}
+
+function initializeSettingsManager() {
+  settingsManager = new SettingsManager();
 }
 
 // Initialize AWS clients with credentials
@@ -87,8 +94,39 @@ async function createCredentialsWindow() {
   return credentialsWindow;
 }
 
+async function createSettingsWindow() {
+  const settingsWindow = new BrowserWindow({
+    width: 900,
+    height: 800,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
+    },
+    modal: true,
+    parent: mainWindow,
+    show: false
+  });
+
+  settingsWindow.loadFile('src/pages/settings.html');
+  settingsWindow.once('ready-to-show', () => {
+    settingsWindow.show();
+  });
+
+  return settingsWindow;
+}
+
 app.whenReady().then(async () => {
   initializeCredentialsManager();
+  initializeSettingsManager();
+  
+  // Load settings
+  try {
+    currentSettings = await settingsManager.loadSettings();
+  } catch (error) {
+    console.error('Error loading settings:', error);
+    currentSettings = settingsManager.getDefaultSettings();
+  }
 
   // Check if credentials exist and are valid
   const hasCredentials = await credentialsManager.hasCredentials();
@@ -202,6 +240,48 @@ ipcMain.handle('open-credentials-window', async () => {
   }
 });
 
+// Settings management IPC handlers
+ipcMain.handle('save-settings', async (event, settings) => {
+  try {
+    await settingsManager.saveSettings(settings);
+    currentSettings = settings;
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to save settings: ${error.message}`);
+  }
+});
+
+ipcMain.handle('load-settings', async () => {
+  try {
+    return await settingsManager.loadSettings();
+  } catch (error) {
+    throw new Error(`Failed to load settings: ${error.message}`);
+  }
+});
+
+ipcMain.handle('get-default-settings', async () => {
+  return settingsManager.getDefaultSettings();
+});
+
+ipcMain.handle('delete-settings', async () => {
+  try {
+    await settingsManager.deleteSettings();
+    currentSettings = settingsManager.getDefaultSettings();
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to delete settings: ${error.message}`);
+  }
+});
+
+ipcMain.handle('open-settings-window', async () => {
+  try {
+    await createSettingsWindow();
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to open settings window: ${error.message}`);
+  }
+});
+
 ipcMain.handle('send-to-bedrock', async (event, { model, prompt, knowledgeBaseId }) => {
   if (knowledgeBaseId) {
     return await invokeBedrockWithKB(model, prompt, knowledgeBaseId);
@@ -226,34 +306,34 @@ ipcMain.handle('transcribe-media', async (event, { file }) => {
     };
 
     // Send progress update
-    event.sender.send('transcription-progress', { 
-      status: 'UPLOADING', 
-      message: 'Uploading file to S3...' 
+    event.sender.send('transcription-progress', {
+      status: 'UPLOADING',
+      message: 'Uploading file to S3...'
     });
 
     // Start transcription job
     const jobName = await startTranscription(fileObj);
-    
+
     // Send progress update
-    event.sender.send('transcription-progress', { 
-      status: 'IN_PROGRESS', 
-      message: 'Transcription job started. Processing audio...' 
+    event.sender.send('transcription-progress', {
+      status: 'IN_PROGRESS',
+      message: 'Transcription job started. Processing audio...'
     });
-    
+
     // Poll for job completion
     const maxAttempts = 60; // 5 minutes with 5-second intervals
     const pollInterval = 5000; // 5 seconds
-    
+
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const jobStatus = await checkTranscriptionJobStatus(jobName);
-      
+
       if (jobStatus.status === 'COMPLETED') {
         // Send progress update
-        event.sender.send('transcription-progress', { 
-          status: 'RETRIEVING', 
-          message: 'Retrieving transcription results...' 
+        event.sender.send('transcription-progress', {
+          status: 'RETRIEVING',
+          message: 'Retrieving transcription results...'
         });
-        
+
         // Get the transcription results
         const results = await getTranscriptionResults(jobStatus.outputUri);
         const transcriptMapper = new TranscriptMapper(results);
@@ -266,21 +346,21 @@ ipcMain.handle('transcribe-media', async (event, { file }) => {
       } else if (jobStatus.status === 'FAILED') {
         throw new Error(`Transcription job failed: ${jobStatus.failureReason || 'Unknown error'}`);
       }
-      
+
       // Send periodic progress updates
       const elapsed = Math.floor((attempt + 1) * pollInterval / 1000);
-      event.sender.send('transcription-progress', { 
-        status: 'IN_PROGRESS', 
-        message: `Processing audio... (${elapsed}s elapsed)` 
+      event.sender.send('transcription-progress', {
+        status: 'IN_PROGRESS',
+        message: `Processing audio... (${elapsed}s elapsed)`
       });
-      
+
       // Job is still in progress, wait before next check
       await new Promise(resolve => setTimeout(resolve, pollInterval));
     }
-    
+
     // If we get here, the job timed out
     throw new Error('Transcription job timed out after 5 minutes');
-    
+
   } catch (error) {
     console.error('Error in transcribe-media:', error);
     throw new Error(`Transcription failed: ${error.message}`);
@@ -327,25 +407,48 @@ async function startTranscription(file) {
   const bigFileSize = 20 * 1024 * 1024;
   let mediaUri;
 
+  // Get current settings for bucket names
+  const settings = currentSettings || await settingsManager.loadSettings();
+  
   if (file.buffer.length >= bigFileSize) {
     console.info("File is larger than 20MB, using multipart upload");
     mediaUri = await uploadLargeFile(
       file,
-      config.bucketName,
+      settings.bucketName,
       `${Date.now()}-${file.originalname}`
     );
   } else {
     console.info("File is smaller than 20MB, using regular upload");
     mediaUri = await uploadToS3(
       file,
-      config.bucketName,
+      settings.bucketName,
       `${Date.now()}-${file.originalname}`
     );
   }
-  // Determine media format from the file extension
-  const mediaFormat = mediaUri.toLowerCase().endsWith('.mp4') ? 'mp4' :
-    mediaUri.toLowerCase().endsWith('.mp3') ? 'mp3' :
-      mediaUri.toLowerCase().endsWith('.wav') ? 'wav' : 'mp4';
+  // Determine media format from the file extension - supports all Amazon Transcribe formats
+  const getMediaFormat = (uri) => {
+    const lowerUri = uri.toLowerCase();
+
+    // Audio formats
+    if (lowerUri.endsWith('.mp3')) return 'mp3';
+    if (lowerUri.endsWith('.wav')) return 'wav';
+    if (lowerUri.endsWith('.flac')) return 'flac';
+    if (lowerUri.endsWith('.ogg')) return 'ogg';
+    if (lowerUri.endsWith('.amr')) return 'amr';
+    if (lowerUri.endsWith('.webm')) return 'webm';
+
+    // Video formats (audio will be extracted)
+    if (lowerUri.endsWith('.mp4')) return 'mp4';
+    if (lowerUri.endsWith('.mov')) return 'mov';
+    if (lowerUri.endsWith('.avi')) return 'avi';
+    if (lowerUri.endsWith('.mkv')) return 'mkv';
+    if (lowerUri.endsWith('.flv')) return 'flv';
+
+    // Default fallback
+    return 'mp4';
+  };
+
+  const mediaFormat = getMediaFormat(mediaUri);
 
   const jobName = `transcription-${Date.now()}`;
 
@@ -353,8 +456,8 @@ async function startTranscription(file) {
     TranscriptionJobName: jobName,
     Media: { MediaFileUri: mediaUri },
     MediaFormat: mediaFormat,
-    LanguageCode: 'en-US',
-    OutputBucketName: config.outputBucketName,
+    LanguageCode: settings.transcriptionLanguage,
+    OutputBucketName: settings.outputBucketName,
     Settings: {
       ShowSpeakerLabels: true,
       MaxSpeakerLabels: 5
@@ -369,7 +472,7 @@ async function startTranscription(file) {
     console.error('Error starting transcription job:', error);
     throw error;
   }
- 
+
   return jobId;
 }
 
@@ -382,7 +485,7 @@ async function checkTranscriptionJobStatus(jobName) {
   try {
     const response = await awsClients.transcribe.send(command);
     const job = response.TranscriptionJob;
-    
+
     return {
       status: job.TranscriptionJobStatus,
       outputUri: job.Transcript?.TranscriptFileUri,
