@@ -2,14 +2,14 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const config = require('./config.js');
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
-const { S3TransferManager, Upload } = require('@aws-sdk/lib-storage');
+const { Upload } = require('@aws-sdk/lib-storage');
 const logger = require('./logger');
 
 const { BedrockRuntimeClient, ConverseCommand } = require('@aws-sdk/client-bedrock-runtime');
-const { BedrockClient } = require('@aws-sdk/client-bedrock');
+//const { BedrockClient } = require('@aws-sdk/client-bedrock');
 const { BedrockAgentClient, ListKnowledgeBasesCommand } = require('@aws-sdk/client-bedrock-agent');
 const { BedrockAgentRuntimeClient, RetrieveAndGenerateCommand } = require('@aws-sdk/client-bedrock-agent-runtime');
-const { TranscribeClient, StartTranscriptionJobCommand } = require('@aws-sdk/client-transcribe');
+const { TranscribeClient, StartTranscriptionJobCommand, GetTranscriptionJobCommand } = require('@aws-sdk/client-transcribe');
 
 // Import credential management
 const CredentialsManager = require('./src/main/models/credentialsManager');
@@ -47,16 +47,6 @@ function initializeAWSClients(credentials) {
     })
   };
 }
-
-// Legacy clients (will be replaced by dynamic ones)
-const bedrockClient = new BedrockRuntimeClient({ region: config.region });
-const bedrockAgentClient = new BedrockAgentClient({ region: config.region });
-const bedrockAgentRuntime = new BedrockAgentRuntimeClient({ region: config.region });
-const transcribeClient = new TranscribeClient({ region: config.region });
-const s3Client = new S3Client({
-  region: config.region,
-  endpoint: `https://s3.${config.region}.amazonaws.com`
-});
 
 let mainWindow;
 
@@ -220,24 +210,77 @@ ipcMain.handle('send-to-bedrock', async (event, { model, prompt, knowledgeBaseId
   }
 });
 
-ipcMain.handle('transcribe-media', async (event, { filePath }) => {
+ipcMain.handle('transcribe-media', async (event, { file }) => {
   try {
     if (!awsClients.transcribe) {
       throw new Error('AWS credentials not configured');
     }
 
-    const jobName = `transcription-${Date.now()}`;
-    const command = new StartTranscriptionJobCommand({
-      TranscriptionJobName: jobName,
-      Media: { MediaFileUri: filePath },
-      MediaFormat: path.extname(filePath).substring(1),
-      LanguageCode: 'en-US'
+    // Convert the array buffer back to Buffer for processing
+    const fileBuffer = Buffer.from(file.buffer);
+    const fileObj = {
+      buffer: fileBuffer,
+      originalname: file.name,
+      mimetype: file.type
+    };
+
+    // Send progress update
+    event.sender.send('transcription-progress', { 
+      status: 'UPLOADING', 
+      message: 'Uploading file to S3...' 
     });
 
-    await awsClients.transcribe.send(command);
-    return `Transcription job started: ${jobName}`;
+    // Start transcription job
+    const jobName = await startTranscription(fileObj);
+    
+    // Send progress update
+    event.sender.send('transcription-progress', { 
+      status: 'IN_PROGRESS', 
+      message: 'Transcription job started. Processing audio...' 
+    });
+    
+    // Poll for job completion
+    const maxAttempts = 60; // 5 minutes with 5-second intervals
+    const pollInterval = 5000; // 5 seconds
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const jobStatus = await checkTranscriptionJobStatus(jobName);
+      
+      if (jobStatus.status === 'COMPLETED') {
+        // Send progress update
+        event.sender.send('transcription-progress', { 
+          status: 'RETRIEVING', 
+          message: 'Retrieving transcription results...' 
+        });
+        
+        // Get the transcription results
+        const results = await getTranscriptionResults(jobStatus.outputUri);
+        return {
+          status: 'COMPLETED',
+          transcript: results.results.transcripts[0].transcript,
+          jobName: jobName
+        };
+      } else if (jobStatus.status === 'FAILED') {
+        throw new Error(`Transcription job failed: ${jobStatus.failureReason || 'Unknown error'}`);
+      }
+      
+      // Send periodic progress updates
+      const elapsed = Math.floor((attempt + 1) * pollInterval / 1000);
+      event.sender.send('transcription-progress', { 
+        status: 'IN_PROGRESS', 
+        message: `Processing audio... (${elapsed}s elapsed)` 
+      });
+      
+      // Job is still in progress, wait before next check
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+    
+    // If we get here, the job timed out
+    throw new Error('Transcription job timed out after 5 minutes');
+    
   } catch (error) {
-    throw new Error(`Transcribe API error: ${error.message}`);
+    console.error('Error in transcribe-media:', error);
+    throw new Error(`Transcription failed: ${error.message}`);
   }
 });
 
@@ -317,14 +360,35 @@ async function startTranscription(file) {
 
   let jobId;
   try {
-    const transcribeJob = await transcribeClient.send(command);
+    const transcribeJob = await awsClients.transcribe.send(command);
     jobId = transcribeJob.TranscriptionJob.TranscriptionJobName;
   } catch (error) {
     console.error('Error starting transcription job:', error);
     throw error;
   }
-
+ 
   return jobId;
+}
+
+// Check transcription job status
+async function checkTranscriptionJobStatus(jobName) {
+  const command = new GetTranscriptionJobCommand({
+    TranscriptionJobName: jobName
+  });
+
+  try {
+    const response = await awsClients.transcribe.send(command);
+    const job = response.TranscriptionJob;
+    
+    return {
+      status: job.TranscriptionJobStatus,
+      outputUri: job.Transcript?.TranscriptFileUri,
+      failureReason: job.FailureReason
+    };
+  } catch (error) {
+    console.error('Error checking transcription job status:', error);
+    throw error;
+  }
 }
 
 // Get transcription results
@@ -390,7 +454,7 @@ async function uploadToS3(file, bucket, key) {
         Bucket: bucket,
         Key: key,
         Body: file.buffer,
-        ContentType: 'audio/mpeg'
+        ContentType: file.mimetype
       }
     });
 

@@ -3,7 +3,6 @@ const fileInput = document.getElementById('fileInput');
 const videoContainer = document.getElementById('videoContainer');
 const videoPlayer = document.getElementById('videoPlayer');
 const transcriptionContent = document.getElementById('transcriptionContent');
-const loadingSpinner = document.getElementById('loadingSpinner');
 const transcriptionText = document.getElementById('transcriptionText');
 const templateSelect = document.getElementById('promptTemplateSelect');
 let currentAnalysis = '';
@@ -42,7 +41,7 @@ if (typeof window !== 'undefined') {
     window.cleanupAnalysisText = cleanupAnalysisText;
     window.openCredentialsWindow = openCredentialsWindow;
     window.checkConnectionStatus = checkConnectionStatus;
-    
+
     // Expose currentAnalysis as a getter/setter to keep it synchronized
     Object.defineProperty(window, 'currentAnalysis', {
         get: () => currentAnalysis,
@@ -141,7 +140,7 @@ document.getElementById('useKnowledgeBase').addEventListener('change', async () 
 document.getElementById('useExistingTranscript').addEventListener('change', () => {
     const isChecked = document.getElementById('useExistingTranscript').checked;
     const transcriptText = document.getElementById('transcriptionText').textContent || document.getElementById('transcriptionText').innerText;
-    
+
     if (isChecked) {
         // Check if there's actually transcript content
         if (!transcriptText || transcriptText.trim() === '' || transcriptText.includes('Upload a file to see transcription')) {
@@ -207,118 +206,6 @@ uploadZone.addEventListener('drop', (e) => {
     }
 });
 
-async function uploadFile(file) {
-    try {
-        // Show loading state
-        loadingSpinner.style.display = 'flex';
-        transcriptionText.style.display = 'none';
-
-        // Show info toast when starting transcription
-        showInfoToast('Starting transcription process...');
-
-        const formData = new FormData();
-        formData.append('mediaFile', file);
-
-        // Step 1: Start the transcription job
-        const startResponse = await fetch('api/transcribe/start', {
-            method: 'POST',
-            body: formData
-        });
-
-        if (!startResponse.ok) {
-            throw new Error(`HTTP error! status: ${startResponse.status}`);
-        }
-
-        const jobData = await startResponse.json();
-        const jobId = jobData.jobId; // The server should return a job ID
-
-        // Step 2: Poll for results with exponential backoff
-        let pollInterval = 2000; // Start with 2 seconds
-        const maxPollInterval = 10000; // Max interval of 10 seconds
-        const maxAttempts = 90; // ~15 minutes max at varying intervals
-        let attempts = 0;
-
-        // Update the UI to show polling status
-        const updateStatus = (message) => {
-            console.info(message);
-        };
-
-        // Function to poll for transcription results
-        const pollForResults = async () => {
-            try {
-                attempts++;
-                updateStatus(`Checking transcription status... (Attempt ${attempts})`);
-
-                const pollResponse = await fetch(`/api/transcribe/status/${jobId}`);
-
-                if (!pollResponse.ok) {
-                    throw new Error(`HTTP error! status: ${pollResponse.status}`);
-                }
-
-                const pollData = await pollResponse.json();
-
-                if (pollData.status === 'completed') {
-                    // Transcription is done - show success notification
-                    showSuccessToast('Transcription completed successfully!');
-
-                    // Display the transcript
-                    displayTranscript(pollData.data);
-
-                    // If full view is selected, perform analysis
-                    if (document.querySelector('input[name="viewMode"]:checked').value === 'full') {
-                        await analyzeTranscript(pollData.data);
-                    }
-
-                    return; // Exit the polling loop
-                } else if (pollData.status === 'failed') {
-                    // Show error notification
-                    showErrorToast(`Transcription failed: ${pollData.error || 'Unknown error'}`);
-                    throw new Error(pollData.error || 'Transcription failed');
-                } else if (attempts >= maxAttempts) {
-                    // Show timeout notification
-                    showErrorToast('Transcription timed out. Please try again with a smaller file.');
-                    throw new Error('Maximum polling attempts reached');
-                } else {
-                    // Still in progress, continue polling with exponential backoff
-                    pollInterval = Math.min(pollInterval * 1.5, maxPollInterval);
-
-                    // Every 10 attempts, show an info toast to keep user updated
-                    if (attempts % 10 === 0) {
-                        showInfoToast(`Transcription in progress... (${Math.round(attempts / 6)} minute(s) elapsed)`);
-                    }
-
-                    updateStatus(`Transcription in progress... (${Math.round(attempts / 6)} minute(s) elapsed)`);
-                    setTimeout(pollForResults, pollInterval);
-                }
-            } catch (error) {
-                console.error('Polling failed:', error);
-                showErrorToast(`Error checking transcription status: ${error.message}`);
-                transcriptionText.textContent = `Error checking transcription status: ${error.message}`;
-                transcriptionText.style.display = 'block';
-            }
-        };
-
-        // Start polling
-        setTimeout(pollForResults, 1000); // Start first poll after 1 second
-
-    } catch (error) {
-        console.error('Upload failed:', error);
-
-        // Provide more helpful error message based on error type
-        if (error.name === 'AbortError') {
-            showErrorToast('The transcription request was aborted. Please try with a smaller file.');
-            transcriptionText.textContent = 'The transcription request was aborted. Please try with a smaller file or try again later.';
-        } else {
-            showErrorToast(`Error uploading file: ${error.message}`);
-            transcriptionText.textContent = `Error uploading file: ${error.message}`;
-        }
-
-        transcriptionText.style.display = 'block';
-    } finally {
-        loadingSpinner.style.display = 'none';
-    }
-}
-
 // Handle prompt submission
 document.getElementById('invokeBedrockBtn').addEventListener('click', async () => {
     const model = document.getElementById('modelSelect').value;
@@ -336,17 +223,17 @@ document.getElementById('invokeBedrockBtn').addEventListener('click', async () =
     // Append transcript text if checkbox is checked
     if (useExistingTranscript) {
         const transcriptText = document.getElementById('transcriptionText').textContent || document.getElementById('transcriptionText').innerText;
-        
+
         // Validate transcript content
         if (!transcriptText || transcriptText.trim() === '' || transcriptText.includes('Upload a file to see transcription')) {
             showWarningToast('No transcript available. Please transcribe a file first or uncheck "Use Existing Transcript".');
             return;
         }
-        
+
         // Clean up transcript text and append to prompt
         const cleanTranscript = transcriptText.trim();
         prompt = `${prompt}\n\n--- TRANSCRIPT ---\n${cleanTranscript}\n--- END TRANSCRIPT ---`;
-        
+
         showInfoToast('Transcript has been included with your prompt');
     }
 
@@ -378,10 +265,10 @@ document.getElementById('invokeBedrockBtn').addEventListener('click', async () =
             prompt,
             knowledgeBaseId
         });
-        
+
         // Hide the modal
         modal.hide();
-        
+
         if (useKnowledgeBase) {
             responseArea.innerHTML = simpleCitationParser(response);
         }
@@ -393,17 +280,17 @@ document.getElementById('invokeBedrockBtn').addEventListener('click', async () =
         if (typeof window !== 'undefined' && window.currentAnalysis !== undefined) {
             window.currentAnalysis = response;
         }
-        
+
         // Show success toast
         showSuccessToast('Bedrock analysis completed successfully!');
-        
+
     } catch (error) {
         // Hide the modal in case of error
         const modal = bootstrap.Modal.getInstance(document.getElementById('bedrockProcessingModal'));
         if (modal) {
             modal.hide();
         }
-        
+
         responseArea.innerHTML = `Error: ${error.message}`;
         showErrorToast(`Bedrock analysis failed: ${error.message}`);
     }
@@ -480,6 +367,14 @@ document.addEventListener('DOMContentLoaded', () => {
     showInfoToast('Welcome to Transcribely! Upload a video or audio file to get started.');
     loadPromptTemplates();
     loadBedrockModels();
+
+    // Set up transcription progress listener once
+    window.electronAPI.receive('transcription-progress', (progressData) => {
+        const statusElement = document.getElementById('transcriptionStatus');
+        if (statusElement) {
+            statusElement.textContent = progressData.message;
+        }
+    });
 });
 
 // Function to load knowledge bases
@@ -522,7 +417,7 @@ async function loadKnowledgeBases() {
             showInfoToast('Removed knowledge bases from Bedrock query');
         }
 
-        
+
     } catch (error) {
         console.error('Error loading knowledge bases:', error);
         showErrorToast('Failed to load knowledge bases: ' + error.message);
@@ -628,19 +523,19 @@ async function openCredentialsWindow() {
 async function checkConnectionStatus() {
     try {
         showInfoToast('Checking AWS connection status...');
-        
+
         const hasCredentials = await window.electronAPI.invoke('has-credentials');
-        
+
         if (!hasCredentials) {
             showWarningToast('No AWS credentials configured. Please set up your credentials first.');
             return;
         }
 
         const validation = await window.electronAPI.invoke('validate-credentials');
-        
+
         if (validation.valid) {
             let statusMessage = `Connected to AWS Account: ${validation.identity.account}`;
-            
+
             if (validation.permissions.bedrock && validation.permissions.transcribe) {
                 statusMessage += '\n All required permissions available';
                 showSuccessToast(statusMessage);
@@ -650,16 +545,70 @@ async function checkConnectionStatus() {
                 if (!validation.permissions.transcribe) statusMessage += '\n Transcribe access denied';
                 showWarningToast(statusMessage);
             }
-            
+
             if (validation.errors.length > 0) {
                 console.warn('Permission errors:', validation.errors);
             }
         } else {
             showErrorToast(` AWS connection failed: ${validation.errors.join(', ')}`);
         }
-        
+
     } catch (error) {
         console.error('Error checking connection status:', error);
         showErrorToast(`Failed to check connection: ${error.message}`);
+    }
+}
+// Handle file upload and transcription
+async function uploadFile(file) {
+    const modal = new bootstrap.Modal(document.getElementById('transcriptionProcessingModal'));
+    const statusElement = document.getElementById('transcriptionStatus');
+
+    try {
+        // Show the processing modal
+        statusElement.textContent = 'Preparing transcription...';
+        modal.show();
+
+        // Clear any previous transcription text
+        transcriptionText.innerHTML = '';
+
+        // Convert File to ArrayBuffer to make it cloneable for IPC
+        const arrayBuffer = await file.arrayBuffer();
+        const fileData = {
+            buffer: Array.from(new Uint8Array(arrayBuffer)), // Convert to regular array
+            name: file.name,
+            type: file.type,
+            size: file.size
+        };
+
+        // Call the transcription service with cloneable data
+        const response = await window.electronAPI.invoke('transcribe-media', { file: fileData });
+
+        // Hide the modal
+        modal.hide();
+
+        if (response.status === 'COMPLETED') {
+            // Display the transcript
+            transcriptionText.innerHTML = response.transcript;
+            showSuccessToast('Transcription completed successfully!');
+        } else {
+            modal.hide();
+            throw new Error('Transcription did not complete successfully');
+        }
+
+    } catch (error) {
+        console.error('Transcription error:', error);
+
+        // Hide the modal in case of error
+        modal.hide();
+
+        // Show error in transcription area
+        transcriptionText.innerHTML = `<div class="alert alert-danger" role="alert">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Transcription Failed:</strong> ${error.message}
+        </div>`;
+
+        showErrorToast(`Transcription failed: ${error.message}`);
+    } finally {
+        modal.hide();
     }
 }
