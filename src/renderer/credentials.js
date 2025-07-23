@@ -76,9 +76,13 @@ async function testConnection() {
                 <i class="bi bi-${result.permissions.bedrock ? 'check-circle text-success' : 'x-circle text-danger'} me-2"></i>
                 <span>Bedrock Access</span>
             </div>`;
-            statusHtml += `<div class="d-flex align-items-center">
+            statusHtml += `<div class="d-flex align-items-center mb-1">
                 <i class="bi bi-${result.permissions.transcribe ? 'check-circle text-success' : 'x-circle text-danger'} me-2"></i>
                 <span>Transcribe Access</span>
+            </div>`;
+            statusHtml += `<div class="d-flex align-items-center">
+                <i class="bi bi-${result.permissions.s3 ? 'check-circle text-success' : 'x-circle text-danger'} me-2"></i>
+                <span>S3 Access</span>
             </div>`;
             statusHtml += '</div>';
 
@@ -91,8 +95,8 @@ async function testConnection() {
                 statusHtml += '</div>';
             }
 
-            // Show continue button if both services work
-            if (result.permissions.bedrock && result.permissions.transcribe) {
+            // Show continue button if all services work
+            if (result.permissions.bedrock && result.permissions.transcribe && result.permissions.s3) {
                 document.getElementById('continueBtn').style.display = 'block';
             }
 

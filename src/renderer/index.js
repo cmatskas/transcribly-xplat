@@ -653,13 +653,14 @@ async function checkConnectionStatus() {
         if (validation.valid) {
             let statusMessage = `Connected to AWS Account: ${validation.identity.account}`;
 
-            if (validation.permissions.bedrock && validation.permissions.transcribe) {
+            if (validation.permissions.bedrock && validation.permissions.transcribe && validation.permissions.s3) {
                 statusMessage += '\n All required permissions available';
                 showSuccessToast(statusMessage);
             } else {
                 statusMessage += '\n⚠️ Some permissions missing:';
                 if (!validation.permissions.bedrock) statusMessage += '\n Bedrock access denied';
                 if (!validation.permissions.transcribe) statusMessage += '\n Transcribe access denied';
+                if (!validation.permissions.s3) statusMessage += '\n S3 access denied';
                 showWarningToast(statusMessage);
             }
 

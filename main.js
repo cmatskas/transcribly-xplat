@@ -58,10 +58,33 @@ function initializeAWSClients(credentials) {
 
 let mainWindow;
 
+// Helper function to get the appropriate icon path for the current platform
+function getIconPath() {
+  const fs = require('fs');
+  
+  let iconPath;
+  if (process.platform === 'win32') {
+    iconPath = path.join(__dirname, 'src/assets/favicon.ico');
+  } else if (process.platform === 'darwin') {
+    iconPath = path.join(__dirname, 'src/assets/favicon.icns');
+  } else {
+    // Use the largest PNG for Linux
+    iconPath = path.join(__dirname, 'src/assets/favicon_512x512.png');
+  }
+  
+  // Fallback to SVG if the platform-specific icon doesn't exist
+  if (!fs.existsSync(iconPath)) {
+    iconPath = path.join(__dirname, 'src/assets/favicon.svg');
+  }
+  
+  return iconPath;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    icon: getIconPath(),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: true,
@@ -76,6 +99,7 @@ async function createCredentialsWindow() {
   const credentialsWindow = new BrowserWindow({
     width: 800,
     height: 900,
+    icon: getIconPath(),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: true,
@@ -98,6 +122,7 @@ async function createSettingsWindow() {
   const settingsWindow = new BrowserWindow({
     width: 900,
     height: 800,
+    icon: getIconPath(),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: true,
@@ -117,9 +142,14 @@ async function createSettingsWindow() {
 }
 
 app.whenReady().then(async () => {
+  // Set app user model ID for Windows (helps with taskbar grouping and icon display)
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.transcribely.app');
+  }
+  
   initializeCredentialsManager();
   initializeSettingsManager();
-  
+
   // Load settings
   try {
     currentSettings = await settingsManager.loadSettings();
@@ -140,7 +170,7 @@ app.whenReady().then(async () => {
       const validator = new AWSValidator(currentCredentials);
       const validation = await validator.validateCredentials();
 
-      if (validation.valid && validation.permissions.bedrock && validation.permissions.transcribe) {
+      if (validation.valid && validation.permissions.bedrock && validation.permissions.transcribe && validation.permissions.s3) {
         // Credentials are valid, load main app
         createWindow();
         mainWindow.loadFile('src/pages/index.html');
@@ -409,7 +439,7 @@ async function startTranscription(file) {
 
   // Get current settings for bucket names
   const settings = currentSettings || await settingsManager.loadSettings();
-  
+
   if (file.buffer.length >= bigFileSize) {
     console.info("File is larger than 20MB, using multipart upload");
     mediaUri = await uploadLargeFile(

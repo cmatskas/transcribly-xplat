@@ -3,8 +3,14 @@
   "version": "1.0.0",
   "description": "Electron app for Bedrock models and media transcription",
   "main": "main.js",
+  "author": "Transcribely Team",
+  "homepage": "https://transcribely.app",
   "scripts": {
     "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
@@ -25,6 +31,7 @@
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
+    "electron-builder": "^24.0.0",
     "jest": "^30.0.4",
     "jest-environment-jsdom": "^30.0.4",
     "jsdom": "^26.1.0"
@@ -54,6 +61,50 @@
     ],
     "testEnvironmentOptions": {
       "url": "http://localhost"
+    }
+  },
+  "build": {
+    "appId": "com.transcribely.app",
+    "productName": "Transcribely",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!tests/**/*",
+      "!coverage/**/*",
+      "!dist/**/*"
+    ],
+    "mac": {
+      "icon": "src/assets/favicon.icns",
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "icon": "src/assets/favicon.ico",
+      "target": "nsis",
+      "publisherName": "Transcribely"
+    },
+    "linux": {
+      "icon": "src/assets/favicon_512x512.png",
+      "category": "AudioVideo",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   }
 }

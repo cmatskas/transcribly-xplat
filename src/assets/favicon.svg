@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Background -->
+  <circle cx="16" cy="16" r="16" fill="#4A5568"/>
+  
+  <!-- Sound wave representation -->
+  <path d="M8 16 L11 12 L14 18 L17 14 L20 16 L23 13" 
+        stroke="#E2E8F0" 
+        stroke-width="2" 
+        fill="none" 
+        stroke-linecap="round"/>
+  
+  <!-- Text lines representation -->
+  <rect x="8" y="20" width="12" height="1.5" fill="#E2E8F0" rx="0.75"/>
+  <rect x="8" y="23" width="8" height="1.5" fill="#E2E8F0" rx="0.75"/>
+</svg>

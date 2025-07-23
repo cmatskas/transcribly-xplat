@@ -1,6 +1,7 @@
 const { STSClient, GetCallerIdentityCommand } = require('@aws-sdk/client-sts');
 const { BedrockClient, ListFoundationModelsCommand } = require('@aws-sdk/client-bedrock');
 const { TranscribeClient, ListTranscriptionJobsCommand } = require('@aws-sdk/client-transcribe');
+const { S3Client, ListBucketsCommand } = require('@aws-sdk/client-s3');
 
 class AWSValidator {
   constructor(credentials) {
@@ -13,7 +14,8 @@ class AWSValidator {
       identity: null,
       permissions: {
         bedrock: false,
-        transcribe: false
+        transcribe: false,
+        s3: false
       },
       errors: []
     };
@@ -73,6 +75,24 @@ class AWSValidator {
         results.permissions.transcribe = true;
       } catch (error) {
         results.errors.push(`Transcribe access denied: ${error.message}`);
+      }
+
+      // Test S3 permissions
+      try {
+        const s3Client = new S3Client({
+          region: this.credentials.region,
+          credentials: {
+            accessKeyId: this.credentials.accessKeyId,
+            secretAccessKey: this.credentials.secretAccessKey,
+            sessionToken: this.credentials.sessionToken
+          }
+        });
+
+        const s3Command = new ListBucketsCommand({});
+        await s3Client.send(s3Command);
+        results.permissions.s3 = true;
+      } catch (error) {
+        results.errors.push(`S3 access denied: ${error.message}`);
       }
 
     } catch (error) {
