@@ -1,5 +1,5 @@
 {
-  "name": "bedrock-media-transcribe-app",
+  "name": "Transcribely",
   "version": "1.0.0",
   "description": "Electron app for Bedrock models and media transcription",
   "main": "main.js",

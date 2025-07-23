@@ -173,10 +173,10 @@ function copyAnalysis() {
             showSuccessToast('Analysis copied to clipboard');
 
             // Optional: Show a brief success message
-            const copyBtn = document.querySelector('.header-button');
+            const copyBtn = document.getElementById('copyAnalysis');
             if (copyBtn) {
                 const originalText = copyBtn.innerHTML;
-                copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                copyBtn.innerHTML = '<i class="fas fa-check me-2"></i>Copied!';
                 setTimeout(() => {
                     copyBtn.innerHTML = originalText;
                 }, 2000);
@@ -351,6 +351,10 @@ document.getElementById('invokeBedrockBtn').addEventListener('click', async () =
             window.currentAnalysis = response;
         }
 
+        // Show analysis action buttons
+        document.getElementById('downloadAnalysis').classList.remove('d-none');
+        document.getElementById('copyAnalysis').classList.remove('d-none');
+
         // Show success toast
         showSuccessToast('Bedrock analysis completed successfully!');
 
@@ -362,6 +366,11 @@ document.getElementById('invokeBedrockBtn').addEventListener('click', async () =
         }
 
         responseArea.innerHTML = `Error: ${error.message}`;
+        
+        // Hide analysis action buttons on error
+        document.getElementById('downloadAnalysis').classList.add('d-none');
+        document.getElementById('copyAnalysis').classList.add('d-none');
+        
         showErrorToast(`Bedrock analysis failed: ${error.message}`);
     }
 });
@@ -450,6 +459,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('downloadTranscript').addEventListener('click', downloadTranscript);
     document.getElementById('copyTranscript').addEventListener('click', copyTranscript);
     document.getElementById('clearTranscriptionBtn').addEventListener('click', clearTranscription);
+
+    // Add event listeners for analysis management buttons
+    document.getElementById('downloadAnalysis').addEventListener('click', downloadAnalysis);
+    document.getElementById('copyAnalysis').addEventListener('click', copyAnalysis);
 
     // Add event listeners for clear confirmation modal
     document.getElementById('saveTranscriptBeforeClear').addEventListener('click', () => {

@@ -301,15 +301,71 @@ html[data-theme] {
     border: 1px solid var(--border-primary);
     border-radius: 0.5rem;
     padding: 1rem;
-    height: 400px;
+    flex: 1;
     overflow-y: auto;
-    margin-bottom: 1rem;
+    margin-bottom: 0.4rem;
     color: var(--text-primary);
+    min-height: 500px;
+}
+
+/* Make the analyze page columns use flexbox for equal height */
+#analyze-page .col-md-6 {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Make the right column content area expand to fill available space */
+#analyze-page .col-md-6:last-child {
+    display: flex;
+    flex-direction: column;
+}
+
+#analyze-page .col-md-6:last-child > .title-card {
+    flex-shrink: 0;
+}
+
+#analyze-page .col-md-6:last-child > #analysisContent {
+    flex: 1;
+}
+
+#analyze-page .col-md-6:last-child > .d-flex {
+    flex-shrink: 0;
 }
 
 /* Style the download button */
 #downloadAnalysis {
     margin-top: 1rem; /* Add spacing above the button */
+}
+
+/* Ensure consistent button heights for transcript and analysis buttons */
+#downloadTranscript,
+#copyTranscript,
+#downloadAnalysis,
+#copyAnalysis {
+    min-height: 42px !important;
+    height: 42px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+    line-height: 1.2 !important;
+    padding: 0.5rem 1rem !important;
+    font-size: 0.875rem !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    vertical-align: top !important;
+    position: relative !important;
+    top: 0 !important;
+    border-width: 1px !important;
+}
+    vertical-align: top !important;
+    position: relative !important;
+    top: 0 !important;
+}
+
+/* Ensure the button container has consistent alignment */
+.d-flex.gap-2.mt-2 {
+    align-items: flex-start !important;
 }
 
 .analysis-header {
