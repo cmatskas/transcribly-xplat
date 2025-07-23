@@ -1,15 +1,18 @@
 const fs = require('fs');
 const path = require('path');
+const { app } = require('electron');
 
 class Logger {
     constructor() {
-        this.logDir = 'logs';
+        // Use user data directory for logs
+        const userDataPath = (app || require('@electron/remote').app).getPath('userData');
+        this.logDir = path.join(userDataPath, 'logs');
         this.currentLogFile = null;
         this.currentMonth = null;
         
         // Create logs directory if it doesn't exist
         if (!fs.existsSync(this.logDir)) {
-            fs.mkdirSync(this.logDir);
+            fs.mkdirSync(this.logDir, { recursive: true });
         }
         
         // Intercept console methods
@@ -43,14 +46,19 @@ class Logger {
         
         const logEntry = `[${timestamp}] [${level}] ${message}\n`;
         
-        // Check if we need to rotate to a new file
-        const logFile = this.getLogFileName();
-        if (this.currentLogFile !== logFile) {
-            this.currentLogFile = logFile;
+        try {
+            // Check if we need to rotate to a new file
+            const logFile = this.getLogFileName();
+            if (this.currentLogFile !== logFile) {
+                this.currentLogFile = logFile;
+            }
+            
+            // Write to log file
+            fs.appendFileSync(this.currentLogFile, logEntry);
+        } catch (error) {
+            // If we can't write to the log file, at least show in console
+            this.originalConsole.error('Failed to write to log file:', error);
         }
-        
-        // Write to log file
-        fs.appendFileSync(this.currentLogFile, logEntry);
         
         // Also output to original console
         this.originalConsole[level.toLowerCase()](...args);

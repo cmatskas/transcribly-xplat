@@ -92,7 +92,7 @@ function createWindow() {
     }
   });
 
-  mainWindow.webContents.openDevTools();
+  mainWindow.loadFile('src/pages/index.html');
 }
 
 async function createCredentialsWindow() {
