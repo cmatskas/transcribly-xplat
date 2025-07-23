@@ -67,7 +67,7 @@
     "appId": "com.transcribely.app",
     "productName": "Transcribely",
     "directories": {
-      "output": "dist"
+      "output": "dist/temp"
     },
     "files": [
       "**/*",
@@ -75,9 +75,13 @@
       "!coverage/**/*",
       "!dist/**/*"
     ],
+    "artifactName": "${productName}-${version}-${platform}-${arch}.${ext}",
     "mac": {
       "icon": "src/assets/app.icns",
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "target": ["dmg"],
+      "artifactName": "${productName}-${version}-universal.${ext}",
+      "darkModeSupport": true
     },
     "win": {
       "icon": "src/assets/favicon-win.ico",
