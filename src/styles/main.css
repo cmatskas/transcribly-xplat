@@ -218,7 +218,9 @@ html[data-theme] {
     border-radius: 0.5rem;
     box-shadow: var(--shadow-md);
     overflow-y: auto;
-    height: calc(100% - 2rem);
+    min-height: 500px;
+    height: 500px;
+    max-height: 500px;
 }
 
 .timestamp {
@@ -295,23 +297,48 @@ html[data-theme] {
     flex: 1; /* Takes 1/3 of the width */
 }
 
+/* Ensure transcribe page columns maintain consistent height */
+#transcribe-page .col-md-6 {
+    display: flex;
+    flex-direction: column;
+    min-height: 600px;
+}
+
+#transcribe-page .col-md-6 .title-card {
+    flex-shrink: 0;
+}
+
+#transcribe-page .col-md-6 .transcription-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+#transcribe-page .col-md-6 .d-flex.gap-2.mt-2 {
+    flex-shrink: 0;
+    margin-top: auto;
+    padding-top: 1rem;
+}
+
 #analysisContent {
     position: relative;  /* For absolute positioning of loader */
     background-color: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     border-radius: 0.5rem;
     padding: 1rem;
-    flex: 1;
     overflow-y: auto;
     margin-bottom: 0.4rem;
     color: var(--text-primary);
     min-height: 500px;
+    height: 500px;
+    max-height: 500px;
 }
 
 /* Make the analyze page columns use flexbox for equal height */
 #analyze-page .col-md-6 {
     display: flex;
     flex-direction: column;
+    min-height: 600px;
 }
 
 /* Make the right column content area expand to fill available space */
@@ -320,16 +347,20 @@ html[data-theme] {
     flex-direction: column;
 }
 
-#analyze-page .col-md-6:last-child > .title-card {
+#analyze-page .col-md-6 .title-card {
     flex-shrink: 0;
 }
 
 #analyze-page .col-md-6:last-child > #analysisContent {
     flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
-#analyze-page .col-md-6:last-child > .d-flex {
+#analyze-page .col-md-6 .d-flex.gap-2.mt-2 {
     flex-shrink: 0;
+    margin-top: auto;
+    padding-top: 1rem;
 }
 
 /* Style the download button */
@@ -357,7 +388,6 @@ html[data-theme] {
     position: relative !important;
     top: 0 !important;
     border-width: 1px !important;
-}
     vertical-align: top !important;
     position: relative !important;
     top: 0 !important;
