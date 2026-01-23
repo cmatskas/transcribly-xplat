@@ -324,9 +324,11 @@ document.getElementById('invokeBedrockBtn').addEventListener('click', async () =
         return;
     }
 
+    const modalElement = document.getElementById('bedrockProcessingModal');
+    const modal = new bootstrap.Modal(modalElement);
+    
     try {
         // Show the processing modal
-        const modal = new bootstrap.Modal(document.getElementById('bedrockProcessingModal'));
         modal.show();
 
         // Pass the knowledge base ID to the backend
@@ -335,9 +337,6 @@ document.getElementById('invokeBedrockBtn').addEventListener('click', async () =
             prompt,
             knowledgeBaseId
         });
-
-        // Hide the modal
-        modal.hide();
 
         if (useKnowledgeBase) {
             responseArea.innerHTML = simpleCitationParser(response);
@@ -359,12 +358,6 @@ document.getElementById('invokeBedrockBtn').addEventListener('click', async () =
         showSuccessToast('Bedrock analysis completed successfully!');
 
     } catch (error) {
-        // Hide the modal in case of error
-        const modal = bootstrap.Modal.getInstance(document.getElementById('bedrockProcessingModal'));
-        if (modal) {
-            modal.hide();
-        }
-
         responseArea.innerHTML = `Error: ${error.message}`;
         
         // Hide analysis action buttons on error
@@ -372,6 +365,22 @@ document.getElementById('invokeBedrockBtn').addEventListener('click', async () =
         document.getElementById('copyAnalysis').classList.add('d-none');
         
         showErrorToast(`Bedrock analysis failed: ${error.message}`);
+    } finally {
+        // Always hide modal in finally block
+        try {
+            modal.hide();
+            // Force remove backdrop if it exists
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+            // Remove modal-open class from body
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+        } catch (e) {
+            console.error('Error closing modal:', e);
+        }
     }
 });
 
@@ -408,7 +417,7 @@ async function loadBedrockModels() {
 
         bedrockModels.forEach(model => {
             const option = document.createElement('option');
-            option.value = model.inferenceArn;
+            option.value = model.inferenceProfileId || model.inferenceArn;
             option.text = model.id;
             modelSelect.appendChild(option);
         });

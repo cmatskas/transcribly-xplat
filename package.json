@@ -1,6 +1,6 @@
 {
   "name": "Transcribely",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Electron app for Bedrock models and media transcription",
   "main": "main.js",
   "author": "Transcribely Team",

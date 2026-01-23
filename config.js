@@ -9,34 +9,38 @@ const outputBucketName = 'cmtranscriptionresults';
 const bedrockModels = [
     {
         id: "Nova Pro",
-        inferenceArn: "arn:aws:bedrock:us-east-1:544610684157:inference-profile/us.amazon.nova-pro-v1:0"
+        inferenceProfileId: "us.amazon.nova-pro-v1:0"
     },
     {
-        id: "Claude 3.7 Sonnet",
-        inferenceArn: "arn:aws:bedrock:us-east-1:544610684157:inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+        id: "Claude 4.5 Sonnet",
+        inferenceProfileId: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     },
     {
-        id: "Claude 4.0 Sonnet",
-        inferenceArn: "arn:aws:bedrock:us-east-1:544610684157:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0"
+        id: "Claude 4.5 Opus",
+        inferenceProfileId: "us.anthropic.claude-opus-4-5-20251101-v1:0"
     },
     {
         id: "DeepSeek R1",
-        inferenceArn: "arn:aws:bedrock:us-east-1:544610684157:inference-profile/us.deepseek.r1-v1:0"
-    },
-
+        inferenceProfileId: "us.deepseek.r1-v1:0"
+    }
 ];
+
 const defaultPrompts = [
     {
         id: 'Summarize Text',
-        prompt: 'Use this transcript to analyze the text'
+        prompt: 'Analyze and summarize the following text, highlighting the key points and main themes.'
     },
     {
         id: 'Analyze Sentiment',
-        prompt: 'Use this transcript to analyze the sentiment'
+        prompt: 'Analyze the sentiment of the following text, identifying emotional tone, key attitudes, and overall sentiment.'
     },
     {
-        id: 'Extract key points',
-        prompt: 'Use this transcript to extract the key points'
+        id: 'Extract Key Points',
+        prompt: 'Extract and list the key points, important insights, and main takeaways from the following text.'
+    },
+    {
+        id: 'Generate Action Items',
+        prompt: 'Identify and list actionable items, tasks, and next steps from the following text.'
     },
     {
         id: 'Custom Prompt',

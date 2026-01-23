@@ -1,5 +1,38 @@
 // Credentials page renderer script
 
+function showSuccessToast(message) {
+    Toastify({
+        text: message,
+        duration: 4000,
+        gravity: "top",
+        position: "right",
+        className: "toast-success",
+        stopOnFocus: true
+    }).showToast();
+}
+
+function showErrorToast(message) {
+    Toastify({
+        text: message,
+        duration: 6000,
+        gravity: "top",
+        position: "right",
+        className: "toast-error",
+        stopOnFocus: true
+    }).showToast();
+}
+
+function showInfoToast(message) {
+    Toastify({
+        text: message,
+        duration: 3000,
+        gravity: "top",
+        position: "right",
+        className: "toast-info",
+        stopOnFocus: true
+    }).showToast();
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     // Initialize theme first
     if (window.themeManager) {
@@ -11,6 +44,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (hasCredentials) {
         await loadExistingCredentials();
     }
+
+    // Add paste event listeners to detect credential pasting
+    setupPasteDetection();
 });
 
 document.getElementById('credentialsForm').addEventListener('submit', async (e) => {
@@ -34,16 +70,22 @@ async function saveCredentials() {
             profileName: document.getElementById('profileName').value.trim() || 'default'
         };
 
+        // Validate required fields
+        if (!credentials.accessKeyId || !credentials.secretAccessKey || !credentials.region) {
+            throw new Error('Please fill in all required fields');
+        }
+
         // Save credentials
-        await window.electronAPI.invoke('save-credentials',credentials);
+        await window.electronAPI.invoke('save-credentials', credentials);
 
         // Test the connection
         await testConnection();
 
-        window.electronAPI.showToast('Credentials saved successfully!', 'success');
+        showSuccessToast('Credentials saved successfully!');
 
     } catch (error) {
-        window.electronAPI.showToast(`Error: ${error.message}`, 'error');
+        console.error('Error saving credentials:', error);
+        showErrorToast(`Error: ${error.message}`);
     } finally {
         saveBtn.disabled = false;
         saveBtn.innerHTML = originalText;
@@ -101,21 +143,33 @@ async function testConnection() {
             }
 
         } else {
-            statusHtml = `
-                <div class="d-flex align-items-center">
+            statusHtml += `
+                <div class="d-flex align-items-center mb-2">
                     <span class="badge bg-danger status-badge me-2">Failed</span>
-                    <span class="text-danger">${result.errors.join(', ')}</span>
+                    <small class="text-muted">Connection failed</small>
                 </div>
             `;
+
+            if (result.errors.length > 0) {
+                statusHtml += '<div class="mt-2">';
+                result.errors.forEach(error => {
+                    statusHtml += `<div class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>${error}</div>`;
+                });
+                statusHtml += '</div>';
+            }
         }
 
         connectionStatus.innerHTML = statusHtml;
 
     } catch (error) {
+        console.error('Error testing connection:', error);
         connectionStatus.innerHTML = `
-            <div class="d-flex align-items-center">
+            <div class="d-flex align-items-center mb-2">
                 <span class="badge bg-danger status-badge me-2">Error</span>
-                <span class="text-danger">${error.message}</span>
+                <small class="text-muted">Test failed</small>
+            </div>
+            <div class="text-danger small">
+                <i class="bi bi-exclamation-triangle me-1"></i>${error.message}
             </div>
         `;
     }
@@ -125,20 +179,178 @@ async function loadExistingCredentials() {
     try {
         const credentials = await window.electronAPI.invoke('load-credentials');
         if (credentials) {
-            document.getElementById('accessKeyId').value = credentials.accessKeyId;
-            document.getElementById('secretAccessKey').value = credentials.secretAccessKey;
-            document.getElementById('region').value = credentials.region;
+            document.getElementById('accessKeyId').value = credentials.accessKeyId || '';
+            document.getElementById('secretAccessKey').value = credentials.secretAccessKey || '';
+            document.getElementById('region').value = credentials.region || 'us-east-1';
             document.getElementById('sessionToken').value = credentials.sessionToken || '';
             document.getElementById('profileName').value = credentials.profileName || 'default';
 
-            // Test the loaded credentials
+            showInfoToast('Existing credentials loaded');
+            
+            // Auto-test the loaded credentials
             await testConnection();
         }
     } catch (error) {
-        window.electronAPI.showToast(`Error loading credentials: ${error.message}`, 'error');
+        console.error('Error loading existing credentials:', error);
+        showErrorToast('Failed to load existing credentials');
     }
 }
 
 function continueToApp() {
     window.electronAPI.invoke('navigate-to-main');
+}
+
+// Paste detection and credential parsing functionality
+function setupPasteDetection() {
+    // Add paste event listeners to all input fields
+    const inputFields = ['accessKeyId', 'secretAccessKey', 'sessionToken'];
+    
+    inputFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.addEventListener('paste', handlePaste);
+        }
+    });
+
+    // Also add a global paste listener for the form
+    document.getElementById('credentialsForm').addEventListener('paste', handlePaste);
+}
+
+function handlePaste(event) {
+    // Get the pasted text
+    const pastedText = (event.clipboardData || window.clipboardData).getData('text');
+    
+    // Check if the pasted text contains AWS credentials in batch format
+    if (isAwsCredentialFormat(pastedText)) {
+        event.preventDefault(); // Prevent default paste behavior
+        
+        const credentials = parseAwsCredentials(pastedText);
+        if (credentials) {
+            populateCredentialFields(credentials);
+            showSuccessToast('AWS credentials detected and populated automatically!');
+        }
+    }
+}
+
+function isAwsCredentialFormat(text) {
+    // Check for Windows batch format (set AWS_ACCESS_KEY_ID=...)
+    const hasBatchFormat = /set\s+AWS_ACCESS_KEY_ID\s*=\s*[A-Z0-9]+/i.test(text) && 
+                          /set\s+AWS_SECRET_ACCESS_KEY\s*=\s*[A-Za-z0-9+/=]+/i.test(text);
+    
+    // Check for export format (export AWS_ACCESS_KEY_ID=...)
+    const hasExportFormat = /export\s+AWS_ACCESS_KEY_ID\s*=\s*[A-Z0-9]+/i.test(text) && 
+                           /export\s+AWS_SECRET_ACCESS_KEY\s*=\s*[A-Za-z0-9+/=]+/i.test(text);
+    
+    // Check for simple assignment format (AWS_ACCESS_KEY_ID=...)
+    const hasSimpleFormat = /AWS_ACCESS_KEY_ID\s*=\s*[A-Z0-9]+/i.test(text) && 
+                           /AWS_SECRET_ACCESS_KEY\s*=\s*[A-Za-z0-9+/=]+/i.test(text);
+    
+    return hasBatchFormat || hasExportFormat || hasSimpleFormat;
+}
+
+function parseAwsCredentials(text) {
+    const credentials = {};
+    
+    try {
+        // Parse Access Key ID - support multiple formats
+        let accessKeyMatch = text.match(/(?:set\s+|export\s+|^|\s)AWS_ACCESS_KEY_ID\s*=\s*([A-Z0-9]+)/im);
+        if (accessKeyMatch) {
+            credentials.accessKeyId = accessKeyMatch[1].trim();
+        }
+        
+        // Parse Secret Access Key - support multiple formats
+        let secretKeyMatch = text.match(/(?:set\s+|export\s+|^|\s)AWS_SECRET_ACCESS_KEY\s*=\s*([A-Za-z0-9+/=]+)/im);
+        if (secretKeyMatch) {
+            credentials.secretAccessKey = secretKeyMatch[1].trim();
+        }
+        
+        // Parse Session Token (optional) - support multiple formats
+        let sessionTokenMatch = text.match(/(?:set\s+|export\s+|^|\s)AWS_SESSION_TOKEN\s*=\s*([A-Za-z0-9+/=]+)/im);
+        if (sessionTokenMatch) {
+            credentials.sessionToken = sessionTokenMatch[1].trim();
+        }
+        
+        // Parse Region (optional) - support multiple formats
+        let regionMatch = text.match(/(?:set\s+|export\s+|^|\s)AWS_(?:DEFAULT_)?REGION\s*=\s*([a-z0-9-]+)/im);
+        if (regionMatch) {
+            credentials.region = regionMatch[1].trim();
+        }
+        
+        return credentials;
+    } catch (error) {
+        console.error('Error parsing AWS credentials:', error);
+        showErrorToast('Failed to parse pasted credentials');
+        return null;
+    }
+}
+
+function populateCredentialFields(credentials) {
+    // Populate Access Key ID
+    if (credentials.accessKeyId) {
+        document.getElementById('accessKeyId').value = credentials.accessKeyId;
+    }
+    
+    // Populate Secret Access Key
+    if (credentials.secretAccessKey) {
+        document.getElementById('secretAccessKey').value = credentials.secretAccessKey;
+    }
+    
+    // Populate Session Token if present
+    if (credentials.sessionToken) {
+        document.getElementById('sessionToken').value = credentials.sessionToken;
+    }
+    
+    // Populate Region if present and valid
+    if (credentials.region) {
+        const regionSelect = document.getElementById('region');
+        const regionOption = Array.from(regionSelect.options).find(option => 
+            option.value === credentials.region
+        );
+        if (regionOption) {
+            regionSelect.value = credentials.region;
+        }
+    }
+    
+    // Add visual feedback to show fields were populated
+    const populatedFields = ['accessKeyId', 'secretAccessKey'];
+    if (credentials.sessionToken) populatedFields.push('sessionToken');
+    
+    populatedFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field && field.value) {
+            // Add a temporary highlight effect
+            field.classList.add('border-success');
+            setTimeout(() => {
+                field.classList.remove('border-success');
+            }, 2000);
+        }
+    });
+}
+
+// Manual paste credentials function for the button
+async function pasteCredentialsFromClipboard() {
+    try {
+        // Use the Clipboard API if available
+        if (navigator.clipboard && navigator.clipboard.readText) {
+            const clipboardText = await navigator.clipboard.readText();
+            
+            if (isAwsCredentialFormat(clipboardText)) {
+                const credentials = parseAwsCredentials(clipboardText);
+                if (credentials) {
+                    populateCredentialFields(credentials);
+                    showSuccessToast('AWS credentials pasted and populated successfully!');
+                } else {
+                    showErrorToast('Failed to parse credentials from clipboard');
+                }
+            } else {
+                showInfoToast('No AWS credentials found in clipboard. Please copy credentials in the format: set AWS_ACCESS_KEY_ID=...');
+            }
+        } else {
+            // Fallback: show instructions for manual paste
+            showInfoToast('Please paste your AWS credentials directly into any field. The app will auto-detect and populate all fields.');
+        }
+    } catch (error) {
+        console.error('Error reading clipboard:', error);
+        showInfoToast('Please paste your AWS credentials directly into any field. The app will auto-detect and populate all fields.');
+    }
 }
