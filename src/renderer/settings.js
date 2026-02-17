@@ -7,7 +7,7 @@ const backToMainBtn = document.getElementById('backToMainBtn');
 const resetToDefaultsBtn = document.getElementById('resetToDefaultsBtn');
 const cancelBtn = document.getElementById('cancelBtn');
 const saveSettingsBtn = document.getElementById('saveSettingsBtn');
-const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+const loadingModalManager = new ModalManager('loadingModal');
 
 // Form fields
 const transcriptionLanguageSelect = document.getElementById('transcriptionLanguage');
@@ -64,7 +64,7 @@ async function saveSettings(event) {
     event.preventDefault();
     
     // Show loading modal
-    loadingModal.show();
+    loadingModalManager.show();
     
     try {
         const formData = new FormData(settingsForm);
@@ -93,7 +93,7 @@ async function saveSettings(event) {
             window.themeManager.applyTheme(settings.defaultTheme);
         }
         
-        loadingModal.hide();
+        loadingModalManager.hide();
         window.electronAPI.showToast('Settings saved successfully!', 'success');
         
         // Navigate back to main after a short delay
@@ -102,7 +102,7 @@ async function saveSettings(event) {
         }, 1500);
         
     } catch (error) {
-        loadingModal.hide();
+        loadingModalManager.showError(error.message || 'Failed to save settings');
         console.error('Error saving settings:', error);
         window.electronAPI.showToast('Error saving settings: ' + error.message, 'error');
     }

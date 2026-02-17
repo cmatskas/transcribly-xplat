@@ -13,7 +13,10 @@
     "build:linux": "electron-builder --linux",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "test:bedrock": "jest tests/main/bedrock-llm.test.js --verbose --testMatch='**/bedrock-llm.test.js'",
+    "test:bedrock-quick": "jest tests/main/bedrock-llm.test.js --verbose --testMatch='**/bedrock-llm.test.js' --testNamePattern='Nova Pro.*Summarize Text'",
+    "test:validate": "node tests/main/validate-setup.js"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock": "^3.775.0",
@@ -46,7 +49,8 @@
       "json"
     ],
     "testMatch": [
-      "**/tests/**/*.test.js"
+      "**/tests/**/*.test.js",
+      "!**/tests/main/bedrock-llm.test.js"
     ],
     "collectCoverageFrom": [
       "src/**/*.js",
@@ -61,7 +65,8 @@
     ],
     "testEnvironmentOptions": {
       "url": "http://localhost"
-    }
+    },
+    "testTimeout": 30000
   },
   "build": {
     "appId": "com.transcribely.app",

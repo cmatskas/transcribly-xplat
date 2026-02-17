@@ -629,8 +629,8 @@ async function invokeBedrockNoKB(model, prompt) {
       ],
       inferenceConfig: {
         maxTokens: 4096,
-        temperature: 0.7,
-        topP: 0.9
+        temperature: 0.7
+        // Note: topP cannot be used together with temperature per Bedrock API requirements
       }
     };
     // Create the command with the request

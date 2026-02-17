@@ -7,20 +7,22 @@
 ## Features
 
 - 🎵 **Media Transcription**: Upload audio and video files for automatic transcription using AWS Transcribe
-- 🤖 **AI Analysis**: Analyze transcripts using AWS Bedrock foundation models (Claude, Nova Pro, etc.)
+- 🤖 **AI Analysis**: Analyze transcripts using AWS Bedrock foundation models (Claude, Nova Pro, DeepSeek R1)
 - 📝 **Knowledge Base Integration**: Connect to AWS Bedrock Knowledge Bases for enhanced AI responses
 - 🎨 **Modern UI**: Clean, responsive interface with dark/light theme support
 - 💾 **Export Options**: Download transcripts and analysis results as text files
 - 🔒 **Secure**: Local credential storage with encryption
+- ⚡ **Easy Credential Setup**: Auto-detect and paste AWS credentials from multiple formats
+- 🛡️ **Error Recovery**: Graceful error handling without requiring app restarts
 
 ## Prerequisites
 
 Before using Transcribely, you'll need:
 
 1. **AWS Account** with appropriate permissions (see below)
-2. **Bedrock Models** you need to add DeepSeek R1, Nova Pro, Claude Sonnet v3.7 and Claude Sonnet v4.0 to your Bedrock service
+2. **Bedrock Models**: Enable access to DeepSeek R1, Nova Pro, Claude Sonnet 3.7, and Claude Sonnet 4.5 in your AWS Bedrock service
 
-(if you want to mess with the code - optional)
+For development (optional):
 3. **Node.js** (version 16 or higher)
 4. **npm** or **yarn** package manager
 
@@ -105,10 +107,22 @@ Your AWS IAM user or role must have the following permissions:
 
 1. Go to the [Releases](https://github.com/your-repo/transcribely/releases) page
 2. Download the appropriate installer for your platform:
-   - **Windows**: `Transcribely-Setup-1.0.0.exe`
-   - **macOS**: `Transcribely-1.0.0.dmg`
-   - **Linux**: `Transcribely-1.0.0.AppImage` or `transcribely_1.0.0_amd64.deb`
+   - **Windows (64-bit)**: `Transcribely-Setup-x64.exe` (~80MB)
+   - **Windows ARM64**: `Transcribely-Setup-arm64.exe` (~82MB)
+   - **macOS Universal**: `Transcribely-1.0.0-universal.dmg` (~174MB) - Works on Intel & Apple Silicon
 3. Run the installer and follow the setup instructions
+
+#### Windows Installation
+- Double-click the installer
+- If you see a security warning, click "More info" then "Run anyway"
+- Follow the installation wizard
+- Launch from Start Menu or Desktop shortcut
+
+#### macOS Installation
+- Double-click the DMG file
+- Drag Transcribely to Applications folder
+- Right-click the app and select "Open" (first launch only)
+- For subsequent launches, open normally from Applications
 
 ### Option 2: Build from Source
 
@@ -139,6 +153,11 @@ Your AWS IAM user or role must have the following permissions:
    npm run build:linux  # Linux
    ```
 
+### System Requirements
+- **Windows**: Windows 10/11, 4GB RAM (8GB recommended), 200MB disk space
+- **macOS**: macOS 10.12+, Intel or Apple Silicon, 4GB RAM (8GB recommended), 200MB disk space
+- **Internet connection** required for AWS services
+
 ## Configuration
 
 ### First-Time Setup
@@ -146,11 +165,19 @@ Your AWS IAM user or role must have the following permissions:
 1. **Launch Transcribely**
 2. **Configure AWS Credentials**:
    - Click on "Settings" → "AWS Credentials"
-   - Enter your AWS credentials:
-     - Access Key ID
-     - Secret Access Key
-     - AWS Region (e.g., `us-east-1`)
-     - Session Token (optional, for temporary credentials)
+   - Enter your AWS credentials using one of these methods:
+     
+     **Method 1: Auto-Paste** (Recommended)
+     - Copy your AWS credentials from any source
+     - Paste into ANY credential field
+     - The app automatically detects and populates all fields
+     
+     **Method 2: Manual Entry**
+     - Enter Access Key ID
+     - Enter Secret Access Key
+     - Enter AWS Region (e.g., `us-east-1`)
+     - Enter Session Token (optional, for temporary credentials)
+   
    - Click "Save & Test Credentials"
 
 3. **Verify Permissions**:
@@ -159,6 +186,34 @@ Your AWS IAM user or role must have the following permissions:
      - ✅ Bedrock Access
      - ✅ Transcribe Access
      - ✅ S3 Access
+
+### Supported Credential Formats
+
+The app can auto-detect and parse credentials from these formats:
+
+**Windows Batch Format:**
+```batch
+set AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+set AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+set AWS_SESSION_TOKEN=FwoGZXIvYXdzEBYaDH...
+set AWS_DEFAULT_REGION=us-east-1
+```
+
+**Unix Export Format:**
+```bash
+export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+export AWS_SESSION_TOKEN=FwoGZXIvYXdzEBYaDH...
+export AWS_DEFAULT_REGION=us-east-1
+```
+
+**Simple Format:**
+```
+AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+AWS_SESSION_TOKEN=FwoGZXIvYXdzEBYaDH...
+AWS_REGION=us-east-1
+```
 
 ### AWS Regions
 
@@ -225,7 +280,7 @@ The app includes several built-in prompt templates:
 **"Bedrock access denied"**
 - Verify your AWS region supports Bedrock
 - Check that your IAM user/role has Bedrock permissions
-- Some Bedrock models require special access requests
+- Some Bedrock models require special access requests in AWS Console
 
 **"Transcription failed"**
 - Ensure your media file is in a supported format
@@ -237,12 +292,36 @@ The app includes several built-in prompt templates:
 - Check that your credentials have access to the Knowledge Base
 - Verify the Knowledge Base is in the same region as your app configuration
 
+**Error modals won't dismiss**
+- Click the "Dismiss" button or press Escape key
+- If the modal is stuck, the app has automatic cleanup mechanisms
+- All your work is preserved - no need to restart the app
+
+### Error Recovery
+
+When errors occur, Transcribely now provides graceful recovery:
+- Error messages are displayed clearly in the modal
+- Click "Dismiss" or press Escape to close error dialogs
+- Your work is preserved - no need to restart the app
+- Fix the issue and try again immediately
+
 ### Debug Mode
 
 To enable debug logging:
 1. Open the app
 2. Press `Ctrl+Shift+I` (Windows/Linux) or `Cmd+Option+I` (macOS) to open Developer Tools
 3. Check the Console tab for detailed error messages
+
+### Installation Issues
+
+**Windows: "Security Warning"**
+- Click "More info" and then "Run anyway"
+- This is normal for new applications
+
+**macOS: "App is damaged" or "Unidentified Developer"**
+- Right-click the app and select "Open"
+- In System Settings → Security & Privacy, click "Open Anyway"
+- This only needs to be done once
 
 ## Development
 
@@ -257,6 +336,10 @@ transcribely/
 │   ├── renderer/        # Renderer process scripts
 │   └── styles/          # CSS stylesheets
 ├── tests/               # Test files
+│   ├── renderer/        # Renderer process tests
+│   ├── main/            # Main process tests
+│   │   └── bedrock-llm.test.js  # Bedrock integration tests
+│   └── setup.js         # Jest configuration
 ├── main.js              # Main Electron process
 ├── preload.js           # Preload script
 └── package.json         # Project configuration
@@ -265,7 +348,7 @@ transcribely/
 ### Running Tests
 
 ```bash
-# Run all tests
+# Run all unit tests
 npm test
 
 # Run tests in watch mode
@@ -273,7 +356,132 @@ npm run test:watch
 
 # Generate coverage report
 npm run test:coverage
+
+# Run Bedrock integration tests (requires AWS credentials, incurs costs)
+npm run test:bedrock
+
+# Quick Bedrock validation test
+npm run test:bedrock-quick
 ```
+
+### Test Suite
+
+The project includes comprehensive unit and integration tests:
+
+**Unit Tests** (Fast, no AWS costs):
+- Renderer process tests (UI, event handlers, utilities)
+- Main process tests (credentials manager)
+- Mock all external dependencies
+- Run automatically with `npm test`
+
+**Integration Tests** (Requires AWS credentials, incurs costs):
+- Bedrock LLM tests validate all models and prompts
+- Use actual AWS credentials and make real API calls
+- Should be run manually, not in CI/CD
+
+### Bedrock Testing
+
+The Bedrock integration tests validate all models and prompts using real AWS credentials.
+
+**Prerequisites:**
+- AWS credentials configured (environment variables or AWS CLI)
+- Bedrock model access granted in AWS Console
+- IAM permissions: `bedrock:InvokeModel`
+
+**Quick Test** (~30 seconds, ~$0.05 cost):
+```bash
+npm run test:bedrock-quick
+```
+Tests one model/prompt combination to verify setup.
+
+**Full Test Suite** (~3-5 minutes, ~$0.50-1.00 cost):
+```bash
+npm run test:bedrock
+```
+Tests all 4 models × 4 prompts (16 combinations) plus error handling and configuration tests.
+
+**What's Tested:**
+- **Models**: Nova Pro, Claude 3.7 Sonnet, Claude 4.5 Sonnet, DeepSeek R1
+- **Prompts**: Summarize, Sentiment Analysis, Key Points, Action Items
+- **Additional**: Error handling, model comparison, inference configuration
+
+**Test Specific Scenarios:**
+```bash
+# Test only Nova Pro model
+npx jest tests/main/bedrock-llm.test.js --testNamePattern="Nova Pro"
+
+# Test only sentiment analysis
+npx jest tests/main/bedrock-llm.test.js --testNamePattern="Analyze Sentiment"
+
+# Test error handling
+npx jest tests/main/bedrock-llm.test.js --testNamePattern="Error Handling"
+```
+
+**Important Notes:**
+- ⚠️ Tests make real API calls and incur AWS costs
+- Tests require valid AWS credentials (temporary or permanent)
+- Credentials are validated before tests run
+- If credentials expire, tests show clear error message with refresh instructions
+- Don't run in CI/CD unless you have a dedicated test account
+- Monitor your AWS billing dashboard
+
+**Credential Setup for Tests:**
+```bash
+# Option 1: Environment variables
+export AWS_ACCESS_KEY_ID=your_key
+export AWS_SECRET_ACCESS_KEY=your_secret
+export AWS_REGION=us-east-1
+
+# Option 2: AWS CLI
+aws configure
+
+# Option 3: AWS SSO
+aws sso login
+```
+
+**Cost Estimates:**
+| Command | Tests | Time | Cost |
+|---------|-------|------|------|
+| `test:bedrock-quick` | 1 | 30s | ~$0.05 |
+| `test:bedrock` | 22 | 3-5min | ~$0.50-1.00 |
+
+### Test Coverage
+
+The test suite covers:
+- Toast notifications (success, error, info, warning)
+- Navigation between pages
+- File operations (upload, download, copy)
+- Bedrock integration with/without knowledge base
+- Knowledge base loading and caching
+- Prompt validation and error handling
+- Citation parsing and text formatting
+- Event listeners and DOM interactions
+
+**Coverage Goals:**
+- Functions: 100% of exported functions
+- Branches: All conditional logic paths
+- Lines: >90% line coverage
+- Error Handling: All error scenarios
+
+### App Icons
+
+All app icons are generated from `src/assets/favicon.svg`. To regenerate:
+
+```bash
+./generate-icons.sh
+```
+
+**Requirements:**
+- `librsvg`: `brew install librsvg`
+- `imagemagick`: `brew install imagemagick`
+- `iconutil`: Built into macOS
+
+### API Configuration Notes
+
+**Bedrock API Requirements:**
+- The Bedrock Converse API requires that `temperature` and `topP` cannot both be specified
+- All API calls use only the `temperature` parameter (default: 0.7)
+- Models use inference profile IDs for better portability
 
 ### Contributing
 
@@ -281,9 +489,10 @@ npm run test:coverage
 2. Create a feature branch: `git checkout -b feature-name`
 3. Make your changes and add tests
 4. Run tests: `npm test`
-5. Commit your changes: `git commit -am 'Add feature'`
-6. Push to the branch: `git push origin feature-name`
-7. Submit a pull request
+5. For Bedrock changes, run: `npm run test:bedrock-quick`
+6. Commit your changes: `git commit -am 'Add feature'`
+7. Push to the branch: `git push origin feature-name`
+8. Submit a pull request
 
 ## Security
 

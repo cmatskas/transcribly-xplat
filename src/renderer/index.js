@@ -324,12 +324,12 @@ document.getElementById('invokeBedrockBtn').addEventListener('click', async () =
         return;
     }
 
-    const modalElement = document.getElementById('bedrockProcessingModal');
-    const modal = new bootstrap.Modal(modalElement);
+    // Initialize modal manager for better error handling
+    const modalManager = new ModalManager('bedrockProcessingModal');
     
     try {
         // Show the processing modal
-        modal.show();
+        modalManager.show();
 
         // Pass the knowledge base ID to the backend
         const response = await window.electronAPI.invoke('send-to-bedrock', {
@@ -356,31 +356,30 @@ document.getElementById('invokeBedrockBtn').addEventListener('click', async () =
 
         // Show success toast
         showSuccessToast('Bedrock analysis completed successfully!');
+        
+        // Hide modal on success
+        modalManager.hide();
 
     } catch (error) {
-        responseArea.innerHTML = `Error: ${error.message}`;
+        console.error('Bedrock error:', error);
+        
+        // Show error in the modal with dismiss button
+        modalManager.showError(error.message || 'An unexpected error occurred');
+        
+        // Also show error in response area
+        responseArea.innerHTML = `<div class="alert alert-danger" role="alert">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Error:</strong> ${error.message || 'An unexpected error occurred'}
+        </div>`;
         
         // Hide analysis action buttons on error
         document.getElementById('downloadAnalysis').classList.add('d-none');
         document.getElementById('copyAnalysis').classList.add('d-none');
         
         showErrorToast(`Bedrock analysis failed: ${error.message}`);
-    } finally {
-        // Always hide modal in finally block
-        try {
-            modal.hide();
-            // Force remove backdrop if it exists
-            const backdrop = document.querySelector('.modal-backdrop');
-            if (backdrop) {
-                backdrop.remove();
-            }
-            // Remove modal-open class from body
-            document.body.classList.remove('modal-open');
-            document.body.style.removeProperty('overflow');
-            document.body.style.removeProperty('padding-right');
-        } catch (e) {
-            console.error('Error closing modal:', e);
-        }
+        
+        // Don't hide modal immediately - let user dismiss it
+        // Modal will be dismissed when user clicks the dismiss button
     }
 });
 
@@ -770,13 +769,13 @@ function performClearTranscription() {
 
 // Handle file upload and transcription
 async function uploadFile(file) {
-    const modal = new bootstrap.Modal(document.getElementById('transcriptionProcessingModal'));
+    const modalManager = new ModalManager('transcriptionProcessingModal');
     const statusElement = document.getElementById('transcriptionStatus');
 
     try {
         // Show the processing modal
         statusElement.textContent = 'Preparing transcription...';
-        modal.show();
+        modalManager.show();
 
         // Clear any previous transcription text
         transcriptionText.innerHTML = '';
@@ -793,8 +792,8 @@ async function uploadFile(file) {
         // Call the transcription service with the uploaded data
         const response = await window.electronAPI.invoke('transcribe-media', { file: fileData });
 
-        // Hide the modal
-        modal.hide();
+        // Hide the modal on success
+        modalManager.hide();
 
         if (response.status === 'COMPLETED') {
             // Display the transcript with timestamps and speaker details
@@ -807,25 +806,24 @@ async function uploadFile(file) {
 
             showSuccessToast('Transcription completed successfully!');
         } else {
-            modal.hide();
             throw new Error('Transcription did not complete successfully');
         }
 
     } catch (error) {
         console.error('Transcription error:', error);
 
-        // Hide the modal in case of error
-        modal.hide();
+        // Show error in the modal with dismiss button
+        modalManager.showError(error.message || 'Transcription failed');
 
         // Show error in transcription area
         transcriptionText.innerHTML = `<div class="alert alert-danger" role="alert">
             <i class="bi bi-exclamation-triangle me-2"></i>
-            <strong>Transcription Failed:</strong> ${error.message}
+            <strong>Transcription Failed:</strong> ${error.message || 'An unexpected error occurred'}
         </div>`;
 
         showErrorToast(`Transcription failed: ${error.message}`);
-    } finally {
-        modal.hide();
+        
+        // Don't hide modal immediately - let user dismiss it
     }
 }
 function displayTranscript(timestampedTranscript) {

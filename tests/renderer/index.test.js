@@ -2,10 +2,19 @@
  * @jest-environment jsdom
  */
 
+// Mock ModalManager as a global class
+global.ModalManager = jest.fn().mockImplementation(() => ({
+    show: jest.fn(),
+    hide: jest.fn(),
+    showError: jest.fn()
+}));
+
 // Mock the electronAPI before importing the module
 const mockElectronAPI = {
     showToast: jest.fn(),
-    invoke: jest.fn()
+    invoke: jest.fn(),
+    receive: jest.fn(),
+    invokeAsync: jest.fn()
 };
 
 // Mock window.electronAPI
@@ -24,7 +33,7 @@ global.URL.revokeObjectURL = jest.fn();
 // Mock navigator.clipboard
 Object.defineProperty(navigator, 'clipboard', {
     value: {
-        writeText: jest.fn()
+        writeText: jest.fn().mockResolvedValue()
     },
     writable: true
 });
@@ -39,6 +48,20 @@ const localStorageMock = {
 Object.defineProperty(window, 'localStorage', {
     value: localStorageMock
 });
+
+// Mock bootstrap Modal
+global.bootstrap = {
+    Modal: jest.fn().mockImplementation(() => ({
+        show: jest.fn(),
+        hide: jest.fn()
+    })),
+    Modal: {
+        getInstance: jest.fn().mockReturnValue({
+            show: jest.fn(),
+            hide: jest.fn()
+        })
+    }
+};
 
 // Mock setTimeout for polling tests
 jest.useFakeTimers();
@@ -65,6 +88,7 @@ describe('Renderer Index.js', () => {
                 <option value="Test prompt template">Test Template</option>
             </select>
             <input type="checkbox" id="useKnowledgeBase" />
+            <input type="checkbox" id="useExistingTranscript" />
             <select id="knowledgeBaseSelect">
                 <option value="">Select Knowledge Base</option>
             </select>
@@ -74,10 +98,26 @@ describe('Renderer Index.js', () => {
             <textarea id="promptEditor"></textarea>
             <div id="analysisText"></div>
             <button id="invokeBedrockBtn"></button>
+            <button id="downloadAnalysis" class="d-none"></button>
+            <button id="copyAnalysis" class="d-none"></button>
+            <button id="downloadTranscript" class="d-none"></button>
+            <button id="copyTranscript" class="d-none"></button>
+            <button id="clearTranscriptionBtn" class="d-none"></button>
+            <button id="saveTranscriptBeforeClear"></button>
+            <button id="copyTranscriptBeforeClear"></button>
+            <button id="clearWithoutSaving"></button>
             <div id="transcribe-page"></div>
             <div id="analyze-page"></div>
             <div id="nav-transcribe"></div>
             <div id="nav-analyze"></div>
+            <div id="nav-app-settings"></div>
+            <div id="nav-credentials"></div>
+            <div id="nav-connection-status"></div>
+            <div id="knowledgeBaseSection"></div>
+            <div id="transcriptionStatus"></div>
+            <div id="bedrockProcessingModal"></div>
+            <div id="transcriptionProcessingModal"></div>
+            <div id="clearTranscriptionModal"></div>
             <input type="radio" name="viewMode" value="full" checked />
         `;
         
@@ -282,51 +322,47 @@ describe('Renderer Index.js', () => {
             require('../../src/renderer/index.js');
         });
 
-        test('uploadFile handles successful transcription job start', async () => {
-            const mockFile = new File(['test'], 'test.mp4', { type: 'video/mp4' });
+        test('uploadFile handles successful transcription', async () => {
+            const mockFile = {
+                arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
+                name: 'test.mp4',
+                type: 'video/mp4',
+                size: 1024
+            };
             
-            // Mock successful API responses
-            fetch
-                .mockResolvedValueOnce({
-                    ok: true,
-                    json: () => Promise.resolve({ jobId: 'test-job-id' })
-                })
-                .mockResolvedValueOnce({
-                    ok: true,
-                    json: () => Promise.resolve({ 
-                        status: 'completed', 
-                        data: { results: { transcripts: [{ transcript: 'Test transcript' }] } }
-                    })
-                });
+            // Mock successful transcription response
+            mockElectronAPI.invoke.mockResolvedValue({
+                status: 'COMPLETED',
+                transcript: [
+                    { startTime: 0, endTime: 1, speaker: '1', text: 'Test transcript' }
+                ]
+            });
 
             await window.uploadFile(mockFile);
 
-            expect(fetch).toHaveBeenCalledWith('api/transcribe/start', expect.any(Object));
-            expect(mockElectronAPI.showToast).toHaveBeenCalledWith('Starting transcription process...', 'info');
+            expect(mockElectronAPI.invoke).toHaveBeenCalledWith('transcribe-media', expect.objectContaining({
+                file: expect.objectContaining({
+                    name: 'test.mp4',
+                    type: 'video/mp4',
+                    size: 1024
+                })
+            }));
         });
 
-        test('uploadFile handles API error', async () => {
-            const mockFile = new File(['test'], 'test.mp4', { type: 'video/mp4' });
+        test('uploadFile handles transcription error', async () => {
+            const mockFile = {
+                arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
+                name: 'test.mp4',
+                type: 'video/mp4',
+                size: 1024
+            };
             
-            // Mock the DOM elements that uploadFile tries to access
-            const loadingSpinner = document.getElementById('loadingSpinner');
-            const transcriptionText = document.getElementById('transcriptionText');
-            
-            // Mock fetch to return a failed response
-            fetch.mockResolvedValueOnce({
-                ok: false,
-                status: 500,
-                statusText: 'Internal Server Error'
-            });
+            // Mock transcription error
+            mockElectronAPI.invoke.mockRejectedValue(new Error('Transcription failed'));
 
-            // Call uploadFile - it should handle the error gracefully without throwing
-            await expect(window.uploadFile(mockFile)).resolves.not.toThrow();
+            await window.uploadFile(mockFile);
 
-            // Check that the function called showToast with info message first
-            expect(mockElectronAPI.showToast).toHaveBeenCalledWith('Starting transcription process...', 'info');
-            
-            // Check that loading spinner is hidden (this indicates the finally block ran)
-            expect(loadingSpinner.style.display).toBe('none');
+            expect(mockElectronAPI.invoke).toHaveBeenCalledWith('transcribe-media', expect.any(Object));
         });
     });
 
@@ -423,6 +459,10 @@ describe('Renderer Index.js', () => {
             knowledgeBaseSection.id = 'knowledgeBaseSection';
             knowledgeBaseSection.style.display = 'none';
             document.body.appendChild(knowledgeBaseSection);
+            
+            // Check the useKnowledgeBase checkbox to trigger success toast
+            const useKnowledgeBaseCheckbox = document.getElementById('useKnowledgeBase');
+            useKnowledgeBaseCheckbox.checked = true;
             
             localStorageMock.getItem.mockReturnValue(JSON.stringify(mockKnowledgeBases));
 
@@ -561,17 +601,6 @@ describe('Renderer Index.js', () => {
     });
 
     describe('Code Structure and Comments', () => {
-        test('file contains test comment indicating development/debugging', () => {
-            // This test verifies that the test comment added in the recent change is present
-            // The comment "//test" was added at line 10, indicating ongoing development
-            const fs = require('fs');
-            const path = require('path');
-            const filePath = path.join(__dirname, '../../src/renderer/index.js');
-            const fileContent = fs.readFileSync(filePath, 'utf8');
-            
-            expect(fileContent).toContain('//test');
-        });
-
         test('currentAnalysis variable is properly initialized', () => {
             require('../../src/renderer/index.js');
             
