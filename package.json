@@ -94,7 +94,6 @@
     "win": {
       "icon": "src/assets/favicon-win.ico",
       "target": "nsis",
-      "publisherName": "Transcribely",
       "artifactName": "${productName}-Setup-${arch}.${ext}"
     },
     "linux": {
