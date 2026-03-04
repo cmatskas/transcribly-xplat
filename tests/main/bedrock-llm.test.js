@@ -13,10 +13,19 @@
 
 const { BedrockRuntimeClient, ConverseCommand } = require('@aws-sdk/client-bedrock-runtime');
 const { BedrockAgentRuntimeClient, RetrieveAndGenerateCommand } = require('@aws-sdk/client-bedrock-agent-runtime');
-const { bedrockModels, defaultPrompts, region } = require('../../config.js');
+const { bedrockModels, region } = require('../../config.js');
 const path = require('path');
 const os = require('os');
 const fs = require('fs').promises;
+
+// Mock Electron app for CustomPromptsManager
+jest.mock('electron', () => ({
+  app: {
+    getPath: () => '/tmp'
+  }
+}));
+
+const CustomPromptsManager = require('../../src/main/models/customPromptsManager');
 
 // Helper to load credentials from environment or AWS CLI
 const loadCredentialsFromAWS = async () => {
@@ -131,8 +140,31 @@ describe('Bedrock LLM Integration Tests', () => {
   });
 
   // Test each model with each prompt
+  const defaultPrompts = [
+    {
+      id: 'Summarize Text',
+      name: 'Summarize Text',
+      prompt: 'Please provide a concise summary of the following text, highlighting the main points and key takeaways:'
+    },
+    {
+      id: 'Analyze Sentiment',
+      name: 'Analyze Sentiment',
+      prompt: 'Analyze the sentiment and emotional tone of the following text. Identify whether it is positive, negative, or neutral, and explain why:'
+    },
+    {
+      id: 'Extract Key Points',
+      name: 'Extract Key Points',
+      prompt: 'Extract and list the key points, main ideas, and important details from the following text:'
+    },
+    {
+      id: 'Generate Action Items',
+      name: 'Generate Action Items',
+      prompt: 'Based on the following text, generate a list of actionable items, tasks, or next steps:'
+    }
+  ];
+  
   describe.each(bedrockModels)('Model: $id', (model) => {
-    describe.each(defaultPrompts.filter(p => p.id !== 'Custom Prompt'))('Prompt: $id', (promptConfig) => {
+    describe.each(defaultPrompts)('Prompt: $id', (promptConfig) => {
       
       it(`should successfully invoke ${model.id} with "${promptConfig.id}" prompt`, async () => {
         // Construct the full prompt with sample text

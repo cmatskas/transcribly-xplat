@@ -3,6 +3,10 @@
 // Import jest-dom matchers for enhanced DOM testing
 require('@testing-library/jest-dom');
 
+// Polyfill for Node.js streams needed by AWS SDK
+const { TransformStream } = require('node:stream/web');
+global.TransformStream = TransformStream;
+
 // Mock console methods to reduce noise in tests
 global.console = {
   ...console,
