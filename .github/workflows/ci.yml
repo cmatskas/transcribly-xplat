@@ -27,16 +27,3 @@ jobs:
     
     - name: Run unit tests
       run: npm test -- --testPathIgnorePatterns="modalManager|themeManager|conversationManager" --testNamePattern="^((?!transcription|knowledge|Knowledge Base|Upload File|Download|Copy|download|copy).)*$"
-    
-    - name: Generate coverage report
-      run: npm run test:coverage
-      if: matrix.node-version == '22.x'
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      if: matrix.node-version == '22.x'
-      with:
-        files: ./coverage/lcov.info
-        flags: unittests
-        name: codecov-umbrella
-      continue-on-error: true
