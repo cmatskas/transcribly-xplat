@@ -7,6 +7,7 @@ const transcriptionText = document.getElementById('transcriptionText');
 const templateSelect = document.getElementById('promptTemplateSelect');
 let currentAnalysis = '';
 let currentTranscript = [];
+let currentConversation = null; // active conversation object
 
 function showSuccessToast(message) {
     window.electronAPI.showToast(message, 'success');
@@ -142,20 +143,12 @@ function downloadAnalysis() {
         return;
     }
 
-    // Create a Blob with the analysis text
-    const analysisText = cleanupAnalysisText(currentAnalysis);
-    const blob = new Blob([analysisText], { type: 'text/plain' });
-
-    // Create a download link
+    const blob = new Blob([cleanupAnalysisText(currentAnalysis)], { type: 'text/plain' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'analysis_results.txt'; // Default file name
+    link.download = 'analysis_results.txt';
     link.click();
-
-    // Clean up
     URL.revokeObjectURL(link.href);
-
-    // Show success toast
     showSuccessToast('Analysis downloaded successfully');
 }
 
@@ -277,111 +270,109 @@ uploadZone.addEventListener('drop', (e) => {
 });
 
 // Handle prompt submission
-document.getElementById('invokeBedrockBtn').addEventListener('click', async () => {
+document.getElementById('invokeBedrockBtn').addEventListener('click', sendMessage);
+
+document.getElementById('promptEditor').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+async function sendMessage() {
     const model = document.getElementById('modelSelect').value;
-    let prompt = document.getElementById('promptEditor').value;
-    const responseArea = document.getElementById('analysisText');
+    let prompt = document.getElementById('promptEditor').value.trim();
     const useKnowledgeBase = document.getElementById('useKnowledgeBase').checked;
     const useExistingTranscript = document.getElementById('useExistingTranscript').checked;
 
-    // Check if prompt is empty
     if (!prompt) {
         showErrorToast('Please enter a prompt');
         return;
     }
 
-    // Append transcript text if checkbox is checked
+    // Append transcript if requested
     if (useExistingTranscript) {
         const transcriptText = document.getElementById('transcriptionText').textContent || document.getElementById('transcriptionText').innerText;
-
-        // Validate transcript content
         if (!transcriptText || transcriptText.trim() === '' || transcriptText.includes('Upload a file to see transcription')) {
-            showWarningToast('No transcript available. Please transcribe a file first or uncheck "Use Existing Transcript".');
+            showWarningToast('No transcript available. Please transcribe a file first or uncheck "Transcript".');
             return;
         }
-
-        // Clean up transcript text and append to prompt
-        const cleanTranscript = transcriptText.trim();
-        prompt = `${prompt}\n\n--- TRANSCRIPT ---\n${cleanTranscript}\n--- END TRANSCRIPT ---`;
-
-        showInfoToast('Transcript has been included with your prompt');
+        prompt = `${prompt}\n\n--- TRANSCRIPT ---\n${transcriptText.trim()}\n--- END TRANSCRIPT ---`;
     }
 
-    // Get knowledge base ID if checkbox is checked
+    // Validate KB selection
     let knowledgeBaseId = null;
     if (useKnowledgeBase) {
-        const knowledgeBaseSelect = document.getElementById('knowledgeBaseSelect');
-        knowledgeBaseId = knowledgeBaseSelect.value;
-
-        // Check if a valid knowledge base is selected (not the placeholder)
-        if (!knowledgeBaseId || knowledgeBaseSelect.selectedIndex === 0) {
-            knowledgeBaseId = null;
+        const kbSelect = document.getElementById('knowledgeBaseSelect');
+        knowledgeBaseId = kbSelect.selectedIndex > 0 ? kbSelect.value : null;
+        if (!knowledgeBaseId) {
+            showErrorToast('Please select a knowledge base or uncheck "Knowledge Base"');
+            return;
         }
     }
 
-    if (useKnowledgeBase && !knowledgeBaseId) {
-        showErrorToast('Please select a knowledge base or uncheck the "Use Knowledge Base" checkbox');
-        return;
+    // Create conversation if none active
+    if (!currentConversation) {
+        currentConversation = await window.electronAPI.invoke('create-conversation', prompt);
     }
 
-    // Initialize modal manager for better error handling
-    const modalManager = new ModalManager('bedrockProcessingModal');
-    
-    try {
-        // Show the processing modal
-        modalManager.show();
+    // Add user message to conversation
+    const userMsg = { role: 'user', content: prompt, timestamp: new Date().toISOString() };
+    currentConversation.messages.push(userMsg);
+    appendChatMessage(userMsg);
+    document.getElementById('promptEditor').value = '';
+    document.getElementById('chatPlaceholder')?.remove();
 
-        // Pass the knowledge base ID to the backend
+    // Show thinking indicator
+    const thinkingEl = appendThinking();
+
+    // Build Bedrock history (exclude the message we just added — it's sent as prompt)
+    const history = currentConversation.messages
+        .slice(0, -1)
+        .map(m => ({ role: m.role, content: [{ text: m.content }] }));
+
+    try {
         const response = await window.electronAPI.invoke('send-to-bedrock', {
             model,
             prompt,
-            knowledgeBaseId
+            knowledgeBaseId,
+            conversationHistory: history
         });
 
-        if (useKnowledgeBase) {
-            responseArea.innerHTML = simpleCitationParser(response);
-        }
-        else {
-            responseArea.innerHTML = response;
-        }
-        currentAnalysis = response;
-        // Also update window.currentAnalysis if it exists
-        if (typeof window !== 'undefined' && window.currentAnalysis !== undefined) {
-            window.currentAnalysis = response;
-        }
+        thinkingEl.remove();
 
-        // Show analysis action buttons
+        const responseText = useKnowledgeBase ? extractKBText(response) : response;
+        const assistantMsg = { role: 'assistant', content: responseText, timestamp: new Date().toISOString() };
+        currentConversation.messages.push(assistantMsg);
+        appendChatMessage(assistantMsg);
+
+        currentAnalysis = responseText;
         document.getElementById('downloadAnalysis').classList.remove('d-none');
         document.getElementById('copyAnalysis').classList.remove('d-none');
 
-        // Show success toast
-        showSuccessToast('Bedrock analysis completed successfully!');
-        
-        // Hide modal on success
-        modalManager.hide();
+        // Compress if needed
+        if (currentConversation.messages.length > 20) {
+            try {
+                currentConversation = await window.electronAPI.invoke('compress-conversation', {
+                    model,
+                    conversation: currentConversation
+                });
+                appendCompressionNotice();
+            } catch (e) {
+                console.warn('Compression failed, continuing without it:', e.message);
+            }
+        }
+
+        // Save conversation
+        currentConversation = await window.electronAPI.invoke('save-conversation', currentConversation);
+        renderConversationList();
 
     } catch (error) {
-        console.error('Bedrock error:', error);
-        
-        // Show error in the modal with dismiss button
-        modalManager.showError(error.message || 'An unexpected error occurred');
-        
-        // Also show error in response area
-        responseArea.innerHTML = `<div class="alert alert-danger" role="alert">
-            <i class="bi bi-exclamation-triangle me-2"></i>
-            <strong>Error:</strong> ${error.message || 'An unexpected error occurred'}
-        </div>`;
-        
-        // Hide analysis action buttons on error
-        document.getElementById('downloadAnalysis').classList.add('d-none');
-        document.getElementById('copyAnalysis').classList.add('d-none');
-        
-        showErrorToast(`Bedrock analysis failed: ${error.message}`);
-        
-        // Don't hide modal immediately - let user dismiss it
-        // Modal will be dismissed when user clicks the dismiss button
+        thinkingEl.remove();
+        appendChatError(error.message);
+        showErrorToast(`Bedrock error: ${error.message}`);
     }
-});
+}
 
 /*
 // Handle transcription
@@ -454,6 +445,17 @@ document.addEventListener('DOMContentLoaded', () => {
     showInfoToast('Welcome to Transcribely! Upload a video or audio file to get started.');
     loadPromptTemplates();
     loadBedrockModels();
+    renderConversationList();
+
+    document.getElementById('newConversationBtn').addEventListener('click', () => {
+        currentConversation = null;
+        document.getElementById('chatHistory').innerHTML =
+            '<div id="chatPlaceholder" class="chat-placeholder"><i class="bi bi-chat-dots fs-1 mb-3 d-block"></i>Type a message below to start</div>';
+        document.getElementById('promptEditor').focus();
+        document.getElementById('downloadAnalysis').classList.add('d-none');
+        document.getElementById('copyAnalysis').classList.add('d-none');
+        renderConversationList();
+    });
 
     // Set up transcription progress listener once
     window.electronAPI.receive('transcription-progress', (progressData) => {
@@ -536,6 +538,114 @@ async function loadKnowledgeBases() {
         console.error('Error loading knowledge bases:', error);
         showErrorToast('Failed to load knowledge bases: ' + error.message);
     }
+}
+
+// ── Conversation management ──────────────────────────────────────────────
+
+async function renderConversationList() {
+    const list = document.getElementById('conversationList');
+    const conversations = await window.electronAPI.invoke('list-conversations');
+    list.innerHTML = '';
+    conversations.forEach(conv => {
+        const item = document.createElement('div');
+        item.className = 'conv-item' + (currentConversation && currentConversation.id === conv.id ? ' active' : '');
+        item.dataset.id = conv.id;
+        item.innerHTML = `
+            <span class="conv-item-title" title="${conv.title}">${conv.title}</span>
+            <button class="conv-item-delete" data-id="${conv.id}" title="Delete conversation">
+                <i class="bi bi-trash"></i>
+            </button>`;
+        item.addEventListener('click', (e) => {
+            if (!e.target.closest('.conv-item-delete')) loadConversation(conv.id);
+        });
+        item.querySelector('.conv-item-delete').addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteConversation(conv.id);
+        });
+        list.appendChild(item);
+    });
+}
+
+async function loadConversation(id) {
+    currentConversation = await window.electronAPI.invoke('load-conversation', id);
+    renderChatHistory();
+    renderConversationList();
+    document.getElementById('downloadAnalysis').classList.remove('d-none');
+    document.getElementById('copyAnalysis').classList.remove('d-none');
+}
+
+async function deleteConversation(id) {
+    await window.electronAPI.invoke('delete-conversation', id);
+    if (currentConversation && currentConversation.id === id) {
+        currentConversation = null;
+        document.getElementById('chatHistory').innerHTML =
+            '<div id="chatPlaceholder" class="chat-placeholder"><i class="bi bi-chat-dots fs-1 mb-3 d-block"></i>Start a new conversation or select one from the sidebar</div>';
+        document.getElementById('downloadAnalysis').classList.add('d-none');
+        document.getElementById('copyAnalysis').classList.add('d-none');
+    }
+    renderConversationList();
+}
+
+function renderChatHistory() {
+    const history = document.getElementById('chatHistory');
+    history.innerHTML = '';
+    if (!currentConversation || currentConversation.messages.length === 0) {
+        history.innerHTML = '<div id="chatPlaceholder" class="chat-placeholder"><i class="bi bi-chat-dots fs-1 mb-3 d-block"></i>No messages yet</div>';
+        return;
+    }
+    currentConversation.messages.forEach(msg => appendChatMessage(msg));
+    history.scrollTop = history.scrollHeight;
+}
+
+function appendChatMessage(msg) {
+    const history = document.getElementById('chatHistory');
+    const el = document.createElement('div');
+    el.className = `chat-message ${msg.role}`;
+    const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    el.innerHTML = `
+        <div class="chat-bubble">${formatText(msg.content)}</div>
+        <div class="chat-message-time">${time}</div>`;
+    history.appendChild(el);
+    history.scrollTop = history.scrollHeight;
+    return el;
+}
+
+function appendThinking() {
+    const history = document.getElementById('chatHistory');
+    const el = document.createElement('div');
+    el.className = 'chat-thinking';
+    el.innerHTML = '<span></span><span></span><span></span>';
+    history.appendChild(el);
+    history.scrollTop = history.scrollHeight;
+    return el;
+}
+
+function appendChatError(message) {
+    const history = document.getElementById('chatHistory');
+    const el = document.createElement('div');
+    el.className = 'chat-message assistant';
+    el.innerHTML = `<div class="chat-bubble" style="background:var(--error);color:#fff;">
+        <i class="bi bi-exclamation-triangle me-1"></i>${message}</div>`;
+    history.appendChild(el);
+    history.scrollTop = history.scrollHeight;
+}
+
+function appendCompressionNotice() {
+    const history = document.getElementById('chatHistory');
+    const el = document.createElement('div');
+    el.className = 'compression-notice';
+    el.textContent = '— Earlier messages were summarized to save context —';
+    history.appendChild(el);
+    history.scrollTop = history.scrollHeight;
+}
+
+// Extract plain text from KB citation response for chat display
+function extractKBText(response) {
+    if (!response || !response.citations) return String(response);
+    return response.citations
+        .map(c => c.generatedResponsePart?.textResponsePart?.text || '')
+        .filter(Boolean)
+        .join('\n\n');
 }
 
 function simpleCitationParser(responseData) {

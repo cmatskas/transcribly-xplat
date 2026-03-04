@@ -12,8 +12,8 @@ const bedrockModels = [
         inferenceProfileId: "us.amazon.nova-pro-v1:0"
     },
     {
-        id: "Claude 4.5 Sonnet",
-        inferenceProfileId: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+        id: "Claude 4.6 Sonnet",
+        inferenceProfileId: "us.anthropic.claude-sonnet-4-6"
     },
     {
         id: "Claude 4.6 Opus",

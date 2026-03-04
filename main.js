@@ -16,6 +16,9 @@ const CredentialsManager = require('./src/main/models/credentialsManager');
 const AWSValidator = require('./src/main/models/awsValidator');
 const TranscriptMapper = require('./src/main/models/transcriptMapper.js');
 const SettingsManager = require('./src/main/models/settingsManager');
+const ConversationManager = require('./src/main/models/conversationManager');
+
+let conversationManager;
 
 // Global variables for credential and settings management
 let credentialsManager;
@@ -31,6 +34,10 @@ function initializeCredentialsManager() {
 
 function initializeSettingsManager() {
   settingsManager = new SettingsManager();
+}
+
+function initializeConversationManager() {
+  conversationManager = new ConversationManager();
 }
 
 // Initialize AWS clients with credentials
@@ -149,6 +156,7 @@ app.whenReady().then(async () => {
   
   initializeCredentialsManager();
   initializeSettingsManager();
+  initializeConversationManager();
 
   // Load settings
   try {
@@ -312,13 +320,42 @@ ipcMain.handle('open-settings-window', async () => {
   }
 });
 
-ipcMain.handle('send-to-bedrock', async (event, { model, prompt, knowledgeBaseId }) => {
+ipcMain.handle('send-to-bedrock', async (event, { model, prompt, knowledgeBaseId, conversationHistory }) => {
   if (knowledgeBaseId) {
     return await invokeBedrockWithKB(model, prompt, knowledgeBaseId);
+  } else {
+    return await invokeBedrockNoKB(model, prompt, conversationHistory);
   }
-  else {
-    return await invokeBedrockNoKB(model, prompt);
-  }
+});
+
+// Conversation management IPC handlers
+ipcMain.handle('list-conversations', async () => {
+  return await conversationManager.list();
+});
+
+ipcMain.handle('load-conversation', async (event, id) => {
+  return await conversationManager.load(id);
+});
+
+ipcMain.handle('save-conversation', async (event, conversation) => {
+  return await conversationManager.save(conversation);
+});
+
+ipcMain.handle('delete-conversation', async (event, id) => {
+  await conversationManager.delete(id);
+  return true;
+});
+
+ipcMain.handle('create-conversation', async (event, firstPrompt) => {
+  return conversationManager.create(firstPrompt);
+});
+
+ipcMain.handle('compress-conversation', async (event, { model, conversation }) => {
+  const oldMessages = conversation.messages.slice(0, -4);
+  const historyText = oldMessages.map(m => `${m.role}: ${m.content}`).join('\n\n');
+  const summaryPrompt = `Summarize the following conversation history concisely, preserving all key facts, decisions, and context that would be needed to continue the conversation:\n\n${historyText}`;
+  const summary = await invokeBedrockNoKB(model, summaryPrompt);
+  return conversationManager.applyCompression(conversation, summary);
 });
 
 ipcMain.handle('transcribe-media', async (event, { file }) => {
@@ -608,39 +645,28 @@ async function uploadToS3(file, bucket, key) {
   }
 }
 
-async function invokeBedrockNoKB(model, prompt) {
+async function invokeBedrockNoKB(model, prompt, conversationHistory) {
   try {
     if (!awsClients.bedrock) {
       throw new Error('AWS credentials not configured');
     }
 
-    // Create the base request object
-    const request = {
+    // Build messages: prior history + new user message
+    const messages = [
+      ...(conversationHistory || []),
+      { role: 'user', content: [{ text: prompt }] }
+    ];
+
+    const command = new ConverseCommand({
       modelId: model,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              text: prompt
-            }
-          ]
-        }
-      ],
+      messages,
       inferenceConfig: {
         maxTokens: 4096,
         temperature: 0.7
-        // Note: topP cannot be used together with temperature per Bedrock API requirements
       }
-    };
-    // Create the command with the request
-    const command = new ConverseCommand(request);
+    });
 
-    // Send the request to Bedrock
     const response = await awsClients.bedrock.send(command);
-
-    // Parse the response - ConverseCommand returns a structured response
-    // with the model's output in the 'message' property
     return response.output.message.content[0].text;
   } catch (error) {
     logger.log('error', `Bedrock query failed: ${error.message}`);

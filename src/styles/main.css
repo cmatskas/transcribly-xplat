@@ -791,3 +791,224 @@ body {
 [data-theme="dark"] .toastify {
     color: var(--text-inverse) !important;
 }
+
+/* ── Analyze page: chat layout ─────────────────────────────────────────── */
+
+#analyze-page {
+    height: calc(100vh - 56px); /* full height minus navbar */
+    padding: 0 !important;
+    overflow: hidden;
+}
+
+.analyze-layout {
+    display: flex;
+    height: 100%;
+}
+
+/* Sidebar */
+.conv-sidebar {
+    width: 240px;
+    min-width: 240px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-primary);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.conv-sidebar-header {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.conv-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+}
+
+.conv-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 6px;
+    margin: 2px 6px;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    transition: background-color 0.1s ease;
+}
+
+.conv-item:hover {
+    background: var(--bg-accent);
+}
+
+.conv-item.active {
+    background: var(--accent-primary);
+    color: #fff;
+}
+
+.conv-item-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.conv-item-delete {
+    background: none;
+    border: none;
+    padding: 2px 4px;
+    cursor: pointer;
+    color: inherit;
+    opacity: 0.5;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+.conv-item-delete:hover {
+    opacity: 1;
+}
+
+/* Chat area */
+.chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-primary);
+}
+
+.chat-history {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.chat-placeholder {
+    margin: auto;
+    text-align: center;
+    color: var(--text-muted);
+    padding: 40px;
+}
+
+/* Chat bubbles */
+.chat-message {
+    display: flex;
+    flex-direction: column;
+    max-width: 80%;
+}
+
+.chat-message.user {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.chat-message.assistant {
+    align-self: flex-start;
+    align-items: flex-start;
+}
+
+.chat-bubble {
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.chat-message.user .chat-bubble {
+    background: var(--accent-primary);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+
+.chat-message.assistant .chat-bubble {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-primary);
+    border-bottom-left-radius: 4px;
+}
+
+.chat-message-time {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    padding: 0 4px;
+}
+
+.chat-thinking {
+    display: flex;
+    gap: 4px;
+    padding: 12px 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    border-bottom-left-radius: 4px;
+    align-self: flex-start;
+}
+
+.chat-thinking span {
+    width: 8px;
+    height: 8px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    animation: thinking-bounce 1.2s infinite;
+}
+
+.chat-thinking span:nth-child(2) { animation-delay: 0.2s; }
+.chat-thinking span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes thinking-bounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-6px); }
+}
+
+/* Input area */
+.chat-input-area {
+    border-top: 1px solid var(--border-primary);
+    padding: 12px 16px;
+    background: var(--bg-primary);
+}
+
+.chat-config-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.chat-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.chat-input-row textarea {
+    flex: 1;
+    resize: none;
+}
+
+.chat-send-btn {
+    height: 80px;
+    width: 48px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+/* Compression notice */
+.compression-notice {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    padding: 4px 0;
+    font-style: italic;
+}

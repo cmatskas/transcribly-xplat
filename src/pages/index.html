@@ -153,89 +153,73 @@
         </div>
     </div>
 
-    <div id="analyze-page" class="container-fluid py-4" style="display:none;">
-        <div class="row g-12">
-            <!-- Model Selection Column -->
-            <div class="col-md-6">
-                <div class="title-card">
-                    <h2>Bedrock Configuration</h2>
+    <div id="analyze-page" class="container-fluid py-0" style="display:none;">
+        <div class="analyze-layout">
+            <!-- Conversation Sidebar -->
+            <div class="conv-sidebar">
+                <div class="conv-sidebar-header">
+                    <button id="newConversationBtn" class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-plus-lg me-1"></i> New Conversation
+                    </button>
                 </div>
-
-                <!-- Model Selection -->
-                <div class="mb-3">
-                    <label for="modelSelect" class="form-label">Select Bedrock Model</label>
-                    <select class="form-select" id="modelSelect">
-                        <option selected disabled>Loading models...</option>
-                    </select>
-                </div>
-
-                <!-- Prompt Templates -->
-                <div class="mb-3">
-                    <label for="promptTemplate" class="form-label">Select Prompt Template</label>
-                    <select class="form-select" id="promptTemplateSelect">
-                    </select>
-                </div>
-
-                <!-- Prompt Editor -->
-                <div class="mb-3">
-                    <label for="promptEditor" class="form-label">Edit Prompt</label>
-                    <textarea class="form-control" id="promptEditor" rows="6"
-                        placeholder="Edit or write your prompt here..."></textarea>
-                </div>
-
-                <!-- Transcript and Knowledge Base Options -->
-                <div class="mb-3 checkbox-options-container">
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="useExistingTranscript">
-                        <label class="form-check-label" for="useExistingTranscript">
-                            <i class="bi bi-file-text me-1"></i>Use Existing Transcript
-                        </label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="useKnowledgeBase">
-                        <label class="form-check-label" for="useKnowledgeBase">
-                            <i class="bi bi-database me-1"></i>Use Knowledge Base
-                        </label>
-                    </div>
-                </div>
-
-                <div id="knowledgeBaseSection" class="mb-3" style="display:none;">
-                    <label for="knowledgeBaseSelect" class="form-label">Select Knowledge Base</label>
-                    <select class="form-select" id="knowledgeBaseSelect">
-                        <option selected disabled>Select a knowledge base...</option>
-                    </select>
-                </div>
-                <!-- Invoke Button -->
-                <button id="invokeBedrockBtn" class="btn btn-primary w-100 mb-3">
-                    <i class="bi bi-lightning-charge"></i> Invoke Bedrock
-                </button>
+                <div id="conversationList" class="conv-list"></div>
             </div>
 
-            <!-- Results Column -->
-            <div class="col-md-6">
-                <div class="title-card">
-                    <h2>Results</h2>
-                </div>
-
-                <!-- Results Display -->
-                <div class="transcription-content" id="analysisContent">
-                    <div class="loading-spinner" id="analysisLoader">
-                        <div class="spinner"></div>
-                        <div class="message">Analyzing with Bedrock...</div>
-                    </div>
-                    <div id="analysisText" class="text-gray-500 text-center">
-                        Configure and invoke Bedrock to see analysis results
+            <!-- Chat Area -->
+            <div class="chat-area">
+                <!-- Chat history -->
+                <div id="chatHistory" class="chat-history">
+                    <div id="chatPlaceholder" class="chat-placeholder">
+                        <i class="bi bi-chat-dots fs-1 mb-3 d-block"></i>
+                        Start a new conversation or select one from the sidebar
                     </div>
                 </div>
-                <div class="d-flex gap-2 mt-2">
-                    <button id="downloadAnalysis" class="btn btn-outline-primary flex-fill d-none">
-                        <i class="fas fa-download me-2"></i>Download Results
-                    </button>
-                    <button id="copyAnalysis" class="btn btn-outline-secondary flex-fill d-none">
-                        <i class="fas fa-copy me-2"></i>Copy Results
-                    </button>
-                </div>
 
+                <!-- Input area -->
+                <div class="chat-input-area">
+                    <!-- Config row -->
+                    <div class="chat-config-row">
+                        <select class="form-select form-select-sm" id="modelSelect" style="max-width:200px;">
+                            <option selected disabled>Loading models...</option>
+                        </select>
+                        <select class="form-select form-select-sm" id="promptTemplateSelect" style="max-width:200px;">
+                        </select>
+                        <div class="form-check form-check-inline mb-0">
+                            <input class="form-check-input" type="checkbox" id="useExistingTranscript">
+                            <label class="form-check-label small" for="useExistingTranscript">
+                                <i class="bi bi-file-text me-1"></i>Transcript
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline mb-0">
+                            <input class="form-check-input" type="checkbox" id="useKnowledgeBase">
+                            <label class="form-check-label small" for="useKnowledgeBase">
+                                <i class="bi bi-database me-1"></i>Knowledge Base
+                            </label>
+                        </div>
+                    </div>
+                    <div id="knowledgeBaseSection" class="mb-2" style="display:none;">
+                        <select class="form-select form-select-sm" id="knowledgeBaseSelect">
+                            <option selected disabled>Select a knowledge base...</option>
+                        </select>
+                    </div>
+                    <!-- Prompt + send -->
+                    <div class="chat-input-row">
+                        <textarea class="form-control" id="promptEditor" rows="3"
+                            placeholder="Type your message... (Shift+Enter for new line, Enter to send)"></textarea>
+                        <button id="invokeBedrockBtn" class="btn btn-primary chat-send-btn" title="Send (Enter)">
+                            <i class="bi bi-send-fill"></i>
+                        </button>
+                    </div>
+                    <!-- Export row -->
+                    <div class="d-flex gap-2 mt-1">
+                        <button id="downloadAnalysis" class="btn btn-outline-primary btn-sm d-none">
+                            <i class="fas fa-download me-1"></i>Download
+                        </button>
+                        <button id="copyAnalysis" class="btn btn-outline-secondary btn-sm d-none">
+                            <i class="fas fa-copy me-1"></i>Copy Last Response
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
