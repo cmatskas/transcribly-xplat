@@ -191,63 +191,89 @@ describe('Renderer Index.js', () => {
             require('../../src/renderer/index.js');
         });
 
-        test('downloadAnalysis creates download link when analysis exists', () => {
-            // Mock createElement and click before loading the module
+        test('downloadAnalysis creates download link when conversation exists', () => {
             const mockLink = {
                 href: '',
                 download: '',
                 click: jest.fn()
             };
+            const mockBlob = {};
+            const mockURL = 'blob:mock-url';
+            
+            global.Blob = jest.fn(() => mockBlob);
+            global.URL.createObjectURL = jest.fn(() => mockURL);
+            global.URL.revokeObjectURL = jest.fn();
+            
             const createElementSpy = jest.spyOn(document, 'createElement').mockReturnValue(mockLink);
             
-            // Set currentAnalysis on window object
-            window.currentAnalysis = 'Test analysis content';
+            // Set currentConversation on window object with messages
+            window.currentConversation = {
+                id: 'conv_123',
+                messages: [
+                    { role: 'user', content: 'Test question' },
+                    { role: 'assistant', content: 'Test answer' }
+                ]
+            };
 
             // Call the function
             window.downloadAnalysis();
 
             expect(createElementSpy).toHaveBeenCalledWith('a');
-            expect(mockLink.download).toBe('analysis_results.txt');
+            expect(mockLink.download).toBe('conversation_conv_123.md');
             expect(mockLink.click).toHaveBeenCalled();
-            expect(mockElectronAPI.showToast).toHaveBeenCalledWith('Analysis downloaded successfully', 'success');
+            expect(mockElectronAPI.showToast).toHaveBeenCalledWith('Conversation downloaded successfully', 'success');
             
             createElementSpy.mockRestore();
         });
 
-        test('downloadAnalysis shows warning when no analysis available', () => {
-            window.currentAnalysis = '';
+        test('downloadAnalysis shows warning when no conversation available', () => {
+            window.currentConversation = null;
 
             window.downloadAnalysis();
 
-            expect(mockElectronAPI.showToast).toHaveBeenCalledWith('No analysis available to download', 'warning');
+            expect(mockElectronAPI.showToast).toHaveBeenCalledWith('No conversation available to download', 'warning');
         });
 
-        test('copyAnalysis copies to clipboard when analysis exists', async () => {
-            window.currentAnalysis = 'Test analysis content';
+        test('copyAnalysis copies to clipboard when conversation exists', async () => {
+            window.currentConversation = {
+                messages: [
+                    { role: 'user', content: 'Test question' },
+                    { role: 'assistant', content: 'Test answer' }
+                ]
+            };
             navigator.clipboard.writeText.mockResolvedValue();
 
             await window.copyAnalysis();
 
-            expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Test analysis content');
-            expect(mockElectronAPI.showToast).toHaveBeenCalledWith('Analysis copied to clipboard', 'success');
+            expect(navigator.clipboard.writeText).toHaveBeenCalled();
+            const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+            expect(copiedText).toContain('## User');
+            expect(copiedText).toContain('Test question');
+            expect(copiedText).toContain('## Assistant');
+            expect(copiedText).toContain('Test answer');
+            expect(mockElectronAPI.showToast).toHaveBeenCalledWith('Conversation copied to clipboard', 'success');
         });
 
-        test('copyAnalysis shows warning when no analysis available', async () => {
-            window.currentAnalysis = '';
+        test('copyAnalysis shows warning when no conversation available', async () => {
+            window.currentConversation = null;
 
             await window.copyAnalysis();
 
-            expect(mockElectronAPI.showToast).toHaveBeenCalledWith('No analysis available to copy', 'warning');
+            expect(mockElectronAPI.showToast).toHaveBeenCalledWith('No conversation available to copy', 'warning');
         });
 
         test('copyAnalysis handles clipboard error', async () => {
-            window.currentAnalysis = 'Test analysis content';
+            window.currentConversation = {
+                messages: [
+                    { role: 'user', content: 'Test question' }
+                ]
+            };
             navigator.clipboard.writeText.mockRejectedValue(new Error('Clipboard error'));
 
             // Call the function and wait for it to complete
             await window.copyAnalysis();
 
-            expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Test analysis content');
+            expect(navigator.clipboard.writeText).toHaveBeenCalled();
             expect(mockElectronAPI.showToast).toHaveBeenCalledWith('Failed to copy to clipboard', 'error');
         });
     });
@@ -435,7 +461,7 @@ describe('Renderer Index.js', () => {
             const event = new Event('click');
             invokeBtn.dispatchEvent(event);
 
-            expect(mockElectronAPI.showToast).toHaveBeenCalledWith('Please select a knowledge base or uncheck the "Use Knowledge Base" checkbox', 'error');
+            expect(mockElectronAPI.showToast).toHaveBeenCalledWith('Please select a knowledge base or uncheck "Knowledge Base"', 'error');
         });
     });
 
@@ -457,7 +483,6 @@ describe('Renderer Index.js', () => {
             // Add the knowledgeBaseSection div to the DOM
             const knowledgeBaseSection = document.createElement('div');
             knowledgeBaseSection.id = 'knowledgeBaseSection';
-            knowledgeBaseSection.style.display = 'none';
             document.body.appendChild(knowledgeBaseSection);
             
             // Check the useKnowledgeBase checkbox to trigger success toast
