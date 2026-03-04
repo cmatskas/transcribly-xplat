@@ -442,8 +442,7 @@ ipcMain.handle('transcribe-media', async (event, { file }) => {
 });
 
 ipcMain.handle('get-prompt-templates', async () => {
-  const customPrompts = await customPromptsManager.getAll();
-  return [...config.defaultPrompts, ...customPrompts];
+  return await customPromptsManager.getAll();
 });
 
 // Custom prompts handlers

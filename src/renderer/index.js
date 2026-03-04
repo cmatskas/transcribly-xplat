@@ -516,8 +516,7 @@ async function loadPromptTemplates() {
         templates.forEach(template => {
             const option = document.createElement('option');
             option.value = template.prompt;
-            option.text = template.isCustom ? `${template.name} (Custom)` : template.id;
-            option.dataset.isCustom = template.isCustom || false;
+            option.text = template.name;
             option.dataset.promptId = template.id;
             templateSelect.appendChild(option);
         });
@@ -1442,7 +1441,7 @@ async function loadCustomPromptsList() {
         const prompts = await window.electronAPI.invoke('get-custom-prompts');
         
         if (prompts.length === 0) {
-            list.innerHTML = '<p class="text-muted">No custom prompts yet. Click "Add New Prompt" to create one.</p>';
+            list.innerHTML = '<p class="text-muted">No prompts yet. Click "Add New Prompt" to create one.</p>';
             return;
         }
         
@@ -1485,8 +1484,8 @@ async function loadCustomPromptsList() {
             });
         });
     } catch (error) {
-        list.innerHTML = '<p class="text-danger">Error loading custom prompts</p>';
-        console.error('Error loading custom prompts:', error);
+        list.innerHTML = '<p class="text-danger">Error loading prompts</p>';
+        console.error('Error loading prompts:', error);
     }
 }
 

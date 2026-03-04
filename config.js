@@ -25,29 +25,6 @@ const bedrockModels = [
     }
 ];
 
-const defaultPrompts = [
-    {
-        id: 'Summarize Text',
-        prompt: 'Analyze and summarize the following text, highlighting the key points and main themes.'
-    },
-    {
-        id: 'Analyze Sentiment',
-        prompt: 'Analyze the sentiment of the following text, identifying emotional tone, key attitudes, and overall sentiment.'
-    },
-    {
-        id: 'Extract Key Points',
-        prompt: 'Extract and list the key points, important insights, and main takeaways from the following text.'
-    },
-    {
-        id: 'Generate Action Items',
-        prompt: 'Identify and list actionable items, tasks, and next steps from the following text.'
-    },
-    {
-        id: 'Custom Prompt',
-        prompt: ''
-    }
-];
-
 module.exports = {
     port,
     transcriptionLanguage,
@@ -55,6 +32,5 @@ module.exports = {
     bucketName,
     outputBucketName,
     region,
-    bedrockModels,
-    defaultPrompts
+    bedrockModels
 };

@@ -27,6 +27,34 @@ describe('CustomPromptsManager', () => {
     jest.clearAllMocks();
   });
 
+  describe('ensureDefaultPrompts', () => {
+    it('should initialize with default prompts if file is empty', async () => {
+      const error = new Error('File not found');
+      error.code = 'ENOENT';
+      fs.readFile.mockRejectedValue(error);
+      fs.writeFile.mockResolvedValue();
+
+      const result = await manager.ensureDefaultPrompts();
+
+      expect(result).toHaveLength(4);
+      expect(result[0].name).toBe('Summarize Text');
+      expect(result[0].isCustom).toBe(false);
+      expect(fs.writeFile).toHaveBeenCalled();
+    });
+
+    it('should return existing prompts if they exist', async () => {
+      const existing = [
+        { id: 'prompt_1', name: 'Existing', prompt: 'Test', isCustom: false }
+      ];
+      fs.readFile.mockResolvedValue(JSON.stringify(existing));
+
+      const result = await manager.ensureDefaultPrompts();
+
+      expect(result).toEqual(existing);
+      expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+  });
+
   describe('load', () => {
     it('should load prompts from file', async () => {
       const mockPrompts = [
@@ -173,26 +201,28 @@ describe('CustomPromptsManager', () => {
   });
 
   describe('getAll', () => {
-    it('should return all prompts', async () => {
+    it('should return all prompts with defaults initialized', async () => {
+      const error = new Error('File not found');
+      error.code = 'ENOENT';
+      fs.readFile.mockRejectedValue(error);
+      fs.writeFile.mockResolvedValue();
+
+      const result = await manager.getAll();
+
+      expect(result).toHaveLength(4);
+      expect(result[0].name).toBe('Summarize Text');
+    });
+
+    it('should return existing prompts', async () => {
       const mockPrompts = [
-        { id: 'custom_1', name: 'Prompt 1', prompt: 'Text 1', isCustom: true },
-        { id: 'custom_2', name: 'Prompt 2', prompt: 'Text 2', isCustom: true }
+        { id: 'prompt_1', name: 'Prompt 1', prompt: 'Text 1', isCustom: false },
+        { id: 'prompt_2', name: 'Prompt 2', prompt: 'Text 2', isCustom: true }
       ];
       fs.readFile.mockResolvedValue(JSON.stringify(mockPrompts));
 
       const result = await manager.getAll();
 
       expect(result).toEqual(mockPrompts);
-    });
-
-    it('should return empty array if no prompts exist', async () => {
-      const error = new Error('File not found');
-      error.code = 'ENOENT';
-      fs.readFile.mockRejectedValue(error);
-
-      const result = await manager.getAll();
-
-      expect(result).toEqual([]);
     });
   });
 });
