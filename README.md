@@ -1,7 +1,5 @@
 # Transcribely
 
-![Transcribely Logo](src/assets/favicon.svg)
-
 **Transcribely** is a powerful Electron desktop application that combines AWS Bedrock AI models with AWS Transcribe to provide intelligent media transcription and analysis capabilities.
 
 ## Features
@@ -105,12 +103,11 @@ Your AWS IAM user or role must have the following permissions:
 
 ### Option 1: Download Pre-built Binaries (Recommended)
 
-1. Go to the [Releases](https://github.com/your-repo/transcribely/releases) page
-2. Download the appropriate installer for your platform:
+1. Download the appropriate installer for your platform:
    - **Windows (64-bit)**: `Transcribely-Setup-x64.exe` (~80MB)
    - **Windows ARM64**: `Transcribely-Setup-arm64.exe` (~82MB)
    - **macOS Universal**: `Transcribely-1.0.0-universal.dmg` (~174MB) - Works on Intel & Apple Silicon
-3. Run the installer and follow the setup instructions
+2. Run the installer and follow the setup instructions
 
 #### Windows Installation
 - Double-click the installer

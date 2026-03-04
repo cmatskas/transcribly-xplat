@@ -71,6 +71,7 @@
   "build": {
     "appId": "com.transcribely.app",
     "productName": "Transcribely",
+    "afterPack": "./build-scripts/afterPack.js",
     "directories": {
       "output": "dist/temp"
     },
