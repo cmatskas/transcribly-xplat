@@ -33,11 +33,11 @@
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
-    "electron-builder": "^24.0.0",
+    "electron": "^40.7.0",
+    "electron-builder": "^26.8.1",
     "jest": "^30.0.4",
     "jest-environment-jsdom": "^30.0.4",
-    "jsdom": "^26.1.0",
-    "electron": "^25.0.0"
+    "jsdom": "^28.1.0"
   },
   "jest": {
     "testEnvironment": "jest-environment-jsdom",
@@ -85,7 +85,9 @@
     "mac": {
       "icon": "src/assets/app.icns",
       "category": "public.app-category.productivity",
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "artifactName": "${productName}-${version}-universal.${ext}",
       "darkModeSupport": true
     },
