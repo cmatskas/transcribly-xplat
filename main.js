@@ -17,8 +17,10 @@ const AWSValidator = require('./src/main/models/awsValidator');
 const TranscriptMapper = require('./src/main/models/transcriptMapper.js');
 const SettingsManager = require('./src/main/models/settingsManager');
 const ConversationManager = require('./src/main/models/conversationManager');
+const CustomPromptsManager = require('./src/main/models/customPromptsManager');
 
 let conversationManager;
+let customPromptsManager;
 
 // Global variables for credential and settings management
 let credentialsManager;
@@ -38,6 +40,10 @@ function initializeSettingsManager() {
 
 function initializeConversationManager() {
   conversationManager = new ConversationManager();
+}
+
+function initializeCustomPromptsManager() {
+  customPromptsManager = new CustomPromptsManager();
 }
 
 // Initialize AWS clients with credentials
@@ -157,6 +163,7 @@ app.whenReady().then(async () => {
   initializeCredentialsManager();
   initializeSettingsManager();
   initializeConversationManager();
+  initializeCustomPromptsManager();
 
   // Load settings
   try {
@@ -434,9 +441,27 @@ ipcMain.handle('transcribe-media', async (event, { file }) => {
   }
 });
 
-ipcMain.handle('get-prompt-templates', () => {
-  return config.defaultPrompts;
-})
+ipcMain.handle('get-prompt-templates', async () => {
+  const customPrompts = await customPromptsManager.getAll();
+  return [...config.defaultPrompts, ...customPrompts];
+});
+
+// Custom prompts handlers
+ipcMain.handle('add-custom-prompt', async (event, prompt) => {
+  return await customPromptsManager.add(prompt);
+});
+
+ipcMain.handle('update-custom-prompt', async (event, { id, updates }) => {
+  return await customPromptsManager.update(id, updates);
+});
+
+ipcMain.handle('delete-custom-prompt', async (event, id) => {
+  return await customPromptsManager.delete(id);
+});
+
+ipcMain.handle('get-custom-prompts', async () => {
+  return await customPromptsManager.getAll();
+});
 
 // Add handler to get Bedrock models from config
 ipcMain.handle('get-bedrock-models', () => {

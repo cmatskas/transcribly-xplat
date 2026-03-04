@@ -516,7 +516,9 @@ async function loadPromptTemplates() {
         templates.forEach(template => {
             const option = document.createElement('option');
             option.value = template.prompt;
-            option.text = template.id;
+            option.text = template.isCustom ? `${template.name} (Custom)` : template.id;
+            option.dataset.isCustom = template.isCustom || false;
+            option.dataset.promptId = template.id;
             templateSelect.appendChild(option);
         });
     } catch (error) {
@@ -530,6 +532,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadPromptTemplates();
     loadBedrockModels();
     setupFileUpload();
+    setupCustomPromptsManagement();
     await renderConversationList();
     
     // Auto-load the most recent conversation
@@ -1344,3 +1347,156 @@ function formatFileSize(bytes) {
 }
 
 window.removeFile = removeFile;
+
+
+// ===== Custom Prompts Management =====
+
+let editingPromptId = null;
+
+function setupCustomPromptsManagement() {
+    const managePromptsBtn = document.getElementById('managePromptsBtn');
+    const addPromptBtn = document.getElementById('addPromptBtn');
+    const savePromptBtn = document.getElementById('savePromptBtn');
+    const cancelPromptBtn = document.getElementById('cancelPromptBtn');
+    
+    managePromptsBtn.addEventListener('click', () => {
+        const modal = new bootstrap.Modal(document.getElementById('managePromptsModal'));
+        modal.show();
+        loadCustomPromptsList();
+    });
+    
+    addPromptBtn.addEventListener('click', () => {
+        showPromptForm();
+    });
+    
+    savePromptBtn.addEventListener('click', async () => {
+        await savePrompt();
+    });
+    
+    cancelPromptBtn.addEventListener('click', () => {
+        hidePromptForm();
+    });
+}
+
+function showPromptForm(prompt = null) {
+    const form = document.getElementById('promptForm');
+    const title = document.getElementById('promptFormTitle');
+    const nameInput = document.getElementById('promptName');
+    const textInput = document.getElementById('promptText');
+    
+    if (prompt) {
+        title.textContent = 'Edit Prompt';
+        nameInput.value = prompt.name;
+        textInput.value = prompt.prompt;
+        editingPromptId = prompt.id;
+    } else {
+        title.textContent = 'New Prompt';
+        nameInput.value = '';
+        textInput.value = '';
+        editingPromptId = null;
+    }
+    
+    form.style.display = 'block';
+}
+
+function hidePromptForm() {
+    document.getElementById('promptForm').style.display = 'none';
+    document.getElementById('promptName').value = '';
+    document.getElementById('promptText').value = '';
+    editingPromptId = null;
+}
+
+async function savePrompt() {
+    const name = document.getElementById('promptName').value.trim();
+    const prompt = document.getElementById('promptText').value.trim();
+    
+    if (!name || !prompt) {
+        showErrorToast('Please fill in both name and prompt text');
+        return;
+    }
+    
+    try {
+        if (editingPromptId) {
+            await window.electronAPI.invoke('update-custom-prompt', {
+                id: editingPromptId,
+                updates: { name, prompt }
+            });
+            showSuccessToast('Prompt updated successfully');
+        } else {
+            await window.electronAPI.invoke('add-custom-prompt', { name, prompt });
+            showSuccessToast('Prompt added successfully');
+        }
+        
+        hidePromptForm();
+        await loadCustomPromptsList();
+        await loadPromptTemplates();
+    } catch (error) {
+        showErrorToast('Failed to save prompt: ' + error.message);
+    }
+}
+
+async function loadCustomPromptsList() {
+    const list = document.getElementById('customPromptsList');
+    
+    try {
+        const prompts = await window.electronAPI.invoke('get-custom-prompts');
+        
+        if (prompts.length === 0) {
+            list.innerHTML = '<p class="text-muted">No custom prompts yet. Click "Add New Prompt" to create one.</p>';
+            return;
+        }
+        
+        list.innerHTML = prompts.map(prompt => `
+            <div class="card mb-2">
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">${prompt.name}</h6>
+                            <p class="mb-0 small text-muted">${prompt.prompt.substring(0, 100)}${prompt.prompt.length > 100 ? '...' : ''}</p>
+                        </div>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-sm btn-outline-primary edit-prompt-btn" data-id="${prompt.id}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger delete-prompt-btn" data-id="${prompt.id}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        // Attach event listeners
+        list.querySelectorAll('.edit-prompt-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = btn.dataset.id;
+                const prompt = prompts.find(p => p.id === id);
+                showPromptForm(prompt);
+            });
+        });
+        
+        list.querySelectorAll('.delete-prompt-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = btn.dataset.id;
+                if (confirm('Are you sure you want to delete this prompt?')) {
+                    await deletePrompt(id);
+                }
+            });
+        });
+    } catch (error) {
+        list.innerHTML = '<p class="text-danger">Error loading custom prompts</p>';
+        console.error('Error loading custom prompts:', error);
+    }
+}
+
+async function deletePrompt(id) {
+    try {
+        await window.electronAPI.invoke('delete-custom-prompt', id);
+        showSuccessToast('Prompt deleted successfully');
+        await loadCustomPromptsList();
+        await loadPromptTemplates();
+    } catch (error) {
+        showErrorToast('Failed to delete prompt: ' + error.message);
+    }
+}

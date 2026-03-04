@@ -503,9 +503,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- 📧 Email: support@transcribely.app
-- 🐛 Issues: [GitHub Issues](https://github.com/your-repo/transcribely/issues)
-- 📖 Documentation: [Wiki](https://github.com/your-repo/transcribely/wiki)
+- 📧 Email: aws-tech-keynotes@amazon.com
+- 🐛 Issues: [GitHub Issues](https://github.com/cmatskas/transcribly-xplat/issues)
+- 📖 Documentation: [Wiki](https://github.com/cmatskas/transcribly-xplat/blob/main/README.md)
 
 ## Changelog
 
