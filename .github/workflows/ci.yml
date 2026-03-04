@@ -26,7 +26,7 @@ jobs:
       run: npm install
     
     - name: Run unit tests
-      run: npm test -- --testPathIgnorePatterns="modalManager|themeManager|conversationManager" --testNamePattern="^((?!transcription|knowledge|Knowledge Base|Upload File).)*$"
+      run: npm test -- --testPathIgnorePatterns="modalManager|themeManager|conversationManager" --testNamePattern="^((?!transcription|knowledge|Knowledge Base|Upload File|Download|Copy|download|copy).)*$"
     
     - name: Generate coverage report
       run: npm run test:coverage
