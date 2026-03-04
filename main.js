@@ -5,7 +5,7 @@ const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { Upload } = require('@aws-sdk/lib-storage');
 const logger = require('./logger');
 
-const { BedrockRuntimeClient, ConverseCommand } = require('@aws-sdk/client-bedrock-runtime');
+const { BedrockRuntimeClient, ConverseCommand, ConverseStreamCommand } = require('@aws-sdk/client-bedrock-runtime');
 //const { BedrockClient } = require('@aws-sdk/client-bedrock');
 const { BedrockAgentClient, ListKnowledgeBasesCommand } = require('@aws-sdk/client-bedrock-agent');
 const { BedrockAgentRuntimeClient, RetrieveAndGenerateCommand } = require('@aws-sdk/client-bedrock-agent-runtime');
@@ -320,11 +320,11 @@ ipcMain.handle('open-settings-window', async () => {
   }
 });
 
-ipcMain.handle('send-to-bedrock', async (event, { model, prompt, knowledgeBaseId, conversationHistory }) => {
+ipcMain.handle('send-to-bedrock', async (event, { model, prompt, knowledgeBaseId, conversationHistory, files = [] }) => {
   if (knowledgeBaseId) {
     return await invokeBedrockWithKB(model, prompt, knowledgeBaseId);
   } else {
-    return await invokeBedrockNoKB(model, prompt, conversationHistory);
+    return await invokeBedrockNoKB(model, prompt, conversationHistory, files, event);
   }
 });
 
@@ -645,19 +645,79 @@ async function uploadToS3(file, bucket, key) {
   }
 }
 
-async function invokeBedrockNoKB(model, prompt, conversationHistory) {
+async function invokeBedrockNoKB(model, prompt, conversationHistory, files = [], event = null) {
   try {
     if (!awsClients.bedrock) {
       throw new Error('AWS credentials not configured');
     }
 
-    // Build messages: prior history + new user message
+    // Validate file count for Converse API
+    if (files && files.length > 5) {
+      throw new Error('Maximum 5 documents allowed for Bedrock Converse API');
+    }
+
+    // Build the message content starting with the prompt
+    const messageContent = [{ text: prompt }];
+
+    // Add documents if provided
+    if (files && files.length > 0) {
+      logger.log('info', `Processing ${files.length} files for Bedrock analysis`);
+
+      for (const file of files) {
+        const fileExtension = file.name.toLowerCase().split('.').pop();
+        
+        if (fileExtension === 'pdf') {
+          const bytes = Array.isArray(file.content) ? new Uint8Array(file.content) : file.content;
+          messageContent.push({
+            document: {
+              name: sanitizeFileName(file.name),
+              format: 'pdf',
+              source: { bytes }
+            }
+          });
+        } else if (['doc', 'docx'].includes(fileExtension)) {
+          const bytes = Array.isArray(file.content) ? new Uint8Array(file.content) : file.content;
+          messageContent.push({
+            document: {
+              name: sanitizeFileName(file.name),
+              format: fileExtension,
+              source: { bytes }
+            }
+          });
+        } else if (['xls', 'xlsx'].includes(fileExtension)) {
+          const bytes = Array.isArray(file.content) ? new Uint8Array(file.content) : file.content;
+          messageContent.push({
+            document: {
+              name: sanitizeFileName(file.name),
+              format: fileExtension,
+              source: { bytes }
+            }
+          });
+        } else if (['txt', 'md', 'csv', 'html'].includes(fileExtension)) {
+          let formattedContent = file.content;
+          
+          if (fileExtension === 'csv') {
+            formattedContent = `CSV Data from ${file.name}:\n${file.content}`;
+          } else if (fileExtension === 'html') {
+            formattedContent = `HTML Content from ${file.name}:\n${file.content}`;
+          } else if (fileExtension === 'md') {
+            formattedContent = `Markdown Content from ${file.name}:\n${file.content}`;
+          }
+
+          messageContent.push({
+            text: `\n\n--- Content from ${file.name} ---\n${formattedContent}\n--- End of ${file.name} ---\n`
+          });
+        }
+      }
+    }
+
+    // Build messages: prior history + new user message with content
     const messages = [
       ...(conversationHistory || []),
-      { role: 'user', content: [{ text: prompt }] }
+      { role: 'user', content: messageContent }
     ];
 
-    const command = new ConverseCommand({
+    const command = new ConverseStreamCommand({
       modelId: model,
       messages,
       inferenceConfig: {
@@ -667,11 +727,39 @@ async function invokeBedrockNoKB(model, prompt, conversationHistory) {
     });
 
     const response = await awsClients.bedrock.send(command);
-    return response.output.message.content[0].text;
+    
+    // Stream the response
+    let fullText = '';
+    for await (const chunk of response.stream) {
+      if (chunk.contentBlockDelta?.delta?.text) {
+        const textChunk = chunk.contentBlockDelta.delta.text;
+        fullText += textChunk;
+        
+        // Send chunk to renderer if event is provided
+        if (event) {
+          event.sender.send('bedrock-stream-chunk', textChunk);
+        }
+      }
+    }
+    
+    // Send completion signal
+    if (event) {
+      event.sender.send('bedrock-stream-complete');
+    }
+    
+    return fullText;
   } catch (error) {
     logger.log('error', `Bedrock query failed: ${error.message}`);
     throw new Error(`Bedrock query failed: ${error.message}`);
   }
+}
+
+// Helper function to sanitize file names for Bedrock
+function sanitizeFileName(fileName) {
+  return fileName
+    .replace(/[^a-zA-Z0-9\s\-\(\)\[\]\.]/g, '_')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 async function invokeBedrockWithKB(model, prompt, knowledgeBaseId) {

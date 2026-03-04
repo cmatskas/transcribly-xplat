@@ -8,6 +8,7 @@ const templateSelect = document.getElementById('promptTemplateSelect');
 let currentAnalysis = '';
 let currentTranscript = [];
 let currentConversation = null; // active conversation object
+let selectedFiles = []; // attached documents for Bedrock
 
 function showSuccessToast(message) {
     window.electronAPI.showToast(message, 'success');
@@ -138,34 +139,38 @@ function showAnalyzePage() {
 }
 
 function downloadAnalysis() {
-    if (!currentAnalysis) {
-        showWarningToast('No analysis available to download');
+    if (!currentConversation || currentConversation.messages.length === 0) {
+        showWarningToast('No conversation available to download');
         return;
     }
 
-    const blob = new Blob([cleanupAnalysisText(currentAnalysis)], { type: 'text/plain' });
+    const conversationMarkdown = currentConversation.messages
+        .map(msg => `## ${msg.role === 'user' ? 'User' : 'Assistant'}\n\n${msg.content}`)
+        .join('\n\n---\n\n');
+
+    const blob = new Blob([conversationMarkdown], { type: 'text/markdown' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'analysis_results.txt';
+    link.download = `conversation_${currentConversation.id}.md`;
     link.click();
     URL.revokeObjectURL(link.href);
-    showSuccessToast('Analysis downloaded successfully');
+    showSuccessToast('Conversation downloaded successfully');
 }
 
 function copyAnalysis() {
-    if (!currentAnalysis) {
-        showWarningToast('No analysis available to copy');
+    if (!currentConversation || currentConversation.messages.length === 0) {
+        showWarningToast('No conversation available to copy');
         return Promise.resolve();
     }
 
-    const analysisText = cleanupAnalysisText(currentAnalysis);
+    const conversationMarkdown = currentConversation.messages
+        .map(msg => `## ${msg.role === 'user' ? 'User' : 'Assistant'}\n\n${msg.content}`)
+        .join('\n\n---\n\n');
 
-    return navigator.clipboard.writeText(analysisText)
+    return navigator.clipboard.writeText(conversationMarkdown)
         .then(() => {
-            // Show success toast
-            showSuccessToast('Analysis copied to clipboard');
+            showSuccessToast('Conversation copied to clipboard');
 
-            // Optional: Show a brief success message
             const copyBtn = document.getElementById('copyAnalysis');
             if (copyBtn) {
                 const originalText = copyBtn.innerHTML;
@@ -272,7 +277,15 @@ uploadZone.addEventListener('drop', (e) => {
 // Handle prompt submission
 document.getElementById('invokeBedrockBtn').addEventListener('click', sendMessage);
 
-document.getElementById('promptEditor').addEventListener('keydown', (e) => {
+const promptEditor = document.getElementById('promptEditor');
+
+// Auto-resize textarea as user types
+promptEditor.addEventListener('input', () => {
+    promptEditor.style.height = 'auto';
+    promptEditor.style.height = Math.min(promptEditor.scrollHeight, 300) + 'px';
+});
+
+promptEditor.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
@@ -288,6 +301,17 @@ async function sendMessage() {
     if (!prompt) {
         showErrorToast('Please enter a prompt');
         return;
+    }
+
+    // Validate file count
+    if (selectedFiles.length > 5) {
+        showErrorToast('Maximum 5 files allowed for Bedrock Converse API');
+        return;
+    }
+
+    // Knowledge Base doesn't support file attachments
+    if (useKnowledgeBase && selectedFiles.length > 0) {
+        showWarningToast('File attachments are not supported with Knowledge Base. Files will be ignored.');
     }
 
     // Append transcript if requested
@@ -332,23 +356,83 @@ async function sendMessage() {
         .map(m => ({ role: m.role, content: [{ text: m.content }] }));
 
     try {
+        // Pass files only if not using knowledge base
+        const filesToSend = useKnowledgeBase ? [] : selectedFiles;
+
+        // Create streaming message bubble
+        let streamingText = '';
+        const assistantMsg = { role: 'assistant', content: '', timestamp: new Date().toISOString() };
+        const messageEl = appendChatMessage(assistantMsg);
+        const bubbleEl = messageEl.querySelector('.chat-bubble');
+        const copyBtn = messageEl.querySelector('.chat-copy-btn');
+        
+        // Set up stream listeners
+        const streamChunkHandler = (chunk) => {
+            streamingText += chunk;
+            assistantMsg.content = streamingText;
+            
+            // Update bubble content while preserving copy button
+            const copyBtnHTML = copyBtn ? copyBtn.outerHTML : '';
+            bubbleEl.innerHTML = copyBtnHTML + formatText(streamingText);
+            
+            // Reattach copy button listener
+            if (copyBtn) {
+                const newCopyBtn = bubbleEl.querySelector('.chat-copy-btn');
+                newCopyBtn.addEventListener('click', () => {
+                    navigator.clipboard.writeText(assistantMsg.content)
+                        .then(() => showSuccessToast('Response copied to clipboard'))
+                        .catch(() => showErrorToast('Failed to copy to clipboard'));
+                });
+            }
+        };
+        
+        const streamCompleteHandler = () => {
+            thinkingEl.remove();
+            currentConversation.messages.push(assistantMsg);
+            currentAnalysis = streamingText;
+            document.getElementById('downloadAnalysis').classList.remove('d-none');
+            document.getElementById('copyAnalysis').classList.remove('d-none');
+            
+            // Clear files after successful send
+            if (selectedFiles.length > 0 && !useKnowledgeBase) {
+                selectedFiles = [];
+                document.getElementById('fileUpload').value = '';
+                updateFileList();
+            }
+        };
+        
+        window.electronAPI.receive('bedrock-stream-chunk', streamChunkHandler);
+        window.electronAPI.receive('bedrock-stream-complete', streamCompleteHandler);
+        
+        thinkingEl.remove();
+
         const response = await window.electronAPI.invoke('send-to-bedrock', {
             model,
             prompt,
             knowledgeBaseId,
-            conversationHistory: history
+            conversationHistory: history,
+            files: filesToSend
         });
 
-        thinkingEl.remove();
+        // For KB responses (non-streaming)
+        if (useKnowledgeBase) {
+            const responseText = extractKBText(response);
+            assistantMsg.content = responseText;
+            const copyBtnHTML = copyBtn ? copyBtn.outerHTML : '';
+            bubbleEl.innerHTML = copyBtnHTML + formatText(responseText);
+            currentConversation.messages.push(assistantMsg);
+            currentAnalysis = responseText;
+            document.getElementById('downloadAnalysis').classList.remove('d-none');
+            document.getElementById('copyAnalysis').classList.remove('d-none');
+        }
 
-        const responseText = useKnowledgeBase ? extractKBText(response) : response;
-        const assistantMsg = { role: 'assistant', content: responseText, timestamp: new Date().toISOString() };
-        currentConversation.messages.push(assistantMsg);
-        appendChatMessage(assistantMsg);
-
-        currentAnalysis = responseText;
-        document.getElementById('downloadAnalysis').classList.remove('d-none');
-        document.getElementById('copyAnalysis').classList.remove('d-none');
+        // Clear files after successful send
+        if (selectedFiles.length > 0 && !useKnowledgeBase) {
+            selectedFiles = [];
+            document.getElementById('fileUpload').value = '';
+            updateFileList();
+            showSuccessToast('Response received (files cleared)');
+        }
 
         // Compress if needed
         if (currentConversation.messages.length > 20) {
@@ -441,11 +525,18 @@ async function loadPromptTemplates() {
 }
 
 // Initialize the application
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     showInfoToast('Welcome to Transcribely! Upload a video or audio file to get started.');
     loadPromptTemplates();
     loadBedrockModels();
-    renderConversationList();
+    setupFileUpload();
+    await renderConversationList();
+    
+    // Auto-load the most recent conversation
+    const conversations = await window.electronAPI.invoke('list-conversations');
+    if (conversations.length > 0) {
+        await loadConversation(conversations[0].id);
+    }
 
     document.getElementById('newConversationBtn').addEventListener('click', () => {
         currentConversation = null;
@@ -454,6 +545,20 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('promptEditor').focus();
         document.getElementById('downloadAnalysis').classList.add('d-none');
         document.getElementById('copyAnalysis').classList.add('d-none');
+        renderConversationList();
+    });
+
+    const searchInput = document.getElementById('conversationSearch');
+    const searchClear = document.getElementById('conversationSearchClear');
+    searchInput.addEventListener('input', () => {
+        const val = searchInput.value;
+        searchClear.classList.toggle('d-none', !val);
+        renderConversationList(val);
+    });
+    searchClear.addEventListener('click', () => {
+        searchInput.value = '';
+        searchClear.classList.add('d-none');
+        searchInput.focus();
         renderConversationList();
     });
 
@@ -542,16 +647,27 @@ async function loadKnowledgeBases() {
 
 // ── Conversation management ──────────────────────────────────────────────
 
-async function renderConversationList() {
+async function renderConversationList(filter = '') {
     const list = document.getElementById('conversationList');
     const conversations = await window.electronAPI.invoke('list-conversations');
+    const query = filter.trim().toLowerCase();
+    const filtered = query
+        ? conversations.filter(c => c.title.toLowerCase().includes(query))
+        : conversations;
     list.innerHTML = '';
-    conversations.forEach(conv => {
+    if (filtered.length === 0 && query) {
+        list.innerHTML = '<div class="conv-no-results">No conversations found</div>';
+        return;
+    }
+    filtered.forEach(conv => {
         const item = document.createElement('div');
         item.className = 'conv-item' + (currentConversation && currentConversation.id === conv.id ? ' active' : '');
         item.dataset.id = conv.id;
+        const title = query
+            ? conv.title.replace(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark>$1</mark>')
+            : conv.title;
         item.innerHTML = `
-            <span class="conv-item-title" title="${conv.title}">${conv.title}</span>
+            <span class="conv-item-title" title="${conv.title}">${title}</span>
             <button class="conv-item-delete" data-id="${conv.id}" title="Delete conversation">
                 <i class="bi bi-trash"></i>
             </button>`;
@@ -602,9 +718,26 @@ function appendChatMessage(msg) {
     const el = document.createElement('div');
     el.className = `chat-message ${msg.role}`;
     const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    
+    const copyBtn = msg.role === 'assistant' 
+        ? `<button class="chat-copy-btn" title="Copy response"><i class="bi bi-clipboard"></i></button>`
+        : '';
+    
     el.innerHTML = `
-        <div class="chat-bubble">${formatText(msg.content)}</div>
+        <div class="chat-bubble">
+            ${copyBtn}
+            ${formatText(msg.content)}
+        </div>
         <div class="chat-message-time">${time}</div>`;
+    
+    if (msg.role === 'assistant') {
+        el.querySelector('.chat-copy-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(msg.content)
+                .then(() => showSuccessToast('Response copied to clipboard'))
+                .catch(() => showErrorToast('Failed to copy to clipboard'));
+        });
+    }
+    
     history.appendChild(el);
     history.scrollTop = history.scrollHeight;
     return el;
@@ -1021,3 +1154,193 @@ function cleanupTranscript() {
         .replace(/\s+/g, ' ')
         .trim();
 }
+
+
+// ===== File Upload Functions =====
+
+function setupFileUpload() {
+    const fileUpload = document.getElementById('fileUpload');
+    const attachFileBtn = document.getElementById('attachFileBtn');
+    const clearFilesBtn = document.getElementById('clearFiles');
+
+    // Click + button to open file picker
+    attachFileBtn.addEventListener('click', () => {
+        fileUpload.click();
+    });
+
+    fileUpload.addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files);
+
+        if (files.length > 5) {
+            showErrorToast('Maximum 5 files allowed for Bedrock Converse API');
+            e.target.value = '';
+            return;
+        }
+
+        const validExtensions = ['.pdf', '.csv', '.doc', '.docx', '.xls', '.xlsx', '.html', '.txt', '.md'];
+        const maxSize = 10 * 1024 * 1024; // 10MB
+
+        for (const file of files) {
+            const extension = '.' + file.name.split('.').pop().toLowerCase();
+
+            if (!validExtensions.includes(extension)) {
+                showErrorToast(`File type ${extension} not supported`);
+                e.target.value = '';
+                return;
+            }
+
+            if (file.size > maxSize) {
+                showErrorToast(`File ${file.name} is too large. Maximum size is 10MB`);
+                e.target.value = '';
+                return;
+            }
+        }
+
+        try {
+            selectedFiles = [];
+
+            for (const file of files) {
+                const fileData = await readFileAsArrayBuffer(file);
+
+                selectedFiles.push({
+                    name: file.name,
+                    content: fileData,
+                    mimeType: getMimeType(file.name),
+                    size: file.size
+                });
+            }
+
+            updateFileList();
+            showSuccessToast(`${files.length} file${files.length > 1 ? 's' : ''} selected`);
+
+        } catch (error) {
+            console.error('Error processing files:', error);
+            showErrorToast('Error processing selected files');
+            e.target.value = '';
+        }
+    });
+
+    clearFilesBtn.addEventListener('click', () => {
+        selectedFiles = [];
+        fileUpload.value = '';
+        updateFileList();
+        showInfoToast('All files cleared');
+    });
+}
+
+function readFileAsArrayBuffer(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        const extension = file.name.toLowerCase().split('.').pop();
+
+        reader.onload = (e) => {
+            if (['pdf', 'doc', 'docx', 'xls', 'xlsx'].includes(extension)) {
+                const uint8Array = new Uint8Array(e.target.result);
+                const regularArray = Array.from(uint8Array);
+                resolve(regularArray);
+            } else {
+                const text = new TextDecoder().decode(e.target.result);
+                resolve(text);
+            }
+        };
+
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+function getMimeType(filename) {
+    const extension = filename.toLowerCase().split('.').pop();
+
+    const mimeTypes = {
+        'pdf': 'application/pdf',
+        'doc': 'application/msword',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xls': 'application/vnd.ms-excel',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'csv': 'text/csv',
+        'html': 'text/html',
+        'md': 'text/markdown',
+        'txt': 'text/plain'
+    };
+
+    return mimeTypes[extension] || 'text/plain';
+}
+
+function updateFileList() {
+    const fileListSection = document.getElementById('fileListSection');
+    const fileList = document.getElementById('fileList');
+    const fileCount = document.getElementById('fileCount');
+    const attachFileBtn = document.getElementById('attachFileBtn');
+
+    if (selectedFiles.length === 0) {
+        fileListSection.style.display = 'none';
+        attachFileBtn.classList.remove('has-files');
+        return;
+    }
+
+    fileListSection.style.display = 'block';
+    fileCount.textContent = selectedFiles.length;
+    
+    // Highlight + button when files are attached
+    attachFileBtn.classList.add('has-files');
+
+    fileList.innerHTML = selectedFiles.map((file, index) => {
+        const extension = file.name.toLowerCase().split('.').pop();
+        const icon = getFileIcon(extension);
+
+        return `
+            <div class="d-flex justify-content-between align-items-center mb-1 p-1 border rounded">
+                <div class="d-flex align-items-center">
+                    <i class="${icon} me-2 text-primary"></i>
+                    <div>
+                        <div class="small fw-medium">${file.name}</div>
+                        <small class="text-muted">${formatFileSize(file.size)}</small>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeFile(${index})">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+function getFileIcon(extension) {
+    const icons = {
+        'pdf': 'bi bi-file-earmark-pdf',
+        'doc': 'bi bi-file-earmark-word',
+        'docx': 'bi bi-file-earmark-word',
+        'xls': 'bi bi-file-earmark-excel',
+        'xlsx': 'bi bi-file-earmark-excel',
+        'csv': 'bi bi-file-earmark-spreadsheet',
+        'html': 'bi bi-file-earmark-code',
+        'md': 'bi bi-file-earmark-richtext',
+        'txt': 'bi bi-file-earmark-text'
+    };
+
+    return icons[extension] || 'bi bi-file-earmark-text';
+}
+
+function removeFile(index) {
+    selectedFiles.splice(index, 1);
+    updateFileList();
+
+    if (selectedFiles.length === 0) {
+        document.getElementById('fileUpload').value = '';
+    }
+
+    showInfoToast('File removed');
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+window.removeFile = removeFile;
