@@ -16,12 +16,14 @@
     "test:coverage": "jest --coverage",
     "test:bedrock": "jest tests/main/bedrock-llm.test.js --verbose --testMatch='**/bedrock-llm.test.js'",
     "test:bedrock-quick": "jest tests/main/bedrock-llm.test.js --verbose --testMatch='**/bedrock-llm.test.js' --testNamePattern='Nova Pro.*Summarize Text'",
+    "test:code-interpreter": "node tests/diag-code-interpreter.js",
     "test:validate": "node tests/main/validate-setup.js"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock": "^3.775.0",
     "@aws-sdk/client-bedrock-agent": "^3.808.0",
     "@aws-sdk/client-bedrock-agent-runtime": "^3.0.0",
+    "@aws-sdk/client-bedrock-agentcore": "^3.1007.0",
     "@aws-sdk/client-bedrock-runtime": "^3.0.0",
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/client-sts": "^3.0.0",

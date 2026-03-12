@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const config = require('./config.js');
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
@@ -18,9 +18,13 @@ const TranscriptMapper = require('./src/main/models/transcriptMapper.js');
 const SettingsManager = require('./src/main/models/settingsManager');
 const ConversationManager = require('./src/main/models/conversationManager');
 const CustomPromptsManager = require('./src/main/models/customPromptsManager');
+const SkillsManager = require('./src/main/models/skillsManager');
+const CodeInterpreterManager = require('./src/main/models/codeInterpreterManager');
+const AgentToolExecutor = require('./src/main/models/agentToolExecutor');
 
 let conversationManager;
 let customPromptsManager;
+let skillsManager;
 
 // Global variables for credential and settings management
 let credentialsManager;
@@ -46,6 +50,10 @@ function initializeCustomPromptsManager() {
   customPromptsManager = new CustomPromptsManager();
 }
 
+function initializeSkillsManager() {
+  skillsManager = new SkillsManager();
+}
+
 // Initialize AWS clients with credentials
 function initializeAWSClients(credentials) {
   const clientConfig = {
@@ -65,7 +73,8 @@ function initializeAWSClients(credentials) {
     s3: new S3Client({
       ...clientConfig,
       endpoint: `https://s3.${credentials.region}.amazonaws.com`
-    })
+    }),
+    agentCoreConfig: clientConfig, // stored for CodeInterpreterManager
   };
 }
 
@@ -164,6 +173,15 @@ app.whenReady().then(async () => {
   initializeSettingsManager();
   initializeConversationManager();
   initializeCustomPromptsManager();
+  initializeSkillsManager();
+
+  // Load skills
+  try {
+    await skillsManager.init();
+    console.info(`Loaded ${skillsManager.getSkills().length} skills`);
+  } catch (error) {
+    console.error('Error loading skills:', error);
+  }
 
   // Load settings
   try {
@@ -460,6 +478,52 @@ ipcMain.handle('delete-custom-prompt', async (event, id) => {
 
 ipcMain.handle('get-custom-prompts', async () => {
   return await customPromptsManager.getAll();
+});
+
+// Skills handlers
+ipcMain.handle('get-skills', async () => {
+  return skillsManager.getSkills();
+});
+
+ipcMain.handle('toggle-skill', async (event, { name, enabled }) => {
+  return await skillsManager.toggleSkill(name, enabled);
+});
+
+ipcMain.handle('refresh-skills', async () => {
+  return await skillsManager.refresh();
+});
+
+ipcMain.handle('open-skills-folder', async () => {
+  await skillsManager.openSkillsFolder();
+});
+
+// Directory picker
+ipcMain.handle('select-directory', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    title: 'Select workspace directory',
+  });
+  if (result.canceled || !result.filePaths.length) return null;
+  return result.filePaths[0];
+});
+
+// Agent handler — runs the agentic tool-use loop
+ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistory, files = [] }) => {
+  if (!awsClients.bedrock) {
+    throw new Error('AWS credentials not configured');
+  }
+
+  const ciManager = new CodeInterpreterManager(awsClients.agentCoreConfig);
+  const executor = new AgentToolExecutor({
+    bedrockClient: awsClients.bedrock,
+    skillsManager,
+    codeInterpreterManager: ciManager,
+    onStatus: (status) => event.sender.send('agent-status', status),
+    onChunk: (chunk) => event.sender.send('agent-stream-chunk', chunk),
+  });
+
+  skillsManager.resetActivations();
+  return await executor.run(model, prompt, conversationHistory, files);
 });
 
 // Add handler to get Bedrock models from config
