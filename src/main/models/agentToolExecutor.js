@@ -123,7 +123,6 @@ ${skillList}
                 negative_prompt: { type: 'string', description: 'What to avoid in the image (optional)' },
                 width: { type: 'integer', description: 'Image width in pixels (default 1024). Must be 320-4096 in increments of 64.' },
                 height: { type: 'integer', description: 'Image height in pixels (default 1024). Must be 320-4096 in increments of 64.' },
-                style: { type: 'string', description: 'Hint for model selection: "photographic" for realistic photos, "creative" for artistic/illustrations. Default: auto-detect from prompt.' },
               },
               required: ['prompt'],
             },
@@ -363,50 +362,29 @@ print(f"Wrote {len(data)} bytes to ${sandboxPath}")
     return { success: result.success, output: result.text };
   }
 
-  async _handleGenerateImage({ prompt, negative_prompt, width, height, style }) {
+  async _handleGenerateImage({ prompt, negative_prompt, width, height }) {
     const { InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
-
-    // Pick model based on style hint or prompt content
-    const useStability = style === 'creative' ||
-      /\b(artistic|abstract|cartoon|anime|illustration|fantasy|surreal|painting)\b/i.test(prompt);
 
     const w = width || 1024;
     const h = height || 1024;
     const filename = `/tmp/generated_${Date.now()}.png`;
+    const modelId = 'amazon.nova-canvas-v1:0';
 
-    this.onStatus(useStability
-      ? 'Generating image with Stable Image Core...'
-      : 'Generating image with Nova Canvas...');
+    this.onStatus('Generating image with Nova Canvas...');
 
-    let body, modelId, parseResponse;
-
-    if (useStability) {
-      modelId = 'stability.stable-image-core-v1:0';
-      const aspect = this._closestAspectRatio(w, h);
-      body = JSON.stringify({
-        prompt,
-        ...(negative_prompt && { negative_prompt }),
-        aspect_ratio: aspect,
-        output_format: 'png',
-      });
-      parseResponse = (resp) => JSON.parse(resp).images[0];
-    } else {
-      modelId = 'amazon.nova-canvas-v1:0';
-      body = JSON.stringify({
-        taskType: 'TEXT_IMAGE',
-        textToImageParams: {
-          text: prompt,
-          ...(negative_prompt && { negativeText: negative_prompt }),
-        },
-        imageGenerationConfig: {
-          numberOfImages: 1,
-          width: w,
-          height: h,
-          cfgScale: 8.0,
-        },
-      });
-      parseResponse = (resp) => JSON.parse(resp).images[0];
-    }
+    const body = JSON.stringify({
+      taskType: 'TEXT_IMAGE',
+      textToImageParams: {
+        text: prompt,
+        ...(negative_prompt && { negativeText: negative_prompt }),
+      },
+      imageGenerationConfig: {
+        numberOfImages: 1,
+        width: w,
+        height: h,
+        cfgScale: 8.0,
+      },
+    });
 
     const response = await this.bedrock.send(new InvokeModelCommand({
       modelId,
@@ -415,9 +393,8 @@ print(f"Wrote {len(data)} bytes to ${sandboxPath}")
       contentType: 'application/json',
     }));
 
-    const base64Image = parseResponse(new TextDecoder().decode(response.body));
+    const base64Image = JSON.parse(new TextDecoder().decode(response.body)).images[0];
 
-    // Write to sandbox if session is active, otherwise return base64 for later use
     if (this.codeInterpreter.sessionId) {
       const code = `
 import base64
@@ -431,17 +408,6 @@ print(f"Image saved: ${filename} ({len(data)} bytes)")
     }
 
     return { success: true, base64_length: base64Image.length, model: modelId, note: 'No sandbox session — use execute_code to save the image.' };
-  }
-
-  _closestAspectRatio(w, h) {
-    const ratios = { '1:1': 1, '16:9': 16/9, '9:16': 9/16, '3:2': 3/2, '2:3': 2/3, '4:5': 4/5, '5:4': 5/4, '21:9': 21/9, '9:21': 9/21 };
-    const target = w / h;
-    let best = '1:1', bestDiff = Infinity;
-    for (const [name, ratio] of Object.entries(ratios)) {
-      const diff = Math.abs(target - ratio);
-      if (diff < bestDiff) { bestDiff = diff; best = name; }
-    }
-    return best;
   }
 
   async _handleWeb({ url, query }) {
