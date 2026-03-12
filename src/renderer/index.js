@@ -9,6 +9,7 @@ let currentAnalysis = '';
 let currentTranscript = [];
 let currentConversation = null; // active conversation object
 let selectedFiles = []; // attached documents for Bedrock
+let credentialsVerified = false; // lazy credential check — once per session
 
 function showSuccessToast(message) {
     window.electronAPI.showToast(message, 'success');
@@ -319,6 +320,16 @@ async function sendMessage() {
     if (!prompt) {
         showErrorToast('Please enter a prompt');
         return;
+    }
+
+    // Lazy credential check — once per session
+    if (!credentialsVerified) {
+        const check = await window.electronAPI.invoke('quick-validate-credentials');
+        if (!check.valid) {
+            showErrorToast('AWS credentials are invalid or expired. Please update in Settings → AWS Credentials.');
+            return;
+        }
+        credentialsVerified = true;
     }
 
     // Validate file count

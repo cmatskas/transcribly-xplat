@@ -190,28 +190,15 @@ app.whenReady().then(async () => {
       currentCredentials = await credentialsManager.loadCredentials();
       initializeAWSClients(currentCredentials);
 
-      // Show window immediately — validate in background
+      // Show window immediately — no validation at startup
       createWindow();
       mainWindow.loadFile('src/pages/index.html');
-
-      // Validate credentials in background (non-blocking)
-      const validator = new AWSValidator(currentCredentials);
-      validator.validateCredentials().then(validation => {
-        if (!validation.valid || !validation.permissions.bedrock || !validation.permissions.transcribe || !validation.permissions.s3) {
-          mainWindow.webContents.once('did-finish-load', () => {
-            mainWindow.webContents.send('credentials-warning', validation);
-          });
-        }
-      }).catch(err => {
-        console.warn('Background credential validation failed:', err.message);
-      });
     } catch (error) {
       console.error('Error loading credentials:', error);
       createWindow();
       await createCredentialsWindow();
     }
   } else {
-    // No credentials, show setup
     createWindow();
     await createCredentialsWindow();
   }
@@ -271,6 +258,19 @@ ipcMain.handle('validate-credentials', async () => {
     return await validator.validateCredentials();
   } catch (error) {
     throw new Error(`Failed to validate credentials: ${error.message}`);
+  }
+});
+
+// Quick credential check — single STS call, ~100ms
+ipcMain.handle('quick-validate-credentials', async () => {
+  try {
+    if (!currentCredentials) {
+      currentCredentials = await credentialsManager.loadCredentials();
+    }
+    const validator = new AWSValidator(currentCredentials);
+    return await validator.quickValidate();
+  } catch (error) {
+    return { valid: false, identity: null, errors: [error.message] };
   }
 });
 

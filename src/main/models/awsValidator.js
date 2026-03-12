@@ -8,6 +8,35 @@ class AWSValidator {
     this.credentials = credentials;
   }
 
+  /**
+   * Quick validation — single STS call to check credentials are fresh.
+   * ~100ms. Use before first service call.
+   */
+  async quickValidate() {
+    try {
+      const stsClient = new STSClient({
+        region: this.credentials.region,
+        credentials: {
+          accessKeyId: this.credentials.accessKeyId,
+          secretAccessKey: this.credentials.secretAccessKey,
+          sessionToken: this.credentials.sessionToken
+        }
+      });
+      const identity = await stsClient.send(new GetCallerIdentityCommand({}));
+      return {
+        valid: true,
+        identity: { userId: identity.UserId, account: identity.Account, arn: identity.Arn },
+        errors: []
+      };
+    } catch (error) {
+      return { valid: false, identity: null, errors: [`Invalid AWS credentials: ${error.message}`] };
+    }
+  }
+
+  /**
+   * Full validation — STS + Bedrock + Transcribe + S3 permission checks.
+   * ~900ms. Use only from Connection Status tab.
+   */
   async validateCredentials() {
     const results = {
       valid: false,

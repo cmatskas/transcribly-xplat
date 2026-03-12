@@ -130,6 +130,8 @@
     container.scrollTop = container.scrollHeight;
   }
 
+  let credentialsVerified = false;
+
   async function sendWorkMessage() {
     if (isProcessing) return;
 
@@ -140,6 +142,16 @@
     if (!prompt) {
       showToast('Please enter a message', 'error');
       return;
+    }
+
+    // Lazy credential check — once per session
+    if (!credentialsVerified) {
+      const check = await window.electronAPI.invoke('quick-validate-credentials');
+      if (!check.valid) {
+        showToast('AWS credentials are invalid or expired. Update in Settings → AWS Credentials.', 'error');
+        return;
+      }
+      credentialsVerified = true;
     }
 
     // Prepend working directory context if set
