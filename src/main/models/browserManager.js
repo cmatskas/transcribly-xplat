@@ -43,8 +43,9 @@ class BrowserManager {
 
     // Connect to remote Chrome via CDP with signed headers
     this.browser = await chromium.connectOverCDP(wsEndpoint, { headers });
-    const context = this.browser.contexts()[0] || await this.browser.newContext();
-    this.page = context.pages()[0] || await context.newPage();
+    // Create a fresh context with HTTPS error handling for sandbox certs
+    const context = await this.browser.newContext({ ignoreHTTPSErrors: true });
+    this.page = await context.newPage();
 
     return this.sessionId;
   }
@@ -88,10 +89,14 @@ class BrowserManager {
     const url = new URL(wsUrl.replace('wss://', 'https://'));
     const region = this.clientConfig.region;
 
-    // Resolve credentials from the SDK client config
-    const credentials = typeof this.clientConfig.credentials === 'function'
-      ? await this.clientConfig.credentials()
-      : this.clientConfig.credentials;
+    // Resolve credentials — from config if available, otherwise from SDK default chain
+    let credentials = this.clientConfig.credentials;
+    if (!credentials || !credentials.accessKeyId) {
+      const { fromNodeProviderChain } = require('@aws-sdk/credential-providers');
+      credentials = await fromNodeProviderChain()();
+    } else if (typeof credentials === 'function') {
+      credentials = await credentials();
+    }
 
     const signer = new SignatureV4({
       service: 'bedrock-agentcore',
