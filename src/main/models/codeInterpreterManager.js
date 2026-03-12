@@ -30,7 +30,7 @@ class CodeInterpreterManager {
 
     // Install office document libraries
     await this.executeCode(
-      'import subprocess; subprocess.check_call(["pip", "install", "-q", "python-docx", "openpyxl", "python-pptx"]); print("Libraries installed")'
+      'import subprocess; subprocess.check_call(["pip", "install", "-q", "python-docx", "openpyxl", "python-pptx", "lxml"]); print("Libraries installed")'
     );
 
     return this.sessionId;
