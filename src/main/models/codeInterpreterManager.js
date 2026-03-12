@@ -44,7 +44,7 @@ class CodeInterpreterManager {
         codeInterpreterIdentifier: this.codeInterpreterIdentifier,
         sessionId: this.sessionId,
         name: 'executeCode',
-        arguments: JSON.stringify({ language: 'python', code }),
+        arguments: { language: 'python', code },
       })
     );
 
@@ -59,7 +59,7 @@ class CodeInterpreterManager {
         codeInterpreterIdentifier: this.codeInterpreterIdentifier,
         sessionId: this.sessionId,
         name: 'writeFiles',
-        arguments: JSON.stringify({ content: files }),
+        arguments: { content: files },
       })
     );
 

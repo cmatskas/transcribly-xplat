@@ -16,6 +16,7 @@
     "test:coverage": "jest --coverage",
     "test:bedrock": "jest tests/main/bedrock-llm.test.js --verbose --testMatch='**/bedrock-llm.test.js'",
     "test:bedrock-quick": "jest tests/main/bedrock-llm.test.js --verbose --testMatch='**/bedrock-llm.test.js' --testNamePattern='Nova Pro.*Summarize Text'",
+    "test:code-interpreter": "node tests/diag-code-interpreter.js",
     "test:validate": "node tests/main/validate-setup.js"
   },
   "dependencies": {
