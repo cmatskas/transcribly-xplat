@@ -244,7 +244,7 @@ ${skillList}
       system: [{ text: this.buildSystemPrompt() }],
       messages,
       toolConfig: this.getToolConfig(),
-      inferenceConfig: { maxTokens: 4096, temperature: 0.7 },
+      inferenceConfig: { maxTokens: 16384, temperature: 0.7 },
     });
 
     const response = await this.bedrock.send(command);
