@@ -9,10 +9,11 @@ const path = require('path');
  *       feed toolResult back → Converse again → repeat until end_turn.
  */
 class AgentToolExecutor {
-  constructor({ bedrockClient, skillsManager, codeInterpreterManager, onStatus, onChunk }) {
+  constructor({ bedrockClient, skillsManager, codeInterpreterManager, browserManager, onStatus, onChunk }) {
     this.bedrock = bedrockClient;
     this.skills = skillsManager;
     this.codeInterpreter = codeInterpreterManager;
+    this.browser = browserManager;
     this.onStatus = onStatus || (() => {});
     this.onChunk = onChunk || (() => {});
   }
@@ -37,6 +38,7 @@ ${skillList}
 - When the user mentions a local file path in their prompt, use read_local_file to load it into the sandbox before processing.
 - After generating files in the sandbox (always save to /tmp/), use save_file_locally to write them to the user's local filesystem.
 - Break complex tasks into steps. Execute code, inspect results, and iterate until the task is complete.
+- You can browse the web using browse_web (navigate to a URL and extract content) and web_search (search Google). Use these to research topics, look up documentation, or gather information.
 - If a library is missing in the sandbox, install it with pip via execute_code before using it.
 </instructions>`;
   }
@@ -128,6 +130,36 @@ ${skillList}
           },
         },
       },
+      {
+        toolSpec: {
+          name: 'browse_web',
+          description: 'Navigate to a URL and extract the page content as text. Use for reading web pages, documentation, articles, or any online content.',
+          inputSchema: {
+            json: {
+              type: 'object',
+              properties: {
+                url: { type: 'string', description: 'The URL to navigate to' },
+              },
+              required: ['url'],
+            },
+          },
+        },
+      },
+      {
+        toolSpec: {
+          name: 'web_search',
+          description: 'Search the web using Google and return the top results with titles, URLs, and snippets. Use when the user asks to look something up, research a topic, or find information online.',
+          inputSchema: {
+            json: {
+              type: 'object',
+              properties: {
+                query: { type: 'string', description: 'The search query' },
+              },
+              required: ['query'],
+            },
+          },
+        },
+      },
     ];
 
     // Only include activate_skill if there are skills
@@ -214,6 +246,10 @@ ${skillList}
         this.onStatus('Cleaning up sandbox...');
         await this.codeInterpreter.stopSession().catch(() => {});
       }
+      if (this.browser.sessionId) {
+        this.onStatus('Closing browser...');
+        await this.browser.stopSession().catch(() => {});
+      }
     }
   }
 
@@ -288,6 +324,12 @@ ${skillList}
 
       case 'generate_image':
         return this._handleGenerateImage(input);
+
+      case 'browse_web':
+        return this._handleBrowseWeb(input.url);
+
+      case 'web_search':
+        return this._handleWebSearch(input.query);
 
       default:
         return { error: `Unknown tool: ${name}` };
@@ -418,6 +460,47 @@ print(f"Image saved: ${filename} ({len(data)} bytes)")
       if (diff < bestDiff) { bestDiff = diff; best = name; }
     }
     return best;
+  }
+
+  async _handleBrowseWeb(url) {
+    if (!this.browser.sessionId) {
+      this.onStatus('Starting browser session...');
+      await this.browser.startSession();
+    }
+    this.onStatus(`Navigating to ${url}...`);
+    await this.browser.navigate(url);
+
+    this.onStatus('Extracting page content...');
+    const contentResp = await this.browser.getPageContent();
+
+    // Extract text from the response
+    const content = contentResp?.content || contentResp?.text || JSON.stringify(contentResp);
+    const truncated = typeof content === 'string' && content.length > 15000
+      ? content.substring(0, 15000) + '\n\n[Content truncated — showing first 15000 characters]'
+      : content;
+
+    return { url, content: truncated };
+  }
+
+  async _handleWebSearch(query) {
+    if (!this.browser.sessionId) {
+      this.onStatus('Starting browser session...');
+      await this.browser.startSession();
+    }
+
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    this.onStatus(`Searching: ${query}...`);
+    await this.browser.navigate(searchUrl);
+
+    this.onStatus('Extracting search results...');
+    const contentResp = await this.browser.getPageContent();
+    const content = contentResp?.content || contentResp?.text || JSON.stringify(contentResp);
+
+    const truncated = typeof content === 'string' && content.length > 10000
+      ? content.substring(0, 10000) + '\n\n[Results truncated]'
+      : content;
+
+    return { query, results: truncated };
   }
 
   _sanitizeName(fileName) {

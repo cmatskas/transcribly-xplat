@@ -21,6 +21,7 @@ const CustomPromptsManager = require('./src/main/models/customPromptsManager');
 const SkillsManager = require('./src/main/models/skillsManager');
 const CodeInterpreterManager = require('./src/main/models/codeInterpreterManager');
 const AgentToolExecutor = require('./src/main/models/agentToolExecutor');
+const BrowserManager = require('./src/main/models/browserManager');
 
 let conversationManager;
 let customPromptsManager;
@@ -514,10 +515,12 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
   }
 
   const ciManager = new CodeInterpreterManager(awsClients.agentCoreConfig);
+  const brManager = new BrowserManager(awsClients.agentCoreConfig);
   const executor = new AgentToolExecutor({
     bedrockClient: awsClients.bedrock,
     skillsManager,
     codeInterpreterManager: ciManager,
+    browserManager: brManager,
     onStatus: (status) => event.sender.send('agent-status', status),
     onChunk: (chunk) => event.sender.send('agent-stream-chunk', chunk),
   });

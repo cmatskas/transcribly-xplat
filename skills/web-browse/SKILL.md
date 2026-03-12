@@ -1,21 +1,30 @@
 ---
 name: web-browse
-description: Browse the web, search for information, and extract content from websites using URLs. Use when the user needs to look up information online or extract content from a webpage.
+description: "Search the web and extract content from websites. Use when the user asks to look up information, research a topic, read a webpage, check documentation, or find current data online."
 metadata:
   provider: agentcore-browser
-  region: us-east-1
   version: "1.0"
 ---
 
-# Web Browse
+# Web Browsing
 
-Navigate to URLs and extract page content, or search the web for information.
+You have two tools for web access:
 
-## Parameters
+## web_search
+Search Google and get results with titles, URLs, and snippets. Use this when the user wants to find information on a topic.
 
-- **url** (string, required): The URL to navigate to and extract content from
-- **query** (string, optional): Search query when performing a web search
+Example: user asks "what's the latest version of python-docx?" → call `web_search` with query "python-docx latest version pypi"
 
-## Usage
+## browse_web
+Navigate to a specific URL and extract the page content as text. Use this when:
+- You have a specific URL to read
+- You want to follow up on a search result
+- The user provides a link
 
-When the user asks to look something up online, fetch a webpage, or research a topic, use this skill to browse the web and return relevant content.
+Example: user says "read this page: https://example.com/docs" → call `browse_web` with that URL
+
+## Tips
+- Search first, then browse specific results for details
+- For documentation lookups, search for the topic then browse the official docs URL
+- Content is returned as text — images and interactive elements are not captured
+- Page content is truncated at 15,000 characters for large pages
