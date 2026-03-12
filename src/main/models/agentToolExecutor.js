@@ -38,7 +38,7 @@ ${skillList}
 - When the user mentions a local file path in their prompt, use read_local_file to load it into the sandbox before processing.
 - After generating files in the sandbox (always save to /tmp/), use save_file_locally to write them to the user's local filesystem.
 - Break complex tasks into steps. Execute code, inspect results, and iterate until the task is complete.
-- You can browse the web using browse_web (navigate to a URL and extract content) and web_search (search Google). Use these to research topics, look up documentation, or gather information.
+- You can browse the web using the web tool. Pass a URL to read a page, or a query to search Google. For research: search first, then browse specific result URLs for deeper content.
 - If a library is missing in the sandbox, install it with pip via execute_code before using it.
 </instructions>`;
   }
@@ -132,30 +132,15 @@ ${skillList}
       },
       {
         toolSpec: {
-          name: 'browse_web',
-          description: 'Navigate to a URL and extract the page content as text. Use for reading web pages, documentation, articles, or any online content.',
+          name: 'web',
+          description: 'Browse the web. Provide a URL to navigate directly, or a search query to search Google first. For research tasks: search first, then browse specific result URLs for details.',
           inputSchema: {
             json: {
               type: 'object',
               properties: {
-                url: { type: 'string', description: 'The URL to navigate to' },
+                url: { type: 'string', description: 'A URL to navigate to directly (e.g. https://example.com)' },
+                query: { type: 'string', description: 'A search query to search Google (e.g. "python-docx latest version")' },
               },
-              required: ['url'],
-            },
-          },
-        },
-      },
-      {
-        toolSpec: {
-          name: 'web_search',
-          description: 'Search the web using Google and return the top results with titles, URLs, and snippets. Use when the user asks to look something up, research a topic, or find information online.',
-          inputSchema: {
-            json: {
-              type: 'object',
-              properties: {
-                query: { type: 'string', description: 'The search query' },
-              },
-              required: ['query'],
             },
           },
         },
@@ -325,11 +310,8 @@ ${skillList}
       case 'generate_image':
         return this._handleGenerateImage(input);
 
-      case 'browse_web':
-        return this._handleBrowseWeb(input.url);
-
-      case 'web_search':
-        return this._handleWebSearch(input.query);
+      case 'web':
+        return this._handleWeb(input);
 
       default:
         return { error: `Unknown tool: ${name}` };
@@ -462,41 +444,25 @@ print(f"Image saved: ${filename} ({len(data)} bytes)")
     return best;
   }
 
-  async _handleBrowseWeb(url) {
+  async _handleWeb({ url, query }) {
     if (!this.browser.sessionId) {
       this.onStatus('Starting browser session...');
       await this.browser.startSession();
     }
-    this.onStatus(`Navigating to ${url}...`);
-    const nav = await this.browser.navigate(url);
+
+    const targetUrl = url || `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    this.onStatus(url ? `Navigating to ${url}...` : `Searching: ${query}...`);
+    const nav = await this.browser.navigate(targetUrl);
 
     this.onStatus('Extracting page content...');
     const content = await this.browser.getPageContent();
 
-    const truncated = content.length > 15000
-      ? content.substring(0, 15000) + '\n\n[Content truncated — showing first 15000 characters]'
+    const maxLen = url ? 15000 : 10000;
+    const truncated = content.length > maxLen
+      ? content.substring(0, maxLen) + '\n\n[Content truncated]'
       : content;
 
-    return { url, title: nav.title, content: truncated };
-  }
-
-  async _handleWebSearch(query) {
-    if (!this.browser.sessionId) {
-      this.onStatus('Starting browser session...');
-      await this.browser.startSession();
-    }
-
-    this.onStatus(`Searching: ${query}...`);
-    await this.browser.navigate(`https://www.google.com/search?q=${encodeURIComponent(query)}`);
-
-    this.onStatus('Extracting search results...');
-    const content = await this.browser.getPageContent();
-
-    const truncated = content.length > 10000
-      ? content.substring(0, 10000) + '\n\n[Results truncated]'
-      : content;
-
-    return { query, results: truncated };
+    return { url: targetUrl, title: nav.title, content: truncated };
   }
 
   _sanitizeName(fileName) {

@@ -8,23 +8,25 @@ metadata:
 
 # Web Browsing
 
-You have two tools for web access:
+You have one tool for all web access: `web`
 
-## web_search
-Search Google and get results with titles, URLs, and snippets. Use this when the user wants to find information on a topic.
+## Usage
 
-Example: user asks "what's the latest version of python-docx?" → call `web_search` with query "python-docx latest version pypi"
+Pass either a `url` or a `query` (or both):
 
-## browse_web
-Navigate to a specific URL and extract the page content as text. Use this when:
-- You have a specific URL to read
-- You want to follow up on a search result
-- The user provides a link
+- `{ query: "python-docx latest version" }` → searches Google, returns results
+- `{ url: "https://pypi.org/project/python-docx/" }` → navigates directly, returns page content
+- Search first, then browse specific URLs from the results for deeper content
 
-Example: user says "read this page: https://example.com/docs" → call `browse_web` with that URL
+## Research workflow
+
+For deep research tasks:
+1. Call `web` with a `query` to search Google
+2. Read the search results — identify the most relevant URLs
+3. Call `web` with each relevant `url` to read the full content
+4. Synthesize findings across multiple sources
 
 ## Tips
-- Search first, then browse specific results for details
-- For documentation lookups, search for the topic then browse the official docs URL
 - Content is returned as text — images and interactive elements are not captured
-- Page content is truncated at 15,000 characters for large pages
+- Large pages are truncated (15K chars for direct URLs, 10K for search results)
+- The browser session persists across multiple calls — no need to restart between pages
