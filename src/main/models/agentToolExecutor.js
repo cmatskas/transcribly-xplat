@@ -19,19 +19,26 @@ class AgentToolExecutor {
 
   buildSystemPrompt() {
     const catalog = this.skills.getCatalog();
-    if (catalog.length === 0) return 'You are a helpful assistant.';
+    if (catalog.length === 0) return `You are a powerful work agent that completes complex, multi-step tasks. You can execute Python code via execute_code, read local files via read_local_file, and save files to the user's filesystem via save_file_locally. Break complex tasks into steps and iterate until complete.`;
 
     const skillList = catalog
       .map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n  </skill>`)
       .join('\n');
 
-    return `You are a helpful assistant with access to specialized skills.
+    return `You are a powerful work agent that completes complex, multi-step tasks using tools.
 
 <available_skills>
 ${skillList}
 </available_skills>
 
-When a task matches a skill's description, call the activate_skill tool with the skill's name to load its full instructions before proceeding. After activation, follow the skill's instructions to complete the task using the execute_code tool. Save output files to /tmp/ in the sandbox — the system will transfer them to the user's local filesystem.`;
+<instructions>
+- When a task matches a skill's description, call activate_skill to load its full instructions before proceeding.
+- You can execute arbitrary Python code via execute_code for any task — not just skills. Write code to solve problems even when no skill covers the task.
+- When the user mentions a local file path in their prompt, use read_local_file to load it into the sandbox before processing.
+- After generating files in the sandbox (always save to /tmp/), use save_file_locally to write them to the user's local filesystem.
+- Break complex tasks into steps. Execute code, inspect results, and iterate until the task is complete.
+- If a library is missing in the sandbox, install it with pip via execute_code before using it.
+</instructions>`;
   }
 
   getToolConfig() {

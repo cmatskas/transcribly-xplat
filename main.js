@@ -19,6 +19,8 @@ const SettingsManager = require('./src/main/models/settingsManager');
 const ConversationManager = require('./src/main/models/conversationManager');
 const CustomPromptsManager = require('./src/main/models/customPromptsManager');
 const SkillsManager = require('./src/main/models/skillsManager');
+const CodeInterpreterManager = require('./src/main/models/codeInterpreterManager');
+const AgentToolExecutor = require('./src/main/models/agentToolExecutor');
 
 let conversationManager;
 let customPromptsManager;
@@ -71,7 +73,8 @@ function initializeAWSClients(credentials) {
     s3: new S3Client({
       ...clientConfig,
       endpoint: `https://s3.${credentials.region}.amazonaws.com`
-    })
+    }),
+    agentCoreConfig: clientConfig, // stored for CodeInterpreterManager
   };
 }
 
@@ -482,16 +485,8 @@ ipcMain.handle('get-skills', async () => {
   return skillsManager.getSkills();
 });
 
-ipcMain.handle('toggle-skill', async (event, { id, enabled }) => {
-  return await skillsManager.toggleSkill(id, enabled);
-});
-
-ipcMain.handle('import-skill', async (event, sourcePath) => {
-  return await skillsManager.importSkill(sourcePath);
-});
-
-ipcMain.handle('remove-skill', async (event, id) => {
-  return await skillsManager.removeSkill(id);
+ipcMain.handle('toggle-skill', async (event, { name, enabled }) => {
+  return await skillsManager.toggleSkill(name, enabled);
 });
 
 ipcMain.handle('refresh-skills', async () => {
@@ -500,6 +495,25 @@ ipcMain.handle('refresh-skills', async () => {
 
 ipcMain.handle('open-skills-folder', async () => {
   await skillsManager.openSkillsFolder();
+});
+
+// Agent handler — runs the agentic tool-use loop
+ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistory, files = [] }) => {
+  if (!awsClients.bedrock) {
+    throw new Error('AWS credentials not configured');
+  }
+
+  const ciManager = new CodeInterpreterManager(awsClients.agentCoreConfig);
+  const executor = new AgentToolExecutor({
+    bedrockClient: awsClients.bedrock,
+    skillsManager,
+    codeInterpreterManager: ciManager,
+    onStatus: (status) => event.sender.send('agent-status', status),
+    onChunk: (chunk) => event.sender.send('agent-stream-chunk', chunk),
+  });
+
+  skillsManager.resetActivations();
+  return await executor.run(model, prompt, conversationHistory, files);
 });
 
 // Add handler to get Bedrock models from config
