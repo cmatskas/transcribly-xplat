@@ -165,7 +165,6 @@ async function createSettingsWindow() {
 }
 
 app.whenReady().then(async () => {
-  // Set app user model ID for Windows (helps with taskbar grouping and icon display)
   if (process.platform === 'win32') {
     app.setAppUserModelId('com.transcribely.app');
   }
@@ -176,23 +175,14 @@ app.whenReady().then(async () => {
   initializeCustomPromptsManager();
   initializeSkillsManager();
 
-  // Load skills
-  try {
-    await skillsManager.init();
-    console.info(`Loaded ${skillsManager.getSkills().length} skills`);
-  } catch (error) {
-    console.error('Error loading skills:', error);
-  }
+  // Load skills and settings in parallel
+  const [, loadedSettings] = await Promise.all([
+    skillsManager.init().then(() => console.info(`Loaded ${skillsManager.getSkills().length} skills`)).catch(err => console.error('Error loading skills:', err)),
+    settingsManager.loadSettings().catch(err => { console.error('Error loading settings:', err); return settingsManager.getDefaultSettings(); }),
+  ]);
+  currentSettings = loadedSettings;
 
-  // Load settings
-  try {
-    currentSettings = await settingsManager.loadSettings();
-  } catch (error) {
-    console.error('Error loading settings:', error);
-    currentSettings = settingsManager.getDefaultSettings();
-  }
-
-  // Check if credentials exist and are valid
+  // Check if credentials exist
   const hasCredentials = await credentialsManager.hasCredentials();
 
   if (hasCredentials) {
@@ -200,19 +190,21 @@ app.whenReady().then(async () => {
       currentCredentials = await credentialsManager.loadCredentials();
       initializeAWSClients(currentCredentials);
 
-      // Validate credentials
-      const validator = new AWSValidator(currentCredentials);
-      const validation = await validator.validateCredentials();
+      // Show window immediately — validate in background
+      createWindow();
+      mainWindow.loadFile('src/pages/index.html');
 
-      if (validation.valid && validation.permissions.bedrock && validation.permissions.transcribe && validation.permissions.s3) {
-        // Credentials are valid, load main app
-        createWindow();
-        mainWindow.loadFile('src/pages/index.html');
-      } else {
-        // Credentials exist but are invalid, show credentials setup
-        createWindow();
-        await createCredentialsWindow();
-      }
+      // Validate credentials in background (non-blocking)
+      const validator = new AWSValidator(currentCredentials);
+      validator.validateCredentials().then(validation => {
+        if (!validation.valid || !validation.permissions.bedrock || !validation.permissions.transcribe || !validation.permissions.s3) {
+          mainWindow.webContents.once('did-finish-load', () => {
+            mainWindow.webContents.send('credentials-warning', validation);
+          });
+        }
+      }).catch(err => {
+        console.warn('Background credential validation failed:', err.message);
+      });
     } catch (error) {
       console.error('Error loading credentials:', error);
       createWindow();
