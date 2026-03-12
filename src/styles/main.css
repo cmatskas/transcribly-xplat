@@ -1307,6 +1307,85 @@ body {
     padding: 0 16px;
 }
 
+
+/* Attach popover menu */
+.attach-menu-wrap {
+    position: relative;
+}
+
+.attach-menu {
+    display: none;
+    position: absolute;
+    bottom: 42px;
+    left: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 10px;
+    padding: 4px;
+    min-width: 180px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    z-index: 100;
+}
+
+.attach-menu.open {
+    display: block;
+}
+
+.attach-menu-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.attach-menu-item:hover {
+    background: var(--bg-accent);
+}
+
+/* Directory badge */
+.work-dir-badge {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--bg-accent);
+    padding: 2px 8px;
+    border-radius: 10px;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Analyze tab options row */
+.analyze-options-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 16px;
+    border-top: 1px solid var(--border-primary);
+    background: var(--bg-primary);
+    font-size: 0.85rem;
+}
+
+.analyze-kb-section {
+    padding: 0 16px 4px;
+    background: var(--bg-primary);
+}
+
+.analyze-input-card {
+    border-radius: 12px;
+    margin: 0 16px 12px;
+    max-width: none;
+}
+
 /* Agent status messages */
 .chat-status-message {
     text-align: center;

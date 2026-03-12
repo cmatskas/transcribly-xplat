@@ -1190,10 +1190,22 @@ function cleanupTranscript() {
 function setupFileUpload() {
     const fileUpload = document.getElementById('fileUpload');
     const attachFileBtn = document.getElementById('attachFileBtn');
+    const attachMenu = document.getElementById('analyzeAttachMenu');
+    const attachFilesItem = document.getElementById('analyzeAttachFiles');
     const clearFilesBtn = document.getElementById('clearFiles');
 
-    // Click + button to open file picker
-    attachFileBtn.addEventListener('click', () => {
+    // Popover menu toggle
+    attachFileBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        attachMenu.classList.toggle('open');
+    });
+    document.addEventListener('click', () => {
+        if (attachMenu) attachMenu.classList.remove('open');
+    });
+
+    // Attach files menu item
+    attachFilesItem.addEventListener('click', () => {
+        attachMenu.classList.remove('open');
         fileUpload.click();
     });
 

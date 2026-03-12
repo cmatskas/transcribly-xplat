@@ -9,17 +9,17 @@
 
   let workMessages = [];
   let isProcessing = false;
+  let workingDirectory = null;
 
   // File manager for the Work tab's own file input
   const workFiles = FM.createFileManager({
     fileInputId: 'workFileUpload',
-    attachBtnId: 'workAttachFileBtn',
+    attachBtnId: 'workAttachFiles',
     clearBtnId: 'workClearFiles',
     listSectionId: 'workFileListSection',
     listId: 'workFileList',
     countId: 'workFileCount',
     maxFiles: 5,
-    hasFilesClass: 'has-files',
   });
 
   function getContainer() {
@@ -37,12 +37,41 @@
 
     const sendBtn = document.getElementById('workSendBtn');
     const promptInput = document.getElementById('workPromptEditor');
+    const attachBtn = document.getElementById('workAttachFileBtn');
+    const attachMenu = document.getElementById('workAttachMenu');
 
     sendBtn.addEventListener('click', sendWorkMessage);
     promptInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendWorkMessage();
+      }
+    });
+
+    // Popover menu toggle
+    attachBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      attachMenu.classList.toggle('open');
+    });
+    document.addEventListener('click', () => attachMenu.classList.remove('open'));
+
+    // Attach files option
+    document.getElementById('workAttachFiles').addEventListener('click', () => {
+      attachMenu.classList.remove('open');
+      document.getElementById('workFileUpload').click();
+    });
+
+    // Select workspace option
+    document.getElementById('workSelectDir').addEventListener('click', async () => {
+      attachMenu.classList.remove('open');
+      const dir = await window.electronAPI.invoke('select-directory');
+      if (dir) {
+        workingDirectory = dir;
+        const badge = document.getElementById('workDirBadge');
+        badge.textContent = dir.split('/').pop() || dir;
+        badge.title = dir;
+        badge.classList.remove('d-none');
+        showToast(`Workspace: ${dir}`, 'info');
       }
     });
 
@@ -109,6 +138,11 @@
       return;
     }
 
+    // Prepend working directory context if set
+    const fullPrompt = workingDirectory
+      ? `[Working directory: ${workingDirectory}]\n\n${prompt}`
+      : prompt;
+
     isProcessing = true;
     const container = getContainer();
 
@@ -140,7 +174,7 @@
 
       const response = await window.electronAPI.invoke('invoke-agent', {
         model,
-        prompt,
+        prompt: fullPrompt,
         conversationHistory: history,
         files,
       });

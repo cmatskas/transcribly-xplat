@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const config = require('./config.js');
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
@@ -495,6 +495,16 @@ ipcMain.handle('refresh-skills', async () => {
 
 ipcMain.handle('open-skills-folder', async () => {
   await skillsManager.openSkillsFolder();
+});
+
+// Directory picker
+ipcMain.handle('select-directory', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    title: 'Select workspace directory',
+  });
+  if (result.canceled || !result.filePaths.length) return null;
+  return result.filePaths[0];
 });
 
 // Agent handler — runs the agentic tool-use loop
