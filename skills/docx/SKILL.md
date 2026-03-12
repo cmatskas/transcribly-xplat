@@ -105,6 +105,14 @@ table.cell(1, 0).text = 'Data'
 
 ### Images
 
+Use the `generate_image` tool to create AI-generated images, then reference the returned sandbox path:
+
+```python
+# After generate_image returns { sandbox_path: "/tmp/generated_123.png" }
+doc.add_picture('/tmp/generated_123.png', width=Inches(4))
+```
+
+For existing images:
 ```python
 doc.add_picture('/tmp/image.png', width=Inches(4))
 # Centered image

@@ -140,6 +140,16 @@ table.cell(1, 2).text = '95'
 
 ### Images
 
+Use the `generate_image` tool to create AI-generated images (photos, illustrations, backgrounds), then reference the returned sandbox path:
+
+```python
+# After generate_image returns { sandbox_path: "/tmp/generated_123.png" }
+slide.shapes.add_picture('/tmp/generated_123.png',
+    left=Inches(1), top=Inches(2),
+    width=Inches(5))  # Height auto-calculated from aspect ratio
+```
+
+For existing images:
 ```python
 slide.shapes.add_picture('/tmp/image.png',
     left=Inches(1), top=Inches(2),
