@@ -1,4 +1,5 @@
 const { ConverseStreamCommand } = require('@aws-sdk/client-bedrock-runtime');
+const { sanitizeFileName } = require('../utils');
 const fs = require('fs').promises;
 const path = require('path');
 
@@ -20,7 +21,7 @@ class AgentToolExecutor {
 
   buildSystemPrompt() {
     const catalog = this.skills.getCatalog();
-    if (catalog.length === 0) return `You are a powerful work agent that completes complex, multi-step tasks. You can execute Python code via execute_code, read local files via read_local_file, and save files to the user's filesystem via save_file_locally. Break complex tasks into steps and iterate until complete.`;
+    if (catalog.length === 0) return `You are a powerful work agent that completes complex, multi-step tasks. You can execute Python code via execute_code, read local files via read_local_file, and save files to the user's filesystem via save_file_locally. After generating any file, you MUST call save_file_locally to deliver it to the user. Never leave generated files only in the sandbox.`;
 
     const skillList = catalog
       .map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n  </skill>`)
@@ -36,7 +37,7 @@ ${skillList}
 - When a task matches a skill's description, call activate_skill to load its full instructions before proceeding.
 - You can execute arbitrary Python code via execute_code for any task — not just skills. Write code to solve problems even when no skill covers the task.
 - When the user mentions a local file path in their prompt, use read_local_file to load it into the sandbox before processing.
-- After generating files in the sandbox (always save to /tmp/), use save_file_locally to write them to the user's local filesystem.
+- After generating files in the sandbox (always save to /tmp/), you MUST call save_file_locally to deliver them to the user's local filesystem. Never leave generated files only in the sandbox.
 - Break complex tasks into steps. Execute code, inspect results, and iterate until the task is complete.
 - You can browse the web using the web tool. Pass a URL to read a page, or a query to search Google. For research: search first, then browse specific result URLs for deeper content.
 - If a library is missing in the sandbox, install it with pip via execute_code before using it.
@@ -167,7 +168,7 @@ ${skillList}
       if (['pdf', 'doc', 'docx', 'xls', 'xlsx'].includes(ext)) {
         const bytes = Array.isArray(file.content) ? new Uint8Array(file.content) : file.content;
         userContent.push({
-          document: { name: this._sanitizeName(file.name), format: ext, source: { bytes } },
+          document: { name: sanitizeFileName(file.name), format: ext, source: { bytes } },
         });
       } else {
         userContent.push({ text: `\n--- Content from ${file.name} ---\n${file.content}\n--- End ---\n` });
@@ -243,7 +244,7 @@ ${skillList}
       system: [{ text: this.buildSystemPrompt() }],
       messages,
       toolConfig: this.getToolConfig(),
-      inferenceConfig: { maxTokens: 16384, temperature: 0.7 },
+      inferenceConfig: { maxTokens: model.includes('claude') ? 16384 : 8192, temperature: 0.7 },
     });
 
     const response = await this.bedrock.send(command);
@@ -431,9 +432,6 @@ print(f"Image saved: ${filename} ({len(data)} bytes)")
     return { url: targetUrl, title: nav.title, content: truncated };
   }
 
-  _sanitizeName(fileName) {
-    return fileName.replace(/[^a-zA-Z0-9\s\-().[\]]/g, '_').replace(/\s{2,}/g, ' ').trim();
-  }
 }
 
 module.exports = AgentToolExecutor;

@@ -59,10 +59,10 @@
     });
     document.addEventListener('click', () => attachMenu.classList.remove('open'));
 
-    // Attach files option
+    // Attach files option — fileManager.setup() already triggers the file picker,
+    // so we only need to close the popover menu here.
     document.getElementById('workAttachFiles').addEventListener('click', () => {
       attachMenu.classList.remove('open');
-      document.getElementById('workFileUpload').click();
     });
 
     // Select workspace option

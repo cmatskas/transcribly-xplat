@@ -838,12 +838,7 @@ async function invokeBedrockNoKB(model, prompt, conversationHistory, files = [],
 }
 
 // Helper function to sanitize file names for Bedrock
-function sanitizeFileName(fileName) {
-  return fileName
-    .replace(/[^a-zA-Z0-9\s\-\(\)\[\]\.]/g, '_')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-}
+const { sanitizeFileName } = require('./src/main/utils');
 
 async function invokeBedrockWithKB(model, prompt, knowledgeBaseId) {
   try {

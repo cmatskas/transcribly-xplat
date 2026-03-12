@@ -31,8 +31,7 @@ function appendChatMessage(container, msg, { onCopy } = {}) {
 
   el.innerHTML = `
     <div class="chat-bubble">
-      ${copyBtn}
-      ${formatText(msg.content)}
+      ${formatText(msg.content)}${copyBtn}
     </div>
     <div class="chat-message-time">${time}</div>`;
 
