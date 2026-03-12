@@ -47,6 +47,10 @@
         sendWorkMessage();
       }
     });
+    promptInput.addEventListener('input', () => {
+      promptInput.style.height = 'auto';
+      promptInput.style.height = Math.min(promptInput.scrollHeight, 200) + 'px';
+    });
 
     // Popover menu toggle
     attachBtn.addEventListener('click', (e) => {
@@ -155,6 +159,7 @@
     workMessages.push(userMsg);
     CR.appendChatMessage(container, userMsg);
     promptInput.value = '';
+    promptInput.style.height = 'auto';
 
     // Show thinking
     const thinkingEl = CR.appendThinking(container);
