@@ -1145,3 +1145,24 @@ body {
 .card-sm .card-body {
     font-size: 0.85rem;
 }
+
+/* Work tab layout */
+.work-layout {
+    display: flex;
+    height: 100%;
+}
+
+/* Agent status messages */
+.chat-status-message {
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: 6px 12px;
+    font-style: italic;
+    animation: statusPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes statusPulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}

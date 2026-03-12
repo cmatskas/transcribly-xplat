@@ -100,6 +100,7 @@ if (typeof window !== 'undefined') {
     window.showWarningToast = showWarningToast;
     window.showTranscribePage = showTranscribePage;
     window.showAnalyzePage = showAnalyzePage;
+    window.showWorkPage = showWorkPage;
     window.downloadAnalysis = downloadAnalysis;
     window.copyAnalysis = copyAnalysis;
     window.uploadFile = uploadFile;
@@ -127,7 +128,9 @@ function showTranscribePage() {
 
     document.getElementById('analyze-page').style.display = 'none';
     document.getElementById('nav-analyze').classList.remove('active');
-    // Hide other pages as needed
+
+    document.getElementById('work-page').style.display = 'none';
+    document.getElementById('nav-work').classList.remove('active');
 }
 
 function showAnalyzePage() {
@@ -136,6 +139,20 @@ function showAnalyzePage() {
 
     document.getElementById('analyze-page').style.display = 'block';
     document.getElementById('nav-analyze').classList.add('active');
+
+    document.getElementById('work-page').style.display = 'none';
+    document.getElementById('nav-work').classList.remove('active');
+}
+
+function showWorkPage() {
+    document.getElementById('transcribe-page').style.display = 'none';
+    document.getElementById('nav-transcribe').classList.remove('active');
+
+    document.getElementById('analyze-page').style.display = 'none';
+    document.getElementById('nav-analyze').classList.remove('active');
+
+    document.getElementById('work-page').style.display = 'block';
+    document.getElementById('nav-work').classList.add('active');
 }
 
 function downloadAnalysis() {
@@ -188,6 +205,7 @@ function copyAnalysis() {
 
 document.getElementById('nav-analyze').addEventListener('click', showAnalyzePage);
 document.getElementById('nav-transcribe').addEventListener('click', showTranscribePage);
+document.getElementById('nav-work').addEventListener('click', showWorkPage);
 document.getElementById('nav-app-settings').addEventListener('click', openSettingsWindow);
 document.getElementById('nav-credentials').addEventListener('click', openCredentialsWindow);
 document.getElementById('nav-connection-status').addEventListener('click', checkConnectionStatus);
@@ -486,15 +504,19 @@ async function loadBedrockModels() {
     try {
         // Get models from config instead of API call
         const bedrockModels = await window.electronAPI.invoke('get-bedrock-models');
-        const modelSelect = document.getElementById('modelSelect');
-        modelSelect.innerHTML = '';
 
-        bedrockModels.forEach(model => {
-            const option = document.createElement('option');
-            option.value = model.inferenceProfileId || model.inferenceArn;
-            option.text = model.id;
-            modelSelect.appendChild(option);
-        });
+        // Populate both Analyze and Work model selects
+        const selects = [document.getElementById('modelSelect'), document.getElementById('workModelSelect')];
+        for (const modelSelect of selects) {
+            if (!modelSelect) continue;
+            modelSelect.innerHTML = '';
+            bedrockModels.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.inferenceProfileId || model.inferenceArn;
+                option.text = model.id;
+                modelSelect.appendChild(option);
+            });
+        }
     } catch (error) {
         console.error('Error loading Bedrock models:', error);
     }
@@ -533,6 +555,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupFileUpload();
     setupCustomPromptsManagement();
     await renderConversationList();
+
+    // Initialize Work tab
+    if (window.WorkTab) {
+        window.WorkTab.init();
+    }
     
     // Auto-load the most recent conversation
     const conversations = await window.electronAPI.invoke('list-conversations');

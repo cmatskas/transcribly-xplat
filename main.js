@@ -18,9 +18,11 @@ const TranscriptMapper = require('./src/main/models/transcriptMapper.js');
 const SettingsManager = require('./src/main/models/settingsManager');
 const ConversationManager = require('./src/main/models/conversationManager');
 const CustomPromptsManager = require('./src/main/models/customPromptsManager');
+const SkillsManager = require('./src/main/models/skillsManager');
 
 let conversationManager;
 let customPromptsManager;
+let skillsManager;
 
 // Global variables for credential and settings management
 let credentialsManager;
@@ -44,6 +46,10 @@ function initializeConversationManager() {
 
 function initializeCustomPromptsManager() {
   customPromptsManager = new CustomPromptsManager();
+}
+
+function initializeSkillsManager() {
+  skillsManager = new SkillsManager();
 }
 
 // Initialize AWS clients with credentials
@@ -164,6 +170,15 @@ app.whenReady().then(async () => {
   initializeSettingsManager();
   initializeConversationManager();
   initializeCustomPromptsManager();
+  initializeSkillsManager();
+
+  // Load skills
+  try {
+    await skillsManager.init();
+    console.info(`Loaded ${skillsManager.getSkills().length} skills`);
+  } catch (error) {
+    console.error('Error loading skills:', error);
+  }
 
   // Load settings
   try {
@@ -460,6 +475,31 @@ ipcMain.handle('delete-custom-prompt', async (event, id) => {
 
 ipcMain.handle('get-custom-prompts', async () => {
   return await customPromptsManager.getAll();
+});
+
+// Skills handlers
+ipcMain.handle('get-skills', async () => {
+  return skillsManager.getSkills();
+});
+
+ipcMain.handle('toggle-skill', async (event, { id, enabled }) => {
+  return await skillsManager.toggleSkill(id, enabled);
+});
+
+ipcMain.handle('import-skill', async (event, sourcePath) => {
+  return await skillsManager.importSkill(sourcePath);
+});
+
+ipcMain.handle('remove-skill', async (event, id) => {
+  return await skillsManager.removeSkill(id);
+});
+
+ipcMain.handle('refresh-skills', async () => {
+  return await skillsManager.refresh();
+});
+
+ipcMain.handle('open-skills-folder', async () => {
+  await skillsManager.openSkillsFolder();
 });
 
 // Add handler to get Bedrock models from config
