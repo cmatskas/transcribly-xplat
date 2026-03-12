@@ -19,6 +19,7 @@
     listId: 'workFileList',
     countId: 'workFileCount',
     maxFiles: 5,
+    hasFilesClass: 'has-files',
   });
 
   function getContainer() {
@@ -58,8 +59,6 @@
     window.electronAPI.receive('agent-stream-chunk', (chunk) => {
       updateStreamingBubble(chunk);
     });
-
-    CR.showPlaceholder(getContainer(), 'Ask the agent to create documents, analyze data, or perform tasks');
   }
 
   let streamingEl = null;
@@ -113,8 +112,8 @@
     isProcessing = true;
     const container = getContainer();
 
-    // Remove placeholder
-    const placeholder = container.querySelector('.chat-placeholder');
+    // Remove placeholder/greeting
+    const placeholder = container.querySelector('.work-greeting') || container.querySelector('.chat-placeholder');
     if (placeholder) placeholder.remove();
 
     // Show user message

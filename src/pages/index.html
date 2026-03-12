@@ -270,45 +270,43 @@
         <div class="work-layout">
             <div class="chat-area">
                 <div id="workChatHistory" class="chat-history">
-                    <div class="chat-placeholder">
-                        <i class="bi bi-chat-dots fs-1 mb-3 d-block"></i>
-                        Ask the agent to create documents, analyze data, or perform tasks
+                    <div id="workPlaceholder" class="work-greeting">
+                        <div class="work-greeting-icon">✦</div>
+                        <div class="work-greeting-text">What can I help you create?</div>
                     </div>
                 </div>
-                <div class="chat-input-area">
-                    <div class="chat-config-row">
-                        <select class="form-select form-select-sm" id="workModelSelect" style="max-width:200px;">
-                            <option selected disabled>Loading models...</option>
-                        </select>
-                    </div>
 
-                    <input type="file" class="d-none" id="workFileUpload" multiple
-                           accept=".pdf,.csv,.doc,.docx,.xls,.xlsx,.html,.txt,.md"
-                           title="Select up to 5 documents">
+                <input type="file" class="d-none" id="workFileUpload" multiple
+                       accept=".pdf,.csv,.doc,.docx,.xls,.xlsx,.html,.txt,.md"
+                       title="Select up to 5 documents">
 
-                    <div id="workFileListSection" class="mb-2" style="display:none;">
-                        <div class="card card-sm">
-                            <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center">
-                                <span class="small"><i class="bi bi-files me-1"></i>Files (<span id="workFileCount">0</span>)</span>
-                                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" id="workClearFiles">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                            <div class="card-body p-2">
-                                <div id="workFileList"></div>
-                            </div>
+                <div id="workFileListSection" class="mb-2 mx-auto work-file-list" style="display:none;">
+                    <div class="card card-sm">
+                        <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center">
+                            <span class="small"><i class="bi bi-files me-1"></i>Files (<span id="workFileCount">0</span>)</span>
+                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" id="workClearFiles">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                        <div class="card-body p-2">
+                            <div id="workFileList"></div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="chat-input-row">
-                        <div class="chat-input-wrapper">
-                            <textarea class="form-control" id="workPromptEditor" rows="3"
-                                placeholder="Ask the agent to create a document, analyze data... (Enter to send)"></textarea>
-                            <button id="workAttachFileBtn" class="btn btn-link chat-attach-btn" title="Attach files (max 5)">
-                                <i class="bi bi-plus-lg"></i>
-                            </button>
-                            <button id="workSendBtn" class="btn btn-primary chat-send-btn" title="Send (Enter)">
-                                <i class="bi bi-send-fill"></i>
+                <div class="work-input-card">
+                    <textarea class="work-textarea" id="workPromptEditor" rows="2"
+                        placeholder="How can I help you today?"></textarea>
+                    <div class="work-input-toolbar">
+                        <button id="workAttachFileBtn" class="work-tool-btn" title="Attach files (max 5)">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                        <div class="work-toolbar-right">
+                            <select class="work-model-pill" id="workModelSelect">
+                                <option selected disabled>Model...</option>
+                            </select>
+                            <button id="workSendBtn" class="work-send-btn" title="Send (Enter)">
+                                <i class="bi bi-arrow-up"></i>
                             </button>
                         </div>
                     </div>
