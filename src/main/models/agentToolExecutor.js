@@ -468,18 +468,16 @@ print(f"Image saved: ${filename} ({len(data)} bytes)")
       await this.browser.startSession();
     }
     this.onStatus(`Navigating to ${url}...`);
-    await this.browser.navigate(url);
+    const nav = await this.browser.navigate(url);
 
     this.onStatus('Extracting page content...');
-    const contentResp = await this.browser.getPageContent();
+    const content = await this.browser.getPageContent();
 
-    // Extract text from the response
-    const content = contentResp?.content || contentResp?.text || JSON.stringify(contentResp);
-    const truncated = typeof content === 'string' && content.length > 15000
+    const truncated = content.length > 15000
       ? content.substring(0, 15000) + '\n\n[Content truncated — showing first 15000 characters]'
       : content;
 
-    return { url, content: truncated };
+    return { url, title: nav.title, content: truncated };
   }
 
   async _handleWebSearch(query) {
@@ -488,15 +486,13 @@ print(f"Image saved: ${filename} ({len(data)} bytes)")
       await this.browser.startSession();
     }
 
-    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
     this.onStatus(`Searching: ${query}...`);
-    await this.browser.navigate(searchUrl);
+    await this.browser.navigate(`https://www.google.com/search?q=${encodeURIComponent(query)}`);
 
     this.onStatus('Extracting search results...');
-    const contentResp = await this.browser.getPageContent();
-    const content = contentResp?.content || contentResp?.text || JSON.stringify(contentResp);
+    const content = await this.browser.getPageContent();
 
-    const truncated = typeof content === 'string' && content.length > 10000
+    const truncated = content.length > 10000
       ? content.substring(0, 10000) + '\n\n[Results truncated]'
       : content;
 

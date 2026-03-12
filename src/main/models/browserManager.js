@@ -1,20 +1,25 @@
 const {
   BedrockAgentCoreClient,
   StartBrowserSessionCommand,
-  UpdateBrowserStreamCommand,
   StopBrowserSessionCommand,
 } = require('@aws-sdk/client-bedrock-agentcore');
-const crypto = require('crypto');
+const { SignatureV4 } = require('@smithy/signature-v4');
+const { Sha256 } = require('@aws-crypto/sha256-js');
+const { chromium } = require('playwright-core');
 
 /**
- * Manages AgentCore Browser sessions.
- * Provides high-level navigate/extract operations over the managed Chrome browser.
+ * Manages AgentCore Browser sessions via Playwright CDP.
+ * The Chrome browser runs remotely on AWS — playwright-core is just a thin CDP client.
+ * WebSocket auth uses SigV4-signed headers.
  */
 class BrowserManager {
   constructor(clientConfig) {
     this.client = new BedrockAgentCoreClient(clientConfig);
+    this.clientConfig = clientConfig;
     this.sessionId = null;
     this.browserIdentifier = 'aws.browser.v1';
+    this.browser = null;
+    this.page = null;
   }
 
   async startSession(timeoutSeconds = 900) {
@@ -30,125 +35,89 @@ class BrowserManager {
     );
 
     this.sessionId = response.sessionId;
-    this.streams = response.streams;
+    const wsEndpoint = response.streams?.automationStream?.streamEndpoint;
+    if (!wsEndpoint) throw new Error('No automation stream endpoint returned');
+
+    // Generate SigV4-signed headers for WebSocket CDP connection
+    const headers = await this._signWebSocketHeaders(wsEndpoint);
+
+    // Connect to remote Chrome via CDP with signed headers
+    this.browser = await chromium.connectOverCDP(wsEndpoint, { headers });
+    const context = this.browser.contexts()[0] || await this.browser.newContext();
+    this.page = context.pages()[0] || await context.newPage();
+
     return this.sessionId;
   }
 
-  /**
-   * Navigate to a URL and extract page content.
-   * Uses UpdateBrowserStream to send automation commands.
-   */
   async navigate(url) {
-    if (!this.sessionId) throw new Error('No active browser session');
-
-    const response = await this.client.send(
-      new UpdateBrowserStreamCommand({
-        browserIdentifier: this.browserIdentifier,
-        sessionId: this.sessionId,
-        clientToken: this._token(),
-        streamUpdate: {
-          automationStreamUpdate: {
-            commandInput: {
-              action: 'NAVIGATE',
-              url,
-            },
-          },
-        },
-      })
-    );
-
-    return response;
+    if (!this.page) throw new Error('No active browser session');
+    await this.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    return { url, title: await this.page.title() };
   }
 
-  /**
-   * Get the current page content (text extraction).
-   */
   async getPageContent() {
-    if (!this.sessionId) throw new Error('No active browser session');
-
-    const response = await this.client.send(
-      new UpdateBrowserStreamCommand({
-        browserIdentifier: this.browserIdentifier,
-        sessionId: this.sessionId,
-        clientToken: this._token(),
-        streamUpdate: {
-          automationStreamUpdate: {
-            commandInput: {
-              action: 'GET_CONTENT',
-            },
-          },
-        },
-      })
-    );
-
-    return response;
-  }
-
-  /**
-   * Click an element on the page.
-   */
-  async click(selector) {
-    if (!this.sessionId) throw new Error('No active browser session');
-
-    return this.client.send(
-      new UpdateBrowserStreamCommand({
-        browserIdentifier: this.browserIdentifier,
-        sessionId: this.sessionId,
-        clientToken: this._token(),
-        streamUpdate: {
-          automationStreamUpdate: {
-            commandInput: {
-              action: 'CLICK',
-              selector,
-            },
-          },
-        },
-      })
-    );
-  }
-
-  /**
-   * Type text into an element.
-   */
-  async type(selector, text) {
-    if (!this.sessionId) throw new Error('No active browser session');
-
-    return this.client.send(
-      new UpdateBrowserStreamCommand({
-        browserIdentifier: this.browserIdentifier,
-        sessionId: this.sessionId,
-        clientToken: this._token(),
-        streamUpdate: {
-          automationStreamUpdate: {
-            commandInput: {
-              action: 'TYPE',
-              selector,
-              text,
-            },
-          },
-        },
-      })
-    );
+    if (!this.page) throw new Error('No active browser session');
+    return await this.page.evaluate(() => document.body.innerText);
   }
 
   async stopSession() {
-    if (!this.sessionId) return;
-
-    try {
-      await this.client.send(
-        new StopBrowserSessionCommand({
-          browserIdentifier: this.browserIdentifier,
-          sessionId: this.sessionId,
-        })
-      );
-    } finally {
-      this.sessionId = null;
-      this.streams = null;
+    if (this.browser) {
+      await this.browser.close().catch(() => {});
+      this.browser = null;
+      this.page = null;
+    }
+    if (this.sessionId) {
+      try {
+        await this.client.send(
+          new StopBrowserSessionCommand({
+            browserIdentifier: this.browserIdentifier,
+            sessionId: this.sessionId,
+          })
+        );
+      } finally {
+        this.sessionId = null;
+      }
     }
   }
 
-  _token() {
-    return crypto.randomUUID();
+  /**
+   * Sign the WebSocket URL with SigV4 headers for authentication.
+   * Mirrors the Python SDK's generate_ws_headers() approach.
+   */
+  async _signWebSocketHeaders(wsUrl) {
+    const url = new URL(wsUrl.replace('wss://', 'https://'));
+    const region = this.clientConfig.region;
+
+    // Resolve credentials from the SDK client config
+    const credentials = typeof this.clientConfig.credentials === 'function'
+      ? await this.clientConfig.credentials()
+      : this.clientConfig.credentials;
+
+    const signer = new SignatureV4({
+      service: 'bedrock-agentcore',
+      region,
+      credentials,
+      sha256: Sha256,
+    });
+
+    const request = {
+      method: 'GET',
+      protocol: 'https:',
+      hostname: url.hostname,
+      path: url.pathname,
+      headers: {
+        host: url.hostname,
+      },
+    };
+
+    const signed = await signer.sign(request);
+
+    return {
+      ...signed.headers,
+      'Upgrade': 'websocket',
+      'Connection': 'Upgrade',
+      'Sec-WebSocket-Version': '13',
+    };
   }
 }
 
