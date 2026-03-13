@@ -1,0 +1,101 @@
+<svg width="512" height="512" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <style>
+    .ring { fill: none; stroke-linecap: round; }
+    .pulse { animation: pulse 2.4s ease-in-out infinite; }
+    .spin-cw { animation: spin-cw 8s linear infinite; }
+    .spin-ccw { animation: spin-ccw 12s linear infinite; }
+    .orbit { animation: orbit 4s linear infinite; }
+    .orbit2 { animation: orbit 6s linear infinite reverse; }
+    .fade { animation: fade 2s ease-in-out infinite alternate; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; r: 44; }
+      50% { opacity: 0.7; r: 50; }
+    }
+    @keyframes spin-cw {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes spin-ccw {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(-360deg); }
+    }
+    @keyframes orbit {
+      from { transform: rotate(0deg) translateX(130px) rotate(0deg); }
+      to { transform: rotate(360deg) translateX(130px) rotate(-360deg); }
+    }
+    @keyframes fade {
+      from { opacity: 0.3; }
+      to { opacity: 1; }
+    }
+  </style>
+</defs>
+
+<g transform="translate(340,340)">
+
+  <!-- Outer dashed orbit ring -->
+  <circle class="ring" r="210" stroke="#94a3b8" stroke-width="1" stroke-dasharray="6 5" opacity="0.4"/>
+
+  <!-- Mid orbit ring -->
+  <circle class="ring" r="155" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4 6" opacity="0.25"/>
+
+  <!-- Spinning outer arc segment -->
+  <g class="spin-cw" style="transform-origin:0 0">
+    <circle class="ring" r="210" stroke="#6366f1" stroke-width="3.5" stroke-dasharray="90 240" opacity="0.85"/>
+  </g>
+
+  <!-- Spinning inner arc segment (counter) -->
+  <g class="spin-ccw" style="transform-origin:0 0">
+    <circle class="ring" r="155" stroke="#22d3ee" stroke-width="2.5" stroke-dasharray="60 206" opacity="0.8"/>
+  </g>
+
+  <!-- Orbiting node 1 (primary agent) -->
+  <g class="orbit" style="transform-origin:0 0">
+    <circle cx="0" cy="0" r="13" fill="#6366f1" opacity="0.95"/>
+    <circle cx="0" cy="0" r="5" fill="white" opacity="0.9"/>
+  </g>
+
+  <!-- Orbiting node 2 (secondary agent) -->
+  <g class="orbit2" style="transform-origin:0 0">
+    <g style="transform: translateX(130px)">
+      <circle cx="0" cy="0" r="9" fill="#22d3ee" opacity="0.9"/>
+      <circle cx="0" cy="0" r="3.5" fill="white" opacity="0.9"/>
+    </g>
+  </g>
+
+  <!-- Spoke lines from center to ring -->
+  <line x1="0" y1="0" x2="0" y2="-155" stroke="#94a3b8" stroke-width="0.75" stroke-dasharray="3 5" opacity="0.3"/>
+  <line x1="0" y1="0" x2="134" y2="77" stroke="#94a3b8" stroke-width="0.75" stroke-dasharray="3 5" opacity="0.3"/>
+  <line x1="0" y1="0" x2="-134" y2="77" stroke="#94a3b8" stroke-width="0.75" stroke-dasharray="3 5" opacity="0.3"/>
+
+  <!-- Core glow ring -->
+  <circle r="66" fill="none" stroke="#6366f1" stroke-width="1.5" opacity="0.2"/>
+
+  <!-- Core body -->
+  <circle class="pulse" cx="0" cy="0" r="44" fill="#6366f1"/>
+
+  <!-- Inner circuit lines -->
+  <g stroke="white" stroke-width="1.5" stroke-linecap="round" opacity="0.6">
+    <line x1="-16" y1="-8" x2="-6" y2="-8"/>
+    <line x1="-6" y1="-8" x2="-6" y2="8"/>
+    <line x1="-6" y1="8" x2="6" y2="8"/>
+    <line x1="6" y1="8" x2="16" y2="8"/>
+    <circle cx="16" cy="8" r="2.5" fill="white" opacity="0.9"/>
+    <circle cx="-16" cy="-8" r="2.5" fill="white" opacity="0.9"/>
+  </g>
+
+  <!-- Center dot -->
+  <circle cx="0" cy="0" r="5" fill="white" opacity="0.95"/>
+
+  <!-- Small satellite nodes at ring intersections -->
+  <circle cx="0" cy="-155" r="6" fill="#22d3ee" opacity="0.75" class="fade"/>
+  <circle cx="134" cy="77" r="6" fill="#6366f1" opacity="0.75" class="fade" style="animation-delay:0.8s"/>
+  <circle cx="-134" cy="77" r="6" fill="#a78bfa" opacity="0.75" class="fade" style="animation-delay:1.6s"/>
+
+  <!-- Connector arcs between satellites -->
+  <path d="M 0,-155 A 155,155 0 0,1 134,77" fill="none" stroke="#6366f1" stroke-width="1" opacity="0.2" stroke-dasharray="4 6"/>
+  <path d="M 134,77 A 155,155 0 0,1 -134,77" fill="none" stroke="#22d3ee" stroke-width="1" opacity="0.2" stroke-dasharray="4 6"/>
+  <path d="M -134,77 A 155,155 0 0,1 0,-155" fill="none" stroke="#a78bfa" stroke-width="1" opacity="0.2" stroke-dasharray="4 6"/>
+
+</g>
+</svg>

@@ -1362,6 +1362,11 @@ body {
     color: var(--accent-primary);
 }
 
+.greeting-icon-img {
+    width: 64px;
+    height: 64px;
+}
+
 .work-greeting-text {
     font-size: 1.8rem;
     font-weight: 300;
