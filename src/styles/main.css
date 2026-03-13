@@ -1293,6 +1293,11 @@ body {
     padding: 24px 12px;
 }
 
+#work-page {
+    height: calc(100vh - 56px); /* full viewport minus navbar */
+    overflow: hidden;
+}
+
 .work-layout {
     display: flex;
     height: 100%;
@@ -1304,7 +1309,7 @@ body {
     align-items: center;
     flex: 1;
     overflow: hidden;
-    background: var(--bg-primary);
+    background: var(--bg-secondary);
 }
 
 .work-topbar {
