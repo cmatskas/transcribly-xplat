@@ -1,5 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const Toastify = require('toastify-js');
+const { marked } = require('marked');
+
+// Configure marked for safe rendering
+marked.setOptions({ breaks: true, gfm: true });
+
+contextBridge.exposeInMainWorld('marked', { parse: (md) => marked.parse(md) });
 
 contextBridge.exposeInMainWorld('electronAPI', {
     showToast: (message, type) => {

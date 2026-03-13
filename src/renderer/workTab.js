@@ -99,6 +99,8 @@
         workMessages = [];
         streamingEl = null;
         streamingText = '';
+        activityLog = null;
+        lastEntry = null;
         const container = getContainer();
         container.innerHTML = `
           <div id="workPlaceholder" class="work-greeting">
@@ -108,13 +110,27 @@
       });
     }
 
-    // Listen for agent status updates
+    // Listen for agent status updates — build activity log
     window.electronAPI.receive('agent-status', (status) => {
       const container = getContainer();
-      // Remove previous status message if any
-      const prev = container.querySelector('.chat-status-message:last-child');
-      if (prev) prev.remove();
-      CR.appendStatusMessage(container, status);
+
+      // Rich status object: { tool, detail, state }
+      if (typeof status === 'object' && status.tool) {
+        if (!activityLog) {
+          activityLog = CR.createActivityLog(container);
+        }
+        if (status.state === 'running') {
+          lastEntry = CR.addActivityEntry(activityLog, status);
+        } else if (status.state === 'done' && lastEntry) {
+          CR.completeActivityEntry(lastEntry);
+          lastEntry = null;
+        }
+      } else {
+        // Legacy string status fallback
+        const prev = container.querySelector('.chat-status-message:last-child');
+        if (prev) prev.remove();
+        CR.appendStatusMessage(container, status);
+      }
     });
 
     // Listen for agent stream chunks
@@ -125,6 +141,8 @@
 
   let streamingEl = null;
   let streamingText = '';
+  let activityLog = null;
+  let lastEntry = null;
 
   function updateStreamingBubble(chunk) {
     const container = getContainer();
@@ -141,19 +159,9 @@
     }
 
     const bubble = streamingEl.querySelector('.chat-bubble');
-    const copyBtn = bubble.querySelector('.chat-copy-btn');
-    const copyHTML = copyBtn ? copyBtn.outerHTML : '';
-    bubble.innerHTML = copyHTML + CR.formatText(streamingText);
-
-    // Reattach copy listener
-    const newCopyBtn = bubble.querySelector('.chat-copy-btn');
-    if (newCopyBtn) {
-      newCopyBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(streamingText).then(
-          () => showToast('Copied to clipboard', 'success'),
-          () => showToast('Failed to copy', 'error')
-        );
-      });
+    const contentEl = bubble.querySelector('.chat-bubble-content');
+    if (contentEl) {
+      contentEl.innerHTML = CR.formatText(streamingText);
     }
 
     container.scrollTop = container.scrollHeight;
@@ -205,9 +213,11 @@
     // Show thinking
     const thinkingEl = CR.appendThinking(container);
 
-    // Reset streaming state
+    // Reset streaming and activity state
     streamingEl = null;
     streamingText = '';
+    activityLog = null;
+    lastEntry = null;
 
     // Build history for Bedrock (exclude current message)
     const history = workMessages.slice(0, -1).map(m => ({
@@ -228,7 +238,10 @@
 
       thinkingEl.remove();
 
-      // Remove any remaining status messages
+      // Finish activity log
+      CR.finishActivityLog(activityLog);
+
+      // Remove any remaining legacy status messages
       container.querySelectorAll('.chat-status-message').forEach(el => el.remove());
 
       // If streaming didn't produce a bubble, create one from the response
@@ -252,6 +265,7 @@
 
     } catch (error) {
       thinkingEl.remove();
+      CR.finishActivityLog(activityLog);
       container.querySelectorAll('.chat-status-message').forEach(el => el.remove());
       CR.appendChatError(container, error.message);
       showToast(`Agent error: ${error.message}`, 'error');

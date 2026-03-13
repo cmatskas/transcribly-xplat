@@ -165,8 +165,9 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
     let memoryContext = '';
     if (this.memory && this.sessionId) {
       try {
-        this.onStatus('Loading memory...');
+        this.onStatus({ tool: 'memory', detail: 'Loading context...', state: 'running' });
         memoryContext = await this.memory.buildContext(this.sessionId, prompt);
+        this.onStatus({ tool: 'memory', detail: 'Context loaded', state: 'done' });
       } catch (err) {
         console.warn('Memory load failed:', err.message);
       }
@@ -219,14 +220,17 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
           if (!block.toolUse) continue;
 
           const { toolUseId, name, input } = block.toolUse;
-          this.onStatus(`Using tool: ${name}`);
+          const detail = this._toolDetail(name, input);
+          this.onStatus({ tool: name, detail, state: 'running' });
 
           let result;
           try {
             result = await this._executeTool(name, input, { sessionStarted });
             if (name === 'execute_code' && !sessionStarted) sessionStarted = true;
+            this.onStatus({ tool: name, detail, state: 'done' });
           } catch (err) {
             result = { error: err.message };
+            this.onStatus({ tool: name, detail: err.message, state: 'done' });
           }
 
           toolResults.push({
@@ -256,11 +260,11 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
       }
 
       if (sessionStarted) {
-        this.onStatus('Cleaning up sandbox...');
+        this.onStatus({ tool: 'cleanup', detail: 'Closing sandbox', state: 'running' });
         await this.codeInterpreter.stopSession().catch(() => {});
       }
       if (this.browser.sessionId) {
-        this.onStatus('Closing browser...');
+        this.onStatus({ tool: 'cleanup', detail: 'Closing browser', state: 'running' });
         await this.browser.stopSession().catch(() => {});
       }
     }
@@ -314,6 +318,18 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
     return { content, stopReason: 'end_turn' };
   }
 
+  _toolDetail(name, input) {
+    switch (name) {
+      case 'activate_skill': return input.name;
+      case 'execute_code': return (input.code || '').split('\n')[0].slice(0, 60);
+      case 'save_file_locally': return input.local_path?.split('/').pop();
+      case 'read_local_file': return input.local_path?.split('/').pop();
+      case 'generate_image': return input.prompt?.slice(0, 60);
+      case 'web': return input.url || input.query?.slice(0, 60);
+      default: return '';
+    }
+  }
+
   async _executeTool(name, input, state) {
     switch (name) {
       case 'activate_skill':
@@ -321,10 +337,10 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
 
       case 'execute_code':
         if (!this.codeInterpreter.sessionId) {
-          this.onStatus('Starting Code Interpreter sandbox...');
+          this.onStatus({ tool: 'sandbox', detail: 'Starting sandbox...', state: 'running' });
           await this.codeInterpreter.startSession();
+          this.onStatus({ tool: 'sandbox', detail: 'Sandbox ready', state: 'done' });
         }
-        this.onStatus('Executing code in sandbox...');
         const result = await this.codeInterpreter.executeCode(input.code);
         if (!result.success) return { error: result.errors.join('\n'), output: result.text };
         return { output: result.text };
