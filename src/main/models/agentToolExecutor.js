@@ -24,7 +24,7 @@ class AgentToolExecutor {
   buildSystemPrompt(memoryContext = '') {
     const catalog = this.skills.getCatalog();
     const base = catalog.length === 0
-      ? `You are a powerful work agent that completes complex, multi-step tasks. You can execute Python code via execute_code, read local files via read_local_file, and save files to the user's filesystem via save_file_locally. After generating any file, you MUST call save_file_locally to deliver it to the user. Never leave generated files only in the sandbox.`
+      ? `You are a powerful work agent that completes complex, multi-step tasks. You can execute Python code via execute_code, read local files via read_local_file, and save files to the user's filesystem via save_file_locally. After generating any file, you MUST call save_file_locally to deliver it to the user and tell them the full local path where it was saved. Never leave generated files only in the sandbox.`
       : `You are a powerful work agent that completes complex, multi-step tasks using tools.
 
 <available_skills>
@@ -36,6 +36,7 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
 - You can execute arbitrary Python code via execute_code for any task — not just skills. Write code to solve problems even when no skill covers the task.
 - When the user mentions a local file path in their prompt, use read_local_file to load it into the sandbox before processing.
 - After generating files in the sandbox (always save to /tmp/), you MUST call save_file_locally to deliver them to the user's local filesystem. Never leave generated files only in the sandbox.
+- After saving a file locally, you MUST tell the user the full local path where the file was saved. Example: "I've saved the document to /Users/name/Documents/report.docx"
 - Break complex tasks into steps. Execute code, inspect results, and iterate until the task is complete.
 - You can browse the web using the web tool. Pass a URL to read a page, or a query to search Google. For research: search first, then browse specific result URLs for deeper content.
 - If a library is missing in the sandbox, install it with pip via execute_code before using it.

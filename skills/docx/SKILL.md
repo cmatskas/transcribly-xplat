@@ -202,3 +202,4 @@ with zipfile.ZipFile('/tmp/output.docx', 'w', zipfile.ZIP_DEFLATED) as z:
 - Table cell widths must be set on every row for consistency
 - For images, always specify width to prevent oversized renders
 - Save all output to `/tmp/` — the system transfers files to the user's local filesystem
+- After saving, always tell the user the exact local file path where the document was saved

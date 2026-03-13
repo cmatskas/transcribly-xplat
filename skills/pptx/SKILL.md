@@ -230,3 +230,4 @@ for i, slide in enumerate(prs.slides):
 - Table column widths must be set explicitly — defaults are often uneven
 - Chart data must use `CategoryChartData` — raw numbers won't work
 - Save all output to `/tmp/`
+- After saving, always tell the user the exact local file path where the presentation was saved

@@ -198,3 +198,4 @@ for row in ws.iter_rows(min_row=1, max_row=ws.max_row, values_only=True):
 - Charts need `titles_from_data=True` if the first row of the data range is a header
 - Formulas are strings starting with `=` — openpyxl doesn't evaluate them
 - Save all output to `/tmp/`
+- After saving, always tell the user the exact local file path where the document was saved
