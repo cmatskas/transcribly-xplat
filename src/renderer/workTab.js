@@ -294,8 +294,8 @@
     const container = getContainer();
     container.innerHTML = `
       <div id="workPlaceholder" class="work-greeting">
-        <div class="work-greeting-icon">✦</div>
-        <div class="work-greeting-text">What can I help you create?</div>
+        <div class="work-greeting-icon">🤖</div>
+        <div class="work-greeting-text">What can I help you build today?</div>
       </div>`;
     refreshSidebar();
   }

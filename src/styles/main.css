@@ -1302,10 +1302,13 @@ body {
 
 .work-topbar {
     width: 100%;
-    max-width: 800px;
     padding: 8px 16px 0;
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+}
+
+.work-topbar-spacer {
+    flex: 1;
 }
 
 .work-new-chat-btn {
