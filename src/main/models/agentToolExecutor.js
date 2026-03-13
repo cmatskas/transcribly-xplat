@@ -433,10 +433,9 @@ print(f"Wrote {len(data)} bytes to ${sandboxPath}")
 
     const w = width || 1024;
     const h = height || 1024;
-    const filename = `/tmp/generated_${Date.now()}.png`;
     const modelId = 'amazon.nova-canvas-v1:0';
 
-    this.onStatus('Generating image with Nova Canvas...');
+    this.onStatus({ tool: 'generate_image', detail: prompt?.slice(0, 40), state: 'running' });
 
     const body = JSON.stringify({
       taskType: 'TEXT_IMAGE',
@@ -444,36 +443,26 @@ print(f"Wrote {len(data)} bytes to ${sandboxPath}")
         text: prompt,
         ...(negative_prompt && { negativeText: negative_prompt }),
       },
-      imageGenerationConfig: {
-        numberOfImages: 1,
-        width: w,
-        height: h,
-        cfgScale: 8.0,
-      },
+      imageGenerationConfig: { numberOfImages: 1, width: w, height: h, cfgScale: 8.0 },
     });
 
     const response = await this.bedrock.send(new InvokeModelCommand({
-      modelId,
-      body,
-      accept: 'application/json',
-      contentType: 'application/json',
+      modelId, body, accept: 'application/json', contentType: 'application/json',
     }));
 
     const base64Image = JSON.parse(new TextDecoder().decode(response.body)).images[0];
+    const buffer = Buffer.from(base64Image, 'base64');
+    const result = { success: true, model: modelId, width: w, height: h, size: buffer.length };
 
+    // If sandbox is running, also write there for document embedding
     if (this.codeInterpreter.sessionId) {
-      const code = `
-import base64
-data = base64.b64decode("""${base64Image}""")
-with open("${filename}", "wb") as f:
-    f.write(data)
-print(f"Image saved: ${filename} ({len(data)} bytes)")
-`;
+      const sandboxPath = `/tmp/generated_${Date.now()}.png`;
+      const code = `import base64\ndata = base64.b64decode("""${base64Image}""")\nwith open("${sandboxPath}", "wb") as f:\n    f.write(data)\nprint(f"Image saved: ${sandboxPath} ({len(data)} bytes)")`;
       await this.codeInterpreter.executeCode(code);
-      return { success: true, sandbox_path: filename, model: modelId, width: w, height: h };
+      result.sandbox_path = sandboxPath;
     }
 
-    return { success: true, base64_length: base64Image.length, model: modelId, note: 'No sandbox session — use execute_code to save the image.' };
+    return result;
   }
 
   async _handleWeb({ url, query }) {
