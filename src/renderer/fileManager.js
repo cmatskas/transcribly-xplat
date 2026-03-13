@@ -7,7 +7,7 @@ function createFileManager({ fileInputId, attachBtnId, clearBtnId, listSectionId
   let selectedFiles = [];
 
   const validExtensions = ['.pdf', '.csv', '.doc', '.docx', '.xls', '.xlsx', '.html', '.txt', '.md'];
-  const maxSize = 10 * 1024 * 1024; // 10MB
+  const maxSize = 4.5 * 1024 * 1024; // 4.5MB — Bedrock Converse API limit per document
 
   function setup(showToast) {
     const fileInput = document.getElementById(fileInputId);
@@ -18,11 +18,16 @@ function createFileManager({ fileInputId, attachBtnId, clearBtnId, listSectionId
 
     fileInput.addEventListener('change', async (e) => {
       const files = Array.from(e.target.files);
-      if (files.length > maxFiles) {
-        showToast(`Maximum ${maxFiles} files allowed`, 'error');
+
+      // Check total count (existing + new)
+      if (selectedFiles.length + files.length > maxFiles) {
+        showToast(`Maximum ${maxFiles} files total. You have ${selectedFiles.length}, tried to add ${files.length}.`, 'error');
         e.target.value = '';
         return;
       }
+
+      // Check for duplicates by name
+      const existingNames = new Set(selectedFiles.map(f => f.name));
 
       for (const file of files) {
         const ext = '.' + file.name.split('.').pop().toLowerCase();
@@ -32,15 +37,15 @@ function createFileManager({ fileInputId, attachBtnId, clearBtnId, listSectionId
           return;
         }
         if (file.size > maxSize) {
-          showToast(`File ${file.name} is too large (max 10MB)`, 'error');
+          showToast(`File ${file.name} exceeds 4.5MB Bedrock limit`, 'error');
           e.target.value = '';
           return;
         }
       }
 
       try {
-        selectedFiles = [];
         for (const file of files) {
+          if (existingNames.has(file.name)) continue; // skip duplicates
           selectedFiles.push({
             name: file.name,
             content: await readFileAsArrayBuffer(file),
@@ -48,8 +53,9 @@ function createFileManager({ fileInputId, attachBtnId, clearBtnId, listSectionId
             size: file.size,
           });
         }
+        e.target.value = ''; // reset input so same file can be re-added
         updateFileList();
-        showToast(`${files.length} file${files.length > 1 ? 's' : ''} selected`, 'success');
+        showToast(`${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} attached`, 'success');
       } catch (error) {
         showToast('Error processing files', 'error');
         e.target.value = '';

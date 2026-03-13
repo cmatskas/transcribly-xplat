@@ -35,6 +35,7 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
 - When a task matches a skill's description, call activate_skill to load its full instructions before proceeding.
 - You can execute arbitrary Python code via execute_code for any task — not just skills. Write code to solve problems even when no skill covers the task.
 - When the user mentions a local file path in their prompt, use read_local_file to load it into the sandbox before processing.
+- When the user provides a working directory, use list_directory to discover files, then read_local_file to load the ones you need.
 - After generating files in the sandbox (always save to /tmp/), you MUST call save_file_locally to deliver them to the user's local filesystem. Never leave generated files only in the sandbox.
 - After saving a file locally, you MUST tell the user the full local path where the file was saved. Example: "I've saved the document to /Users/name/Documents/report.docx"
 - Break complex tasks into steps. Execute code, inspect results, and iterate until the task is complete.
@@ -142,6 +143,21 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
                 url: { type: 'string', description: 'A URL to navigate to directly (e.g. https://example.com)' },
                 query: { type: 'string', description: 'A search query to search Google (e.g. "python-docx latest version")' },
               },
+            },
+          },
+        },
+      },
+      {
+        toolSpec: {
+          name: 'list_directory',
+          description: 'List files and subdirectories in a local directory. Use when the user provides a workspace or you need to discover files before reading them.',
+          inputSchema: {
+            json: {
+              type: 'object',
+              properties: {
+                dir_path: { type: 'string', description: 'Absolute path to the directory to list' },
+              },
+              required: ['dir_path'],
             },
           },
         },
@@ -327,6 +343,7 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
       case 'read_local_file': return input.local_path?.split('/').pop();
       case 'generate_image': return input.prompt?.slice(0, 60);
       case 'web': return input.url || input.query?.slice(0, 60);
+      case 'list_directory': return input.dir_path?.split('/').pop();
       default: return '';
     }
   }
@@ -357,6 +374,9 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
 
       case 'web':
         return this._handleWeb(input);
+
+      case 'list_directory':
+        return this._handleListDirectory(input.dir_path);
 
       default:
         return { error: `Unknown tool: ${name}` };
@@ -475,6 +495,15 @@ print(f"Image saved: ${filename} ({len(data)} bytes)")
       : content;
 
     return { url: targetUrl, title: nav.title, content: truncated };
+  }
+
+  async _handleListDirectory(dirPath) {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    const items = entries.map(e => ({
+      name: e.name,
+      type: e.isDirectory() ? 'directory' : 'file',
+    }));
+    return { path: dirPath, count: items.length, entries: items };
   }
 
 }

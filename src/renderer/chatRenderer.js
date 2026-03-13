@@ -77,6 +77,7 @@ const TOOL_META = {
   'read_local_file':   { icon: '📄', label: 'Reading file' },
   'generate_image':    { icon: '🎨', label: 'Generating image' },
   'web':               { icon: '🌐', label: 'Web' },
+  'list_directory':    { icon: '📂', label: 'Listing files' },
   'memory':            { icon: '🧠', label: 'Memory' },
   'sandbox':           { icon: '📦', label: 'Sandbox' },
   'cleanup':           { icon: '🧹', label: 'Cleanup' },
