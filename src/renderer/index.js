@@ -102,6 +102,7 @@ if (typeof window !== 'undefined') {
     window.showTranscribePage = showTranscribePage;
     window.showAnalyzePage = showAnalyzePage;
     window.showWorkPage = showWorkPage;
+    window.showSettingsPage = showSettingsPage;
     window.downloadAnalysis = downloadAnalysis;
     window.copyAnalysis = copyAnalysis;
     window.uploadFile = uploadFile;
@@ -109,8 +110,6 @@ if (typeof window !== 'undefined') {
     window.simpleCitationParser = simpleCitationParser;
     window.formatText = formatText;
     window.cleanupAnalysisText = cleanupAnalysisText;
-    window.openCredentialsWindow = openCredentialsWindow;
-    window.checkConnectionStatus = checkConnectionStatus;
     window.downloadTranscript = downloadTranscript;
     window.copyTranscript = copyTranscript;
     window.clearTranscription = clearTranscription;
@@ -123,38 +122,21 @@ if (typeof window !== 'undefined') {
     });
 }
 
-function showTranscribePage() {
-    document.getElementById('transcribe-page').style.display = 'block';
-    document.getElementById('nav-transcribe').classList.add('active');
+const ALL_PAGES = ['transcribe', 'analyze', 'work', 'settings'];
 
-    document.getElementById('analyze-page').style.display = 'none';
-    document.getElementById('nav-analyze').classList.remove('active');
-
-    document.getElementById('work-page').style.display = 'none';
-    document.getElementById('nav-work').classList.remove('active');
+function showPage(name) {
+    ALL_PAGES.forEach(p => {
+        const page = document.getElementById(`${p}-page`);
+        const nav = document.getElementById(`nav-${p}`);
+        if (page) page.style.display = p === name ? (p === 'work' ? '' : 'block') : 'none';
+        if (nav) nav.classList.toggle('active', p === name);
+    });
 }
 
-function showAnalyzePage() {
-    document.getElementById('transcribe-page').style.display = 'none';
-    document.getElementById('nav-transcribe').classList.remove('active');
-
-    document.getElementById('analyze-page').style.display = 'block';
-    document.getElementById('nav-analyze').classList.add('active');
-
-    document.getElementById('work-page').style.display = 'none';
-    document.getElementById('nav-work').classList.remove('active');
-}
-
-function showWorkPage() {
-    document.getElementById('transcribe-page').style.display = 'none';
-    document.getElementById('nav-transcribe').classList.remove('active');
-
-    document.getElementById('analyze-page').style.display = 'none';
-    document.getElementById('nav-analyze').classList.remove('active');
-
-    document.getElementById('work-page').style.display = 'block';
-    document.getElementById('nav-work').classList.add('active');
-}
+function showTranscribePage() { showPage('transcribe'); }
+function showAnalyzePage() { showPage('analyze'); }
+function showWorkPage() { showPage('work'); }
+function showSettingsPage() { showPage('settings'); }
 
 function downloadAnalysis() {
     if (!currentConversation || currentConversation.messages.length === 0) {
@@ -207,9 +189,7 @@ function copyAnalysis() {
 document.getElementById('nav-analyze').addEventListener('click', showAnalyzePage);
 document.getElementById('nav-transcribe').addEventListener('click', showTranscribePage);
 document.getElementById('nav-work').addEventListener('click', showWorkPage);
-document.getElementById('nav-app-settings').addEventListener('click', openSettingsWindow);
-document.getElementById('nav-credentials').addEventListener('click', openCredentialsWindow);
-document.getElementById('nav-connection-status').addEventListener('click', checkConnectionStatus);
+document.getElementById('nav-settings').addEventListener('click', showSettingsPage);
 
 templateSelect.addEventListener('change', () => {
     const selectedOption = templateSelect.options[templateSelect.selectedIndex];
@@ -570,7 +550,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize Work tab
     if (window.WorkTab) {
         window.WorkTab.init();
+        if (window.SettingsTab) window.SettingsTab.init();
     }
+
+    // If main process says no credentials, show settings page
+    window.electronAPI.receive('show-settings', () => {
+        showSettingsPage();
+    });
     
     // Auto-load the most recent conversation
     const conversations = await window.electronAPI.invoke('list-conversations');
@@ -906,67 +892,6 @@ function cleanupAnalysisText(text) {
     return cleaned;
 }
 
-// Credentials management functions
-async function openCredentialsWindow() {
-    try {
-        showInfoToast('Opening credentials management...');
-        await window.electronAPI.invoke('open-credentials-window');
-    } catch (error) {
-        console.error('Error opening credentials window:', error);
-        showErrorToast(`Failed to open credentials window: ${error.message}`);
-    }
-}
-
-// Settings management functions
-async function openSettingsWindow() {
-    try {
-        showInfoToast('Opening application settings...');
-        await window.electronAPI.invokeAsync('open-settings-window');
-    } catch (error) {
-        console.error('Error opening settings window:', error);
-        showErrorToast(`Failed to open settings window: ${error.message}`);
-    }
-}
-
-async function checkConnectionStatus() {
-    try {
-        showInfoToast('Checking AWS connection status...');
-
-        const hasCredentials = await window.electronAPI.invoke('has-credentials');
-
-        if (!hasCredentials) {
-            showWarningToast('No AWS credentials configured. Please set up your credentials first.');
-            return;
-        }
-
-        const validation = await window.electronAPI.invoke('validate-credentials');
-
-        if (validation.valid) {
-            let statusMessage = `Connected to AWS Account: ${validation.identity.account}`;
-
-            if (validation.permissions.bedrock && validation.permissions.transcribe && validation.permissions.s3) {
-                statusMessage += '\n All required permissions available';
-                showSuccessToast(statusMessage);
-            } else {
-                statusMessage += '\n⚠️ Some permissions missing:';
-                if (!validation.permissions.bedrock) statusMessage += '\n Bedrock access denied';
-                if (!validation.permissions.transcribe) statusMessage += '\n Transcribe access denied';
-                if (!validation.permissions.s3) statusMessage += '\n S3 access denied';
-                showWarningToast(statusMessage);
-            }
-
-            if (validation.errors.length > 0) {
-                console.warn('Permission errors:', validation.errors);
-            }
-        } else {
-            showErrorToast(` AWS connection failed: ${validation.errors.join(', ')}`);
-        }
-
-    } catch (error) {
-        console.error('Error checking connection status:', error);
-        showErrorToast(`Failed to check connection: ${error.message}`);
-    }
-}
 // Transcript management functions
 function downloadTranscript() {
     const transcriptText = document.getElementById('transcriptionText').textContent || document.getElementById('transcriptionText').innerText;

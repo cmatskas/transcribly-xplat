@@ -119,52 +119,6 @@ function createWindow() {
   mainWindow.loadFile('src/pages/index.html');
 }
 
-async function createCredentialsWindow() {
-  const credentialsWindow = new BrowserWindow({
-    width: 800,
-    height: 900,
-    icon: getIconPath(),
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
-    },
-    modal: true,
-    parent: mainWindow,
-    show: false
-  });
-
-  credentialsWindow.loadFile('src/pages/credentials.html');
-  credentialsWindow.once('ready-to-show', () => {
-    credentialsWindow.show();
-  });
-
-  return credentialsWindow;
-}
-
-async function createSettingsWindow() {
-  const settingsWindow = new BrowserWindow({
-    width: 900,
-    height: 800,
-    icon: getIconPath(),
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
-    },
-    modal: true,
-    parent: mainWindow,
-    show: false
-  });
-
-  settingsWindow.loadFile('src/pages/settings.html');
-  settingsWindow.once('ready-to-show', () => {
-    settingsWindow.show();
-  });
-
-  return settingsWindow;
-}
-
 app.whenReady().then(async () => {
   if (process.platform === 'win32') {
     app.setAppUserModelId('com.transcribely.app');
@@ -190,18 +144,20 @@ app.whenReady().then(async () => {
     try {
       currentCredentials = await credentialsManager.loadCredentials();
       initializeAWSClients(currentCredentials);
-
-      // Show window immediately — no validation at startup
-      createWindow();
-      mainWindow.loadFile('src/pages/index.html');
     } catch (error) {
       console.error('Error loading credentials:', error);
-      createWindow();
-      await createCredentialsWindow();
     }
-  } else {
-    createWindow();
-    await createCredentialsWindow();
+  }
+
+  // Always show main window — settings are in-page now
+  createWindow();
+  mainWindow.loadFile('src/pages/index.html');
+
+  // If no credentials, tell renderer to show settings page
+  if (!hasCredentials) {
+    mainWindow.webContents.once('did-finish-load', () => {
+      mainWindow.webContents.send('show-settings');
+    });
   }
 
   app.on('activate', function () {
@@ -335,15 +291,6 @@ ipcMain.handle('navigate-to-main', async () => {
   });
 });
 
-ipcMain.handle('open-credentials-window', async () => {
-  try {
-    await createCredentialsWindow();
-    return true;
-  } catch (error) {
-    throw new Error(`Failed to open credentials window: ${error.message}`);
-  }
-});
-
 // Settings management IPC handlers
 ipcMain.handle('save-settings', async (event, settings) => {
   try {
@@ -374,15 +321,6 @@ ipcMain.handle('delete-settings', async () => {
     return true;
   } catch (error) {
     throw new Error(`Failed to delete settings: ${error.message}`);
-  }
-});
-
-ipcMain.handle('open-settings-window', async () => {
-  try {
-    await createSettingsWindow();
-    return true;
-  } catch (error) {
-    throw new Error(`Failed to open settings window: ${error.message}`);
   }
 });
 
@@ -582,7 +520,11 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
 // Add handler to get Bedrock models from config
 ipcMain.handle('get-bedrock-models', () => {
   return config.bedrockModels;
-})
+});
+
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
+});
 
 // Add handler to get Bedrock knowledge bases
 ipcMain.handle('get-knowledge-bases', async () => {
