@@ -10,27 +10,25 @@ const path = require('path');
  *       feed toolResult back → Converse again → repeat until end_turn.
  */
 class AgentToolExecutor {
-  constructor({ bedrockClient, skillsManager, codeInterpreterManager, browserManager, onStatus, onChunk }) {
+  constructor({ bedrockClient, skillsManager, codeInterpreterManager, browserManager, memoryManager, sessionId, onStatus, onChunk }) {
     this.bedrock = bedrockClient;
     this.skills = skillsManager;
     this.codeInterpreter = codeInterpreterManager;
     this.browser = browserManager;
+    this.memory = memoryManager;
+    this.sessionId = sessionId;
     this.onStatus = onStatus || (() => {});
     this.onChunk = onChunk || (() => {});
   }
 
-  buildSystemPrompt() {
+  buildSystemPrompt(memoryContext = '') {
     const catalog = this.skills.getCatalog();
-    if (catalog.length === 0) return `You are a powerful work agent that completes complex, multi-step tasks. You can execute Python code via execute_code, read local files via read_local_file, and save files to the user's filesystem via save_file_locally. After generating any file, you MUST call save_file_locally to deliver it to the user. Never leave generated files only in the sandbox.`;
-
-    const skillList = catalog
-      .map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n  </skill>`)
-      .join('\n');
-
-    return `You are a powerful work agent that completes complex, multi-step tasks using tools.
+    const base = catalog.length === 0
+      ? `You are a powerful work agent that completes complex, multi-step tasks. You can execute Python code via execute_code, read local files via read_local_file, and save files to the user's filesystem via save_file_locally. After generating any file, you MUST call save_file_locally to deliver it to the user. Never leave generated files only in the sandbox.`
+      : `You are a powerful work agent that completes complex, multi-step tasks using tools.
 
 <available_skills>
-${skillList}
+${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n  </skill>`).join('\n')}
 </available_skills>
 
 <instructions>
@@ -42,6 +40,8 @@ ${skillList}
 - You can browse the web using the web tool. Pass a URL to read a page, or a query to search Google. For research: search first, then browse specific result URLs for deeper content.
 - If a library is missing in the sandbox, install it with pip via execute_code before using it.
 </instructions>`;
+
+    return memoryContext ? `${base}\n\n${memoryContext}` : base;
   }
 
   getToolConfig() {
@@ -161,6 +161,17 @@ ${skillList}
   async run(model, prompt, conversationHistory = [], files = []) {
     const messages = [...conversationHistory];
 
+    // Load memory context if available
+    let memoryContext = '';
+    if (this.memory && this.sessionId) {
+      try {
+        this.onStatus('Loading memory...');
+        memoryContext = await this.memory.buildContext(this.sessionId, prompt);
+      } catch (err) {
+        console.warn('Memory load failed:', err.message);
+      }
+    }
+
     // Build user message content
     const userContent = [{ text: prompt }];
     for (const file of files) {
@@ -176,8 +187,12 @@ ${skillList}
     }
     messages.push({ role: 'user', content: userContent });
 
+    // Store the system prompt with memory context for this run
+    this._memoryContext = memoryContext;
+
     let sessionStarted = false;
     const maxIterations = 15;
+    let finalText = '';
 
     try {
       for (let i = 0; i < maxIterations; i++) {
@@ -194,8 +209,8 @@ ${skillList}
         }
 
         if (response.stopReason !== 'tool_use') {
-          // Done — return final text
-          return textParts.map(p => p.text).join('');
+          finalText = textParts.map(p => p.text).join('');
+          return finalText;
         }
 
         // Process tool calls
@@ -225,8 +240,21 @@ ${skillList}
         messages.push({ role: 'user', content: toolResults });
       }
 
-      return 'Agent reached maximum iterations without completing.';
+      finalText = 'Agent reached maximum iterations without completing.';
+      return finalText;
     } finally {
+      // Save conversation to memory
+      if (this.memory && this.sessionId && finalText) {
+        try {
+          await this.memory.saveEvent(this.sessionId, [
+            { role: 'user', content: prompt },
+            { role: 'assistant', content: finalText },
+          ]);
+        } catch (err) {
+          console.warn('Memory save failed:', err.message);
+        }
+      }
+
       if (sessionStarted) {
         this.onStatus('Cleaning up sandbox...');
         await this.codeInterpreter.stopSession().catch(() => {});
@@ -241,7 +269,7 @@ ${skillList}
   async _converse(model, messages) {
     const command = new ConverseStreamCommand({
       modelId: model,
-      system: [{ text: this.buildSystemPrompt() }],
+      system: [{ text: this.buildSystemPrompt(this._memoryContext) }],
       messages,
       toolConfig: this.getToolConfig(),
       inferenceConfig: { maxTokens: model.includes('claude') ? 16384 : 8192, temperature: 0.7 },

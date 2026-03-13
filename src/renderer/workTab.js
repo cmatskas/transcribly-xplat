@@ -10,6 +10,13 @@
   let workMessages = [];
   let isProcessing = false;
   let workingDirectory = null;
+  let sessionId = localStorage.getItem('workSessionId') || generateSessionId();
+
+  function generateSessionId() {
+    const id = `session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem('workSessionId', id);
+    return id;
+  }
 
   // File manager for the Work tab's own file input
   const workFiles = FM.createFileManager({
@@ -78,6 +85,28 @@
         showToast(`Workspace: ${dir}`, 'info');
       }
     });
+
+    // New Chat button — triggers LTM extraction on old session, resets state
+    const newChatBtn = document.getElementById('workNewChatBtn');
+    if (newChatBtn) {
+      newChatBtn.addEventListener('click', () => {
+        // Trigger extraction on the old session (fire-and-forget)
+        if (workMessages.length > 0) {
+          window.electronAPI.invoke('memory-extract', { sessionId }).catch(() => {});
+        }
+        // Reset state
+        sessionId = generateSessionId();
+        workMessages = [];
+        streamingEl = null;
+        streamingText = '';
+        const container = getContainer();
+        container.innerHTML = `
+          <div id="workPlaceholder" class="work-greeting">
+            <div class="work-greeting-icon">✦</div>
+            <div class="work-greeting-text">What can I help you create?</div>
+          </div>`;
+      });
+    }
 
     // Listen for agent status updates
     window.electronAPI.receive('agent-status', (status) => {
@@ -194,6 +223,7 @@
         prompt: fullPrompt,
         conversationHistory: history,
         files,
+        sessionId,
       });
 
       thinkingEl.remove();

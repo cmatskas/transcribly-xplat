@@ -1162,6 +1162,30 @@ body {
     background: var(--bg-primary);
 }
 
+.work-topbar {
+    width: 100%;
+    max-width: 800px;
+    padding: 8px 16px 0;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.work-new-chat-btn {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    padding: 4px 12px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.work-new-chat-btn:hover {
+    background: var(--bg-tertiary, var(--bg-secondary));
+    color: var(--text-primary);
+}
+
 .work-layout .chat-history {
     flex: 1;
     width: 100%;

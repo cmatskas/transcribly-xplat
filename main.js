@@ -22,6 +22,7 @@ const SkillsManager = require('./src/main/models/skillsManager');
 const CodeInterpreterManager = require('./src/main/models/codeInterpreterManager');
 const AgentToolExecutor = require('./src/main/models/agentToolExecutor');
 const BrowserManager = require('./src/main/models/browserManager');
+const MemoryManager = require('./src/main/models/memoryManager');
 
 let conversationManager;
 let customPromptsManager;
@@ -274,6 +275,56 @@ ipcMain.handle('quick-validate-credentials', async () => {
   }
 });
 
+// ── AgentCore Memory handlers ──────────────────────────────────
+
+ipcMain.handle('memory-enable', async () => {
+  if (!awsClients.agentCoreConfig) throw new Error('AWS credentials not configured');
+  const mm = new MemoryManager(awsClients.agentCoreConfig);
+  const result = await mm.createMemory();
+  if (result.status !== 'ACTIVE' && !result.alreadyExisted) {
+    await mm.waitForActive();
+  }
+  // Persist memoryId in settings
+  const settings = await settingsManager.loadSettings();
+  settings.memoryId = result.id;
+  await settingsManager.saveSettings(settings);
+  return result;
+});
+
+ipcMain.handle('memory-status', async () => {
+  const settings = await settingsManager.loadSettings();
+  if (!settings.memoryId) return { enabled: false };
+  if (!awsClients.agentCoreConfig) return { enabled: false };
+  try {
+    const mm = new MemoryManager(awsClients.agentCoreConfig);
+    mm.setMemoryId(settings.memoryId);
+    const status = await mm.getStatus();
+    return { enabled: true, memoryId: settings.memoryId, status };
+  } catch {
+    return { enabled: false, memoryId: settings.memoryId, status: 'UNREACHABLE' };
+  }
+});
+
+ipcMain.handle('memory-disable', async () => {
+  const settings = await settingsManager.loadSettings();
+  if (settings.memoryId && awsClients.agentCoreConfig) {
+    const mm = new MemoryManager(awsClients.agentCoreConfig);
+    mm.setMemoryId(settings.memoryId);
+    await mm.deleteMemory();
+  }
+  settings.memoryId = '';
+  await settingsManager.saveSettings(settings);
+  return { enabled: false };
+});
+
+ipcMain.handle('memory-extract', async (event, { sessionId }) => {
+  const settings = await settingsManager.loadSettings();
+  if (!settings.memoryId || !awsClients.agentCoreConfig) return;
+  const mm = new MemoryManager(awsClients.agentCoreConfig);
+  mm.setMemoryId(settings.memoryId);
+  await mm.startExtraction(sessionId);
+});
+
 ipcMain.handle('navigate-to-main', async () => {
   if (mainWindow) {
     mainWindow.loadFile('src/pages/index.html');
@@ -501,9 +552,17 @@ ipcMain.handle('select-directory', async () => {
 });
 
 // Agent handler — runs the agentic tool-use loop
-ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistory, files = [] }) => {
+ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistory, files = [], sessionId }) => {
   if (!awsClients.bedrock) {
     throw new Error('AWS credentials not configured');
+  }
+
+  // Set up memory if configured
+  const settings = await settingsManager.loadSettings();
+  let memManager = null;
+  if (settings.memoryId && awsClients.agentCoreConfig) {
+    memManager = new MemoryManager(awsClients.agentCoreConfig);
+    memManager.setMemoryId(settings.memoryId);
   }
 
   const ciManager = new CodeInterpreterManager(awsClients.agentCoreConfig);
@@ -513,6 +572,8 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
     skillsManager,
     codeInterpreterManager: ciManager,
     browserManager: brManager,
+    memoryManager: memManager,
+    sessionId,
     onStatus: (status) => event.sender.send('agent-status', status),
     onChunk: (chunk) => event.sender.send('agent-stream-chunk', chunk),
   });

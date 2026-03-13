@@ -11,7 +11,8 @@ class SettingsManager {
       defaultTheme: 'auto',
       bucketName: '',
       outputBucketName: '',
-      region: 'us-east-1'
+      region: 'us-east-1',
+      memoryId: '',
     };
   }
 
@@ -99,6 +100,11 @@ class SettingsManager {
     // Validate region
     if (settings.region && typeof settings.region === 'string') {
       validated.region = settings.region.trim();
+    }
+
+    // Validate memoryId
+    if (typeof settings.memoryId === 'string') {
+      validated.memoryId = settings.memoryId.trim();
     }
     
     return validated;

@@ -354,3 +354,70 @@ async function pasteCredentialsFromClipboard() {
         showInfoToast('Please paste your AWS credentials directly into any field. The app will auto-detect and populate all fields.');
     }
 }
+
+// ── Agent Memory ─────────────────────────────────────────────
+
+async function checkMemoryStatus() {
+    const statusEl = document.getElementById('memoryStatus');
+    const enableBtn = document.getElementById('memoryEnableBtn');
+    const disableBtn = document.getElementById('memoryDisableBtn');
+
+    try {
+        const result = await window.electronAPI.invoke('memory-status');
+        if (result.enabled && result.status === 'ACTIVE') {
+            statusEl.innerHTML = '<i class="bi bi-check-circle text-success me-1"></i>Active';
+            enableBtn.style.display = 'none';
+            disableBtn.style.display = '';
+        } else if (result.enabled) {
+            statusEl.innerHTML = `<i class="bi bi-exclamation-circle text-warning me-1"></i>${result.status || 'Unavailable'}`;
+            enableBtn.style.display = '';
+            disableBtn.style.display = 'none';
+        } else {
+            statusEl.textContent = 'Not configured';
+            enableBtn.style.display = '';
+            disableBtn.style.display = 'none';
+        }
+    } catch {
+        statusEl.textContent = 'Not configured';
+        enableBtn.style.display = '';
+        disableBtn.style.display = 'none';
+    }
+}
+
+async function enableMemory() {
+    const statusEl = document.getElementById('memoryStatus');
+    const enableBtn = document.getElementById('memoryEnableBtn');
+    enableBtn.disabled = true;
+    statusEl.innerHTML = '<div class="spinner-border spinner-border-sm me-1"></div>Creating memory resource...';
+
+    try {
+        const result = await window.electronAPI.invoke('memory-enable');
+        showSuccessToast(result.alreadyExisted ? 'Memory already configured!' : 'Agent Memory enabled!');
+        await checkMemoryStatus();
+    } catch (error) {
+        showErrorToast(`Failed to enable memory: ${error.message}`);
+        statusEl.textContent = 'Failed';
+    } finally {
+        enableBtn.disabled = false;
+    }
+}
+
+async function disableMemory() {
+    if (!confirm('This will permanently delete all stored memories. Continue?')) return;
+
+    const statusEl = document.getElementById('memoryStatus');
+    statusEl.innerHTML = '<div class="spinner-border spinner-border-sm me-1"></div>Deleting...';
+
+    try {
+        await window.electronAPI.invoke('memory-disable');
+        showInfoToast('Agent Memory disabled');
+        await checkMemoryStatus();
+    } catch (error) {
+        showErrorToast(`Failed to disable memory: ${error.message}`);
+    }
+}
+
+// Check memory status on page load
+document.addEventListener('DOMContentLoaded', () => {
+    checkMemoryStatus();
+});
