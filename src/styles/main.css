@@ -13,6 +13,7 @@ html[data-theme] {
     --bg-primary: #ffffff;
     --bg-secondary: #f9f9f9;
     --bg-tertiary: #f8fafc;
+    --sidebar-bg: #f0f1f3;
     --bg-accent: #e6f3ff;
     --bg-upload: #f9f9f9;
     --bg-modal: rgba(255, 255, 255, 0.9);
@@ -46,6 +47,7 @@ html[data-theme] {
     --bg-primary: #1f2937;
     --bg-secondary: #111827;
     --bg-tertiary: #0f172a;
+    --sidebar-bg: #0d1117;
     --bg-accent: #1e3a8a;
     --bg-upload: #374151;
     --bg-modal: rgba(31, 41, 55, 0.9);
@@ -1153,7 +1155,7 @@ body {
 .work-sidebar {
     width: 260px;
     min-width: 260px;
-    background: var(--bg-secondary);
+    background: var(--sidebar-bg, #f3f4f6);
     border-right: 1px solid var(--border-primary);
     display: flex;
     flex-direction: column;
@@ -1169,6 +1171,11 @@ body {
 
 .work-sidebar.collapsed .sidebar-header,
 .work-sidebar.collapsed .sidebar-list {
+    display: none;
+}
+
+/* Hide topbar toggle when sidebar is open */
+.work-layout:has(.work-sidebar:not(.collapsed)) #workSidebarToggle {
     display: none;
 }
 
