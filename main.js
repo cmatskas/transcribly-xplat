@@ -326,16 +326,13 @@ ipcMain.handle('memory-extract', async (event, { sessionId }) => {
 });
 
 ipcMain.handle('navigate-to-main', async () => {
-  if (mainWindow) {
-    mainWindow.loadFile('src/pages/index.html');
-    // Close any credential windows
-    const allWindows = BrowserWindow.getAllWindows();
-    allWindows.forEach(window => {
-      if (window !== mainWindow) {
-        window.close();
-      }
-    });
-  }
+  // Close child windows without reloading the main window (preserves chat state)
+  const allWindows = BrowserWindow.getAllWindows();
+  allWindows.forEach(window => {
+    if (window !== mainWindow) {
+      window.close();
+    }
+  });
 });
 
 ipcMain.handle('open-credentials-window', async () => {
