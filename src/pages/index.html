@@ -463,8 +463,27 @@
     <!-- Work Page (Agent) -->
     <div id="work-page" class="container-fluid py-0" style="display:none;">
         <div class="work-layout">
+            <!-- History Sidebar -->
+            <div id="workSidebar" class="work-sidebar collapsed">
+                <div class="sidebar-header">
+                    <button id="sidebarToggle" class="sidebar-toggle-btn" title="Toggle history">
+                        <i class="bi bi-layout-sidebar-inset"></i>
+                    </button>
+                    <span class="sidebar-title">History</span>
+                    <button id="sidebarNewChat" class="sidebar-new-btn" title="New chat">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+                <div id="sidebarList" class="sidebar-list">
+                    <div class="sidebar-empty">No conversations yet</div>
+                </div>
+            </div>
+
             <div class="chat-area">
                 <div class="work-topbar">
+                    <button id="workSidebarToggle" class="sidebar-toggle-btn" title="Toggle history">
+                        <i class="bi bi-layout-sidebar-inset"></i>
+                    </button>
                     <button id="workNewChatBtn" class="work-new-chat-btn" title="New conversation">
                         <i class="bi bi-plus-lg me-1"></i>New Chat
                     </button>

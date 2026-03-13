@@ -89,26 +89,19 @@
     // New Chat button — triggers LTM extraction on old session, resets state
     const newChatBtn = document.getElementById('workNewChatBtn');
     if (newChatBtn) {
-      newChatBtn.addEventListener('click', () => {
-        // Trigger extraction on the old session (fire-and-forget)
-        if (workMessages.length > 0) {
-          window.electronAPI.invoke('memory-extract', { sessionId }).catch(() => {});
-        }
-        // Reset state
-        sessionId = generateSessionId();
-        workMessages = [];
-        streamingEl = null;
-        streamingText = '';
-        activityLog = null;
-        lastEntry = null;
-        const container = getContainer();
-        container.innerHTML = `
-          <div id="workPlaceholder" class="work-greeting">
-            <div class="work-greeting-icon">✦</div>
-            <div class="work-greeting-text">What can I help you create?</div>
-          </div>`;
-      });
+      newChatBtn.addEventListener('click', startNewChat);
     }
+
+    // Sidebar
+    const sidebar = document.getElementById('workSidebar');
+    const sidebarState = localStorage.getItem('sidebarOpen') === 'true';
+    if (sidebarState) sidebar.classList.remove('collapsed');
+
+    document.getElementById('workSidebarToggle').addEventListener('click', toggleSidebar);
+    document.getElementById('sidebarToggle').addEventListener('click', toggleSidebar);
+    document.getElementById('sidebarNewChat').addEventListener('click', startNewChat);
+
+    refreshSidebar();
 
     // Listen for agent status updates — build activity log
     window.electronAPI.receive('agent-status', (status) => {
@@ -263,6 +256,10 @@
         workFiles.clearFiles();
       }
 
+      // Auto-save session and refresh sidebar
+      saveSession();
+      refreshSidebar();
+
     } catch (error) {
       thinkingEl.remove();
       CR.finishActivityLog(activityLog);
@@ -272,6 +269,133 @@
     } finally {
       isProcessing = false;
     }
+  }
+
+  // ── Sidebar & History ─────────────────────────────────────
+
+  function toggleSidebar() {
+    const sidebar = document.getElementById('workSidebar');
+    sidebar.classList.toggle('collapsed');
+    localStorage.setItem('sidebarOpen', !sidebar.classList.contains('collapsed'));
+  }
+
+  function startNewChat() {
+    // Save current session before starting new one
+    saveSession();
+    if (workMessages.length > 0) {
+      window.electronAPI.invoke('memory-extract', { sessionId }).catch(() => {});
+    }
+    sessionId = generateSessionId();
+    workMessages = [];
+    streamingEl = null;
+    streamingText = '';
+    activityLog = null;
+    lastEntry = null;
+    const container = getContainer();
+    container.innerHTML = `
+      <div id="workPlaceholder" class="work-greeting">
+        <div class="work-greeting-icon">✦</div>
+        <div class="work-greeting-text">What can I help you create?</div>
+      </div>`;
+    refreshSidebar();
+  }
+
+  async function saveSession() {
+    if (workMessages.length === 0) return;
+    try {
+      await window.electronAPI.invoke('work-history-save', {
+        id: sessionId,
+        messages: workMessages,
+        createdAt: workMessages[0]?.timestamp || new Date().toISOString(),
+      });
+    } catch { /* non-critical */ }
+  }
+
+  async function refreshSidebar() {
+    const list = document.getElementById('sidebarList');
+    try {
+      const sessions = await window.electronAPI.invoke('work-history-list');
+      if (sessions.length === 0) {
+        list.innerHTML = '<div class="sidebar-empty">No conversations yet</div>';
+        return;
+      }
+
+      const groups = groupByDate(sessions);
+      list.innerHTML = groups.map(g => `
+        <div class="sidebar-group-label">${g.label}</div>
+        ${g.items.map(s => `
+          <div class="sidebar-item${s.id === sessionId ? ' active' : ''}" data-id="${s.id}">
+            <span class="sidebar-item-title">${escapeHtml(s.title || 'Untitled')}</span>
+            <button class="sidebar-delete-btn" data-id="${s.id}" title="Delete"><i class="bi bi-trash3"></i></button>
+          </div>`).join('')}
+      `).join('');
+
+      list.querySelectorAll('.sidebar-item').forEach(el => {
+        el.addEventListener('click', (e) => {
+          if (e.target.closest('.sidebar-delete-btn')) return;
+          loadSession(el.dataset.id);
+        });
+      });
+
+      list.querySelectorAll('.sidebar-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await window.electronAPI.invoke('work-history-delete', { id: btn.dataset.id });
+          if (btn.dataset.id === sessionId) startNewChat();
+          else refreshSidebar();
+        });
+      });
+    } catch { list.innerHTML = '<div class="sidebar-empty">Error loading history</div>'; }
+  }
+
+  async function loadSession(id) {
+    saveSession(); // save current first
+    try {
+      const session = await window.electronAPI.invoke('work-history-load', { id });
+      sessionId = session.id;
+      localStorage.setItem('workSessionId', sessionId);
+      workMessages = session.messages || [];
+      streamingEl = null;
+      streamingText = '';
+      activityLog = null;
+      lastEntry = null;
+
+      const container = getContainer();
+      container.innerHTML = '';
+      workMessages.forEach(msg => {
+        CR.appendChatMessage(container, msg, {
+          onCopy: () => navigator.clipboard.writeText(msg.content).then(
+            () => showToast('Copied to clipboard', 'success'),
+            () => showToast('Failed to copy', 'error')
+          ),
+        });
+      });
+      container.scrollTop = container.scrollHeight;
+      refreshSidebar();
+    } catch (err) {
+      showToast(`Failed to load session: ${err.message}`, 'error');
+    }
+  }
+
+  function groupByDate(sessions) {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today - 86400000);
+    const weekAgo = new Date(today - 7 * 86400000);
+
+    const groups = { Today: [], Yesterday: [], 'This Week': [], Older: [] };
+    for (const s of sessions) {
+      const d = new Date(s.updatedAt);
+      if (d >= today) groups.Today.push(s);
+      else if (d >= yesterday) groups.Yesterday.push(s);
+      else if (d >= weekAgo) groups['This Week'].push(s);
+      else groups.Older.push(s);
+    }
+    return Object.entries(groups).filter(([, items]) => items.length > 0).map(([label, items]) => ({ label, items }));
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   // Expose for initialization from index.js

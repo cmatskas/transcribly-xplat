@@ -23,10 +23,12 @@ const CodeInterpreterManager = require('./src/main/models/codeInterpreterManager
 const AgentToolExecutor = require('./src/main/models/agentToolExecutor');
 const BrowserManager = require('./src/main/models/browserManager');
 const MemoryManager = require('./src/main/models/memoryManager');
+const WorkHistoryManager = require('./src/main/models/workHistoryManager');
 
 let conversationManager;
 let customPromptsManager;
 let skillsManager;
+let workHistoryManager;
 
 // Global variables for credential and settings management
 let credentialsManager;
@@ -129,6 +131,7 @@ app.whenReady().then(async () => {
   initializeConversationManager();
   initializeCustomPromptsManager();
   initializeSkillsManager();
+  workHistoryManager = new WorkHistoryManager();
 
   // Load skills and settings in parallel
   const [, loadedSettings] = await Promise.all([
@@ -279,6 +282,24 @@ ipcMain.handle('memory-extract', async (event, { sessionId }) => {
   const mm = new MemoryManager(awsClients.agentCoreConfig);
   mm.setMemoryId(settings.memoryId);
   await mm.startExtraction(sessionId);
+});
+
+// ── Work History handlers ──────────────────────────────────
+
+ipcMain.handle('work-history-list', async () => {
+  return await workHistoryManager.list();
+});
+
+ipcMain.handle('work-history-load', async (event, { id }) => {
+  return await workHistoryManager.load(id);
+});
+
+ipcMain.handle('work-history-save', async (event, session) => {
+  await workHistoryManager.save(session);
+});
+
+ipcMain.handle('work-history-delete', async (event, { id }) => {
+  await workHistoryManager.remove(id);
 });
 
 ipcMain.handle('navigate-to-main', async () => {
