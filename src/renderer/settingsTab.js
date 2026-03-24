@@ -160,12 +160,13 @@
       }
     } catch { /* defaults */ }
 
-    // Memory status
+    // Memory status — read toggle state directly from settings (no AWS call needed)
     try {
-      const mem = await window.electronAPI.invoke('memory-status');
-      const hasMemory = mem.enabled && mem.status === 'ACTIVE';
-      document.getElementById('memoryToggle').checked = hasMemory && mem.memoryEnabled;
-      document.getElementById('memoryStatusText').textContent = hasMemory ? (mem.memoryEnabled ? 'Enabled' : 'Disabled') : '';
+      const settings = await window.electronAPI.invoke('load-settings');
+      const hasMemory = !!(settings && settings.memoryId);
+      const isEnabled = hasMemory && !!settings.memoryEnabled;
+      document.getElementById('memoryToggle').checked = isEnabled;
+      document.getElementById('memoryStatusText').textContent = hasMemory ? (isEnabled ? 'Enabled' : 'Disabled') : '';
       document.getElementById('memoryDeleteBtn').style.display = hasMemory ? 'inline-block' : 'none';
     } catch {
       document.getElementById('memoryToggle').checked = false;
