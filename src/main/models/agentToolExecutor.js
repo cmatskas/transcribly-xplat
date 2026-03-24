@@ -46,7 +46,9 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
 - If a library is missing in the sandbox, install it with pip via execute_code before using it.
 </instructions>`;
 
-    return memoryContext ? `${base}\n\n${memoryContext}` : base;
+    return memoryContext
+      ? `${base}\n\nYou have persistent memory of past conversations with this user. Use the context below to personalise your responses and recall previous interactions when relevant.\n\n${memoryContext}`
+      : base;
   }
 
   getToolConfig() {
