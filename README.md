@@ -210,6 +210,95 @@ Download directory: [here](https://amazoncorporate.box.com/s/rwc0pbifx50uf7g2xi8
    - Optionally enter an Inference Component Name if your endpoint uses one
    - Leave blank to use Amazon Nova Canvas (default fallback)
 
+### Deploying Stable Diffusion XL on SageMaker (Optional)
+
+If you want to use Stable Diffusion XL for image generation instead of Nova Canvas, deploy it via SageMaker JumpStart using the AWS CLI:
+
+**1. Create the SageMaker execution role** (skip if you already have one):
+```bash
+aws iam create-role \
+  --role-name SageMakerExecutionRole \
+  --assume-role-policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [{ "Effect": "Allow", "Principal": { "Service": "sagemaker.amazonaws.com" }, "Action": "sts:AssumeRole" }]
+  }'
+
+aws iam attach-role-policy \
+  --role-name SageMakerExecutionRole \
+  --policy-arn arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+```
+
+**2. Create the model** (uses the JumpStart pre-packaged SDXL container):
+```bash
+aws sagemaker create-model \
+  --model-name sdxl-1-0-model \
+  --primary-container '{
+    "Image": "763104351884.dkr.ecr.us-east-1.amazonaws.com/stabilityai-pytorch-inference:2.0.1-sgm0.1.0-gpu-py310-cu118-ubuntu20.04-sagemaker",
+    "ModelDataUrl": "s3://jumpstart-cache-prod-us-east-1/stabilityai-infer/prepack/v1.0.1/infer-prepack-model-imagegeneration-stabilityai-stable-diffusion-xl-base-1-0.tar.gz",
+    "Environment": {
+      "MODEL_CACHE_ROOT": "/opt/ml/model",
+      "SAGEMAKER_ENV": "1",
+      "SAGEMAKER_MODEL_SERVER_TIMEOUT": "3600",
+      "SAGEMAKER_PROGRAM": "inference.py",
+      "SAI_MODEL_CACHE_FILE": "stabilityai-model-cache.tar.gz"
+    }
+  }' \
+  --execution-role-arn arn:aws:iam::<YOUR_ACCOUNT_ID>:role/SageMakerExecutionRole \
+  --enable-network-isolation \
+  --region us-east-1
+```
+
+**3. Create the endpoint configuration:**
+```bash
+aws sagemaker create-endpoint-config \
+  --endpoint-config-name sdxl-endpoint-config \
+  --production-variants '[{
+    "VariantName": "AllTraffic",
+    "ModelName": "sdxl-1-0-model",
+    "InitialInstanceCount": 1,
+    "InstanceType": "ml.g5.8xlarge"
+  }]' \
+  --region us-east-1
+```
+
+**4. Create the endpoint** (takes ~5-10 minutes):
+```bash
+aws sagemaker create-endpoint \
+  --endpoint-name my-sdxl-endpoint \
+  --endpoint-config-name sdxl-endpoint-config \
+  --region us-east-1
+```
+
+**5. (Optional) Create an inference component** for multi-model endpoints:
+```bash
+aws sagemaker create-inference-component \
+  --inference-component-name sdxl-1-0-component \
+  --endpoint-name my-sdxl-endpoint \
+  --variant-name AllTraffic \
+  --specification '{
+    "ModelName": "sdxl-1-0-model",
+    "ComputeResourceRequirements": {
+      "NumberOfCpuCoresRequired": 4,
+      "NumberOfAcceleratorDevicesRequired": 1,
+      "MinMemoryRequiredInMb": 16384
+    }
+  }' \
+  --runtime-config '{"CopyCount": 1}' \
+  --region us-east-1
+```
+
+**6. Check endpoint status:**
+```bash
+aws sagemaker describe-endpoint --endpoint-name my-sdxl-endpoint --region us-east-1 --query 'EndpointStatus'
+```
+
+Once the status is `InService`, enter the endpoint name (`my-sdxl-endpoint`) and optionally the inference component name (`sdxl-1-0-component`) in Transcribely's Settings → Image Generation.
+
+> **Cost note**: An `ml.g5.8xlarge` instance costs approximately $3.36/hour. Remember to delete the endpoint when not in use:
+> ```bash
+> aws sagemaker delete-endpoint --endpoint-name my-sdxl-endpoint --region us-east-1
+> ```
+
 ### Supported Credential Formats
 
 The app can auto-detect and parse credentials from these formats:
