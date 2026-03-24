@@ -243,28 +243,22 @@ ipcMain.handle('memory-enable', async () => {
   if (result.status !== 'ACTIVE' && !result.alreadyExisted) {
     await mm.waitForActive();
   }
-  // Persist memoryId in settings
   const settings = await settingsManager.loadSettings();
   settings.memoryId = result.id;
+  settings.memoryEnabled = true;
   await settingsManager.saveSettings(settings);
   return result;
 });
 
-ipcMain.handle('memory-status', async () => {
+ipcMain.handle('memory-disable', async () => {
+  // Just disable — keep the memoryId so it can be re-enabled without recreating
   const settings = await settingsManager.loadSettings();
-  if (!settings.memoryId) return { enabled: false };
-  if (!awsClients.agentCoreConfig) return { enabled: false };
-  try {
-    const mm = new MemoryManager(awsClients.agentCoreConfig);
-    mm.setMemoryId(settings.memoryId);
-    const status = await mm.getStatus();
-    return { enabled: true, memoryId: settings.memoryId, status };
-  } catch {
-    return { enabled: false, memoryId: settings.memoryId, status: 'UNREACHABLE' };
-  }
+  settings.memoryEnabled = false;
+  await settingsManager.saveSettings(settings);
+  return { enabled: false };
 });
 
-ipcMain.handle('memory-disable', async () => {
+ipcMain.handle('memory-delete', async () => {
   const settings = await settingsManager.loadSettings();
   if (settings.memoryId && awsClients.agentCoreConfig) {
     const mm = new MemoryManager(awsClients.agentCoreConfig);
@@ -272,8 +266,23 @@ ipcMain.handle('memory-disable', async () => {
     await mm.deleteMemory();
   }
   settings.memoryId = '';
+  settings.memoryEnabled = false;
   await settingsManager.saveSettings(settings);
   return { enabled: false };
+});
+
+ipcMain.handle('memory-status', async () => {
+  const settings = await settingsManager.loadSettings();
+  if (!settings.memoryId) return { enabled: false, memoryEnabled: false };
+  if (!awsClients.agentCoreConfig) return { enabled: false, memoryEnabled: false };
+  try {
+    const mm = new MemoryManager(awsClients.agentCoreConfig);
+    mm.setMemoryId(settings.memoryId);
+    const status = await mm.getStatus();
+    return { enabled: true, memoryEnabled: settings.memoryEnabled, memoryId: settings.memoryId, status };
+  } catch {
+    return { enabled: false, memoryEnabled: false, memoryId: settings.memoryId, status: 'UNREACHABLE' };
+  }
 });
 
 ipcMain.handle('memory-extract', async (event, { sessionId }) => {
@@ -519,7 +528,7 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
   // Set up memory if configured
   const settings = await settingsManager.loadSettings();
   let memManager = null;
-  if (settings.memoryId && awsClients.agentCoreConfig) {
+  if (settings.memoryId && settings.memoryEnabled && awsClients.agentCoreConfig) {
     memManager = new MemoryManager(awsClients.agentCoreConfig);
     memManager.setMemoryId(settings.memoryId);
   }

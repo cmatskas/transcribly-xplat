@@ -13,6 +13,7 @@ class SettingsManager {
       outputBucketName: '',
       region: 'us-east-1',
       memoryId: '',
+      memoryEnabled: false,
       sagemakerImageEndpoint: '',
       sagemakerImageComponent: '',
     };
@@ -107,6 +108,9 @@ class SettingsManager {
     // Validate memoryId
     if (typeof settings.memoryId === 'string') {
       validated.memoryId = settings.memoryId.trim();
+    }
+    if (typeof settings.memoryEnabled === 'boolean') {
+      validated.memoryEnabled = settings.memoryEnabled;
     }
 
     // Validate SageMaker image generation

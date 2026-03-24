@@ -39,6 +39,7 @@
 
     // Memory toggle
     document.getElementById('memoryToggle').addEventListener('change', toggleMemory);
+    document.getElementById('memoryDeleteBtn').addEventListener('click', deleteMemory);
 
     // Load credentials on first show
     loadCredentials();
@@ -162,10 +163,13 @@
     // Memory status
     try {
       const mem = await window.electronAPI.invoke('memory-status');
-      document.getElementById('memoryToggle').checked = mem.enabled && mem.status === 'ACTIVE';
-      document.getElementById('memoryStatusText').textContent = mem.enabled ? (mem.status || '') : '';
+      const hasMemory = mem.enabled && mem.status === 'ACTIVE';
+      document.getElementById('memoryToggle').checked = hasMemory && mem.memoryEnabled;
+      document.getElementById('memoryStatusText').textContent = hasMemory ? (mem.memoryEnabled ? 'Enabled' : 'Disabled') : '';
+      document.getElementById('memoryDeleteBtn').style.display = hasMemory ? 'inline-block' : 'none';
     } catch {
       document.getElementById('memoryToggle').checked = false;
+      document.getElementById('memoryDeleteBtn').style.display = 'none';
     }
   }
 
@@ -201,12 +205,14 @@
   async function toggleMemory() {
     const toggle = document.getElementById('memoryToggle');
     const statusText = document.getElementById('memoryStatusText');
+    const deleteBtn = document.getElementById('memoryDeleteBtn');
 
     if (toggle.checked) {
-      statusText.textContent = 'Creating...';
+      statusText.textContent = 'Enabling...';
       try {
         await window.electronAPI.invoke('memory-enable');
-        statusText.textContent = 'ACTIVE';
+        statusText.textContent = 'Enabled';
+        deleteBtn.style.display = 'inline-block';
         window.electronAPI.showToast('Agent Memory enabled!', 'success');
       } catch (err) {
         toggle.checked = false;
@@ -214,19 +220,32 @@
         window.electronAPI.showToast(`Failed: ${err.message}`, 'error');
       }
     } else {
-      if (!confirm('This will permanently delete all stored memories. Continue?')) {
-        toggle.checked = true;
-        return;
-      }
-      statusText.textContent = 'Deleting...';
+      statusText.textContent = 'Disabling...';
       try {
         await window.electronAPI.invoke('memory-disable');
-        statusText.textContent = '';
+        statusText.textContent = 'Disabled';
         window.electronAPI.showToast('Agent Memory disabled', 'info');
       } catch (err) {
         toggle.checked = true;
+        statusText.textContent = 'Enabled';
         window.electronAPI.showToast(`Failed: ${err.message}`, 'error');
       }
+    }
+  }
+
+  async function deleteMemory() {
+    if (!confirm('This will permanently delete all stored memories. The toggle will need to be re-enabled to create a new memory. Continue?')) return;
+    const statusText = document.getElementById('memoryStatusText');
+    const deleteBtn = document.getElementById('memoryDeleteBtn');
+    const toggle = document.getElementById('memoryToggle');
+    try {
+      await window.electronAPI.invoke('memory-delete');
+      toggle.checked = false;
+      statusText.textContent = '';
+      deleteBtn.style.display = 'none';
+      window.electronAPI.showToast('Memory deleted', 'info');
+    } catch (err) {
+      window.electronAPI.showToast(`Failed: ${err.message}`, 'error');
     }
   }
 
