@@ -20,7 +20,7 @@
 Before using Transcribely, you'll need:
 
 1. **AWS Account** with appropriate permissions (see below)
-2. **Bedrock Models**: Enable access to DeepSeek R1, Nova Pro, Claude Sonnet 3.7, and Claude Sonnet 4.5 in your AWS Bedrock service
+2. **Bedrock Models**: Enable access to DeepSeek R1, Nova Pro, Claude Sonnet 4.6, and Claude Opus 4.6 in your AWS Bedrock service
 
 For development (optional):
 3. **Node.js** (version 16 or higher)
@@ -380,6 +380,33 @@ The app includes several built-in prompt templates:
 - **Action Items**: Identify tasks and next steps
 - **Sentiment Analysis**: Analyze emotional tone
 - **Custom**: Write your own prompts
+
+### Work Tab (AI Agent)
+
+The Work tab provides an advanced AI agent that can execute multi-step tasks autonomously using tools.
+
+1. **Start a Conversation**:
+   - Click on the "Work" tab
+   - Type your request in the chat input
+   - Attach files (PDF, DOCX, XLSX, PPTX, CSV, etc.) using the attach button
+
+2. **Agent Capabilities**:
+   - **Code Execution**: Runs Python code in a secure cloud sandbox (AWS Bedrock AgentCore Code Interpreter)
+   - **File Processing**: Reads local files and saves generated outputs to your filesystem
+   - **Web Browsing**: Searches the web and reads pages for research tasks
+   - **Image Generation**: Creates images via SageMaker SDXL or Amazon Nova Canvas
+   - **Document Skills**: Specialized handling for DOCX, XLSX, and PPTX files
+   - **Agent Memory**: Remembers preferences and past conversations across sessions (when enabled in Settings)
+
+3. **Conversation History**:
+   - Use the sidebar to browse past conversations grouped by date
+   - Star important conversations for quick access
+   - Rename or delete conversations via the three-dot context menu
+
+4. **Tips**:
+   - The agent breaks complex tasks into steps automatically — let it iterate
+   - Attach working directories or files for the agent to process
+   - Generated files are saved locally and the agent tells you the full path
 
 ## Troubleshooting
 
