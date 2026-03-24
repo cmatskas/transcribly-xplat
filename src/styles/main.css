@@ -1445,6 +1445,11 @@ body {
     width: 64px;
     height: 64px;
 }
+/* Theme-aware greeting icon */
+.greeting-icon-dark { display: none; }
+.greeting-icon-light { display: inline; }
+[data-theme="dark"] .greeting-icon-dark { display: inline; }
+[data-theme="dark"] .greeting-icon-light { display: none; }
 
 .work-greeting-text {
     font-size: 1.8rem;

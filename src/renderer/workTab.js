@@ -294,7 +294,7 @@
     const container = getContainer();
     container.innerHTML = `
       <div id="workPlaceholder" class="work-greeting">
-        <div class="work-greeting-icon"><img src="../assets/agentic-tool-icon.svg" alt="Agent" class="greeting-icon-img"></div>
+        <div class="work-greeting-icon"><img src="../assets/agentic-tool-icon-light.svg" alt="Agent" class="greeting-icon-img greeting-icon-light"><img src="../assets/agentic-tool-icon-dark.svg" alt="Agent" class="greeting-icon-img greeting-icon-dark"></div>
         <div class="work-greeting-text">What can I help you build today?</div>
       </div>`;
     refreshSidebar();
