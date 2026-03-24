@@ -1154,7 +1154,7 @@ function setupFileUpload() {
             return;
         }
 
-        const validExtensions = ['.pdf', '.csv', '.doc', '.docx', '.xls', '.xlsx', '.html', '.txt', '.md'];
+        const validExtensions = ['.pdf', '.csv', '.doc', '.docx', '.xls', '.xlsx', '.html', '.txt', '.md', '.pptx', '.ppt'];
         const maxSize = 10 * 1024 * 1024; // 10MB
 
         for (const file of files) {
@@ -1211,7 +1211,7 @@ function readFileAsArrayBuffer(file) {
         const extension = file.name.toLowerCase().split('.').pop();
 
         reader.onload = (e) => {
-            if (['pdf', 'doc', 'docx', 'xls', 'xlsx'].includes(extension)) {
+            if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'pptx', 'ppt'].includes(extension)) {
                 const uint8Array = new Uint8Array(e.target.result);
                 const regularArray = Array.from(uint8Array);
                 resolve(regularArray);
@@ -1235,6 +1235,8 @@ function getMimeType(filename) {
         'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'xls': 'application/vnd.ms-excel',
         'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'ppt': 'application/vnd.ms-powerpoint',
         'csv': 'text/csv',
         'html': 'text/html',
         'md': 'text/markdown',

@@ -197,7 +197,7 @@
 
                 <!-- Hidden File Upload Input -->
                 <input type="file" class="d-none" id="fileUpload" multiple 
-                       accept=".pdf,.csv,.doc,.docx,.xls,.xlsx,.html,.txt,.md" 
+                       accept=".pdf,.csv,.doc,.docx,.xls,.xlsx,.html,.txt,.md,.pptx,.ppt" 
                        title="Select up to 5 documents">
 
                 <!-- File List Display -->
@@ -355,6 +355,22 @@
                         </div>
                     </div>
 
+                    <!-- Image Generation (SageMaker) -->
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="mb-3"><i class="bi bi-image me-2"></i>Image Generation</h6>
+                            <small class="text-muted d-block mb-3">Optional. Connect a SageMaker endpoint for image generation. Falls back to Nova Canvas if empty.</small>
+                            <div class="mb-3">
+                                <label for="sagemakerImageEndpoint" class="form-label">SageMaker Endpoint Name</label>
+                                <input type="text" class="form-control" id="sagemakerImageEndpoint" placeholder="my-sdxl-endpoint">
+                            </div>
+                            <div class="mb-3">
+                                <label for="sagemakerImageComponent" class="form-label">Inference Component Name</label>
+                                <input type="text" class="form-control" id="sagemakerImageComponent" placeholder="my-inference-component (optional)">
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Transcription -->
                     <div class="card mb-3">
                         <div class="card-body">
@@ -497,7 +513,7 @@
                 </div>
 
                 <input type="file" class="d-none" id="workFileUpload" multiple
-                       accept=".pdf,.csv,.doc,.docx,.xls,.xlsx,.html,.txt,.md"
+                       accept=".pdf,.csv,.doc,.docx,.xls,.xlsx,.html,.txt,.md,.pptx,.ppt"
                        title="Select up to 5 documents">
 
                 <div id="workFileListSection" class="mb-2 mx-auto work-file-list" style="display:none;">

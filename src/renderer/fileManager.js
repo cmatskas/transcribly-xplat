@@ -6,7 +6,7 @@
 function createFileManager({ fileInputId, attachBtnId, clearBtnId, listSectionId, listId, countId, maxFiles = 5 }) {
   let selectedFiles = [];
 
-  const validExtensions = ['.pdf', '.csv', '.doc', '.docx', '.xls', '.xlsx', '.html', '.txt', '.md'];
+  const validExtensions = ['.pdf', '.csv', '.doc', '.docx', '.xls', '.xlsx', '.html', '.txt', '.md', '.pptx', '.ppt'];
   const maxSize = 4.5 * 1024 * 1024; // 4.5MB — Bedrock Converse API limit per document
 
   function setup(showToast) {
@@ -129,7 +129,7 @@ function readFileAsArrayBuffer(file) {
     const reader = new FileReader();
     const ext = file.name.toLowerCase().split('.').pop();
     reader.onload = (e) => {
-      if (['pdf', 'doc', 'docx', 'xls', 'xlsx'].includes(ext)) {
+      if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'pptx', 'ppt'].includes(ext)) {
         resolve(Array.from(new Uint8Array(e.target.result)));
       } else {
         resolve(new TextDecoder().decode(e.target.result));
@@ -147,6 +147,8 @@ function getMimeType(filename) {
     docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     xls: 'application/vnd.ms-excel',
     xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ppt: 'application/vnd.ms-powerpoint',
     csv: 'text/csv', html: 'text/html', md: 'text/markdown', txt: 'text/plain',
   };
   return types[ext] || 'text/plain';
@@ -156,6 +158,7 @@ function getFileIcon(ext) {
   const icons = {
     pdf: 'bi bi-file-earmark-pdf', doc: 'bi bi-file-earmark-word', docx: 'bi bi-file-earmark-word',
     xls: 'bi bi-file-earmark-excel', xlsx: 'bi bi-file-earmark-excel',
+    pptx: 'bi bi-file-earmark-slides', ppt: 'bi bi-file-earmark-slides',
     csv: 'bi bi-file-earmark-spreadsheet', html: 'bi bi-file-earmark-code',
     md: 'bi bi-file-earmark-richtext', txt: 'bi bi-file-earmark-text',
   };

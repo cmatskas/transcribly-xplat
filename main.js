@@ -530,6 +530,7 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
     browserManager: brManager,
     memoryManager: memManager,
     sessionId,
+    settings,
     onStatus: (status) => event.sender.send('agent-status', status),
     onChunk: (chunk) => event.sender.send('agent-stream-chunk', chunk),
   });
@@ -767,9 +768,36 @@ async function invokeBedrockNoKB(model, prompt, conversationHistory, files = [],
     if (files && files.length > 0) {
       logger.log('info', `Processing ${files.length} files for Bedrock analysis`);
 
+      // Extract pptx/ppt files via code interpreter sandbox
+      const pptxFiles = files.filter(f => ['pptx', 'ppt'].includes(f.name.toLowerCase().split('.').pop()));
+      if (pptxFiles.length > 0) {
+        const clientConfig = { region: currentCredentials.region, credentials: { accessKeyId: currentCredentials.accessKeyId, secretAccessKey: currentCredentials.secretAccessKey, sessionToken: currentCredentials.sessionToken } };
+        const ci = new CodeInterpreterManager(clientConfig);
+        try {
+          await ci.startSession(300);
+          await ci.writeFiles(pptxFiles.map(f => ({ path: f.name, content: Array.isArray(f.content) ? f.content : Array.from(f.content) })));
+          for (const file of pptxFiles) {
+            const result = await ci.executeCode(`
+from pptx import Presentation
+prs = Presentation("${file.name}")
+slides = []
+for i, slide in enumerate(prs.slides):
+    texts = [shape.text_frame.text for shape in slide.shapes if shape.has_text_frame and shape.text_frame.text.strip()]
+    if texts:
+        slides.append(f"Slide {i+1}:\\n" + "\\n".join(texts))
+print("\\n\\n".join(slides))
+`);
+            messageContent.push({ text: `\n\n--- Content from ${file.name} ---\n${result.text}\n--- End of ${file.name} ---\n` });
+          }
+        } finally {
+          await ci.stopSession();
+        }
+      }
+
       for (const file of files) {
         const fileExtension = file.name.toLowerCase().split('.').pop();
-        
+        if (['pptx', 'ppt'].includes(fileExtension)) continue; // already handled above
+
         if (fileExtension === 'pdf') {
           const bytes = Array.isArray(file.content) ? new Uint8Array(file.content) : file.content;
           messageContent.push({

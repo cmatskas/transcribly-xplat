@@ -1,5 +1,7 @@
 const { ConverseStreamCommand } = require('@aws-sdk/client-bedrock-runtime');
+const { SageMakerRuntimeClient, InvokeEndpointCommand } = require('@aws-sdk/client-sagemaker-runtime');
 const { sanitizeFileName } = require('../utils');
+const { region } = require('../../../config');
 const fs = require('fs').promises;
 const path = require('path');
 
@@ -10,13 +12,14 @@ const path = require('path');
  *       feed toolResult back → Converse again → repeat until end_turn.
  */
 class AgentToolExecutor {
-  constructor({ bedrockClient, skillsManager, codeInterpreterManager, browserManager, memoryManager, sessionId, onStatus, onChunk }) {
+  constructor({ bedrockClient, skillsManager, codeInterpreterManager, browserManager, memoryManager, sessionId, settings, onStatus, onChunk }) {
     this.bedrock = bedrockClient;
     this.skills = skillsManager;
     this.codeInterpreter = codeInterpreterManager;
     this.browser = browserManager;
     this.memory = memoryManager;
     this.sessionId = sessionId;
+    this.settings = settings || {};
     this.onStatus = onStatus || (() => {});
     this.onChunk = onChunk || (() => {});
   }
@@ -194,7 +197,24 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
     const userContent = [{ text: prompt }];
     for (const file of files) {
       const ext = file.name.toLowerCase().split('.').pop();
-      if (['pdf', 'doc', 'docx', 'xls', 'xlsx'].includes(ext)) {
+      if (['pptx', 'ppt'].includes(ext)) {
+        // Extract via code interpreter — start session if not already running
+        if (!this.codeInterpreter.sessionId) {
+          await this.codeInterpreter.startSession();
+        }
+        await this.codeInterpreter.writeFiles([{ path: file.name, content: Array.isArray(file.content) ? file.content : Array.from(file.content) }]);
+        const result = await this.codeInterpreter.executeCode(`
+from pptx import Presentation
+prs = Presentation("${file.name}")
+slides = []
+for i, slide in enumerate(prs.slides):
+    texts = [shape.text_frame.text for shape in slide.shapes if shape.has_text_frame and shape.text_frame.text.strip()]
+    if texts:
+        slides.append(f"Slide {i+1}:\\n" + "\\n".join(texts))
+print("\\n\\n".join(slides))
+`);
+        userContent.push({ text: `\n--- Content from ${file.name} ---\n${result.text}\n--- End ---\n` });
+      } else if (['pdf', 'doc', 'docx', 'xls', 'xlsx'].includes(ext)) {
         const bytes = Array.isArray(file.content) ? new Uint8Array(file.content) : file.content;
         userContent.push({
           document: { name: sanitizeFileName(file.name), format: ext, source: { bytes } },
@@ -429,32 +449,75 @@ print(f"Wrote {len(data)} bytes to ${sandboxPath}")
   }
 
   async _handleGenerateImage({ prompt, negative_prompt, width, height }) {
-    const { InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
-
     const w = width || 1024;
     const h = height || 1024;
-    const modelId = 'amazon.nova-canvas-v1:0';
 
     this.onStatus({ tool: 'generate_image', detail: prompt?.slice(0, 40), state: 'running' });
 
-    const body = JSON.stringify({
-      taskType: 'TEXT_IMAGE',
-      textToImageParams: {
-        text: prompt,
-        ...(negative_prompt && { negativeText: negative_prompt }),
-      },
-      imageGenerationConfig: { numberOfImages: 1, width: w, height: h, cfgScale: 8.0 },
-    });
+    let base64Image;
+    let modelUsed;
+    const smEndpoint = this.settings.sagemakerImageEndpoint;
 
-    const response = await this.bedrock.send(new InvokeModelCommand({
-      modelId, body, accept: 'application/json', contentType: 'application/json',
-    }));
+    if (smEndpoint) {
+      try {
+        // Primary: SageMaker SDXL endpoint
+        const smClient = new SageMakerRuntimeClient({ region });
+        const payload = JSON.stringify({
+          text_prompts: [
+            { text: prompt },
+            ...(negative_prompt ? [{ text: negative_prompt, weight: -1 }] : []),
+          ],
+          width: w,
+          height: h,
+          samples: 1,
+          steps: 30,
+          cfg_scale: 7.5,
+        });
 
-    const base64Image = JSON.parse(new TextDecoder().decode(response.body)).images[0];
+        const params = {
+          EndpointName: smEndpoint,
+          ContentType: 'application/json',
+          Accept: 'application/json',
+          Body: Buffer.from(payload),
+        };
+        if (this.settings.sagemakerImageComponent) {
+          params.InferenceComponentName = this.settings.sagemakerImageComponent;
+        }
+
+        const response = await smClient.send(new InvokeEndpointCommand(params));
+        const body = JSON.parse(Buffer.from(response.Body).toString());
+        base64Image = body.generated_image;
+        modelUsed = 'sdxl-1.0-sagemaker';
+      } catch (err) {
+        console.warn('SageMaker image gen failed, falling back to Nova Canvas:', err.message);
+      }
+    }
+
+    if (!base64Image) {
+      // Fallback: Nova Canvas via Bedrock
+      const { InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
+      const fallbackModel = 'amazon.nova-canvas-v1:0';
+      const body = JSON.stringify({
+        taskType: 'TEXT_IMAGE',
+        textToImageParams: {
+          text: prompt,
+          ...(negative_prompt && { negativeText: negative_prompt }),
+        },
+        imageGenerationConfig: { numberOfImages: 1, width: w, height: h, cfgScale: 8.0 },
+      });
+
+      const response = await this.bedrock.send(new InvokeModelCommand({
+        modelId: fallbackModel, body, accept: 'application/json', contentType: 'application/json',
+      }));
+
+      base64Image = JSON.parse(new TextDecoder().decode(response.body)).images[0];
+      modelUsed = fallbackModel;
+    }
+
     const buffer = Buffer.from(base64Image, 'base64');
-    const result = { success: true, model: modelId, width: w, height: h, size: buffer.length };
+    const result = { success: true, model: modelUsed, width: w, height: h, size: buffer.length };
 
-    // If sandbox is running, also write there for document embedding
+    // If sandbox is running, write there for document embedding
     if (this.codeInterpreter.sessionId) {
       const sandboxPath = `/tmp/generated_${Date.now()}.png`;
       const code = `import base64\ndata = base64.b64decode("""${base64Image}""")\nwith open("${sandboxPath}", "wb") as f:\n    f.write(data)\nprint(f"Image saved: ${sandboxPath} ({len(data)} bytes)")`;

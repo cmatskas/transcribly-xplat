@@ -154,6 +154,8 @@
         document.getElementById('outputBucketName').value = settings.outputBucketName || '';
         document.getElementById('transcriptionLanguage').value = settings.transcriptionLanguage || 'en-US';
         document.getElementById('defaultTheme').value = settings.defaultTheme || 'auto';
+        document.getElementById('sagemakerImageEndpoint').value = settings.sagemakerImageEndpoint || '';
+        document.getElementById('sagemakerImageComponent').value = settings.sagemakerImageComponent || '';
       }
     } catch { /* defaults */ }
 
@@ -177,6 +179,8 @@
         outputBucketName: document.getElementById('outputBucketName').value.trim(),
         transcriptionLanguage: document.getElementById('transcriptionLanguage').value,
         defaultTheme: document.getElementById('defaultTheme').value,
+        sagemakerImageEndpoint: document.getElementById('sagemakerImageEndpoint').value.trim(),
+        sagemakerImageComponent: document.getElementById('sagemakerImageComponent').value.trim(),
       };
 
       await window.electronAPI.invoke('save-settings', settings);
