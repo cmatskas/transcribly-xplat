@@ -410,6 +410,8 @@ async function sendMessage() {
             }
         };
         
+        window.electronAPI.removeAllListeners('bedrock-stream-chunk');
+        window.electronAPI.removeAllListeners('bedrock-stream-complete');
         window.electronAPI.receive('bedrock-stream-chunk', streamChunkHandler);
         window.electronAPI.receive('bedrock-stream-complete', streamCompleteHandler);
         
