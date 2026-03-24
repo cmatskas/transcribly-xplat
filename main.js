@@ -315,8 +315,11 @@ ipcMain.handle('navigate-to-main', async () => {
 // Settings management IPC handlers
 ipcMain.handle('save-settings', async (event, settings) => {
   try {
-    await settingsManager.saveSettings(settings);
-    currentSettings = settings;
+    // Merge with existing settings to preserve fields not managed by the UI (e.g. memoryId)
+    const existing = await settingsManager.loadSettings();
+    const merged = { ...existing, ...settings };
+    await settingsManager.saveSettings(merged);
+    currentSettings = merged;
     return true;
   } catch (error) {
     throw new Error(`Failed to save settings: ${error.message}`);
