@@ -96,7 +96,7 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
               type: 'object',
               properties: {
                 sandbox_path: { type: 'string', description: 'Path to the file in the sandbox (e.g. /tmp/output.docx)' },
-                local_path: { type: 'string', description: 'Absolute path on the user\'s local filesystem to save the file' },
+                local_path: { type: 'string', description: 'Absolute path on the user\'s local filesystem to save the file. Must be a full absolute path (e.g. C:\\Users\\name\\file.txt or /Users/name/file.txt), never concatenate with the working directory.' },
               },
               required: ['sandbox_path', 'local_path'],
             },
@@ -426,6 +426,11 @@ print("\\n\\n".join(slides))
   }
 
   async _handleSaveFile(sandboxPath, localPath) {
+    // Fix double-path bug: agent may concatenate working dir with an absolute path
+    // e.g. "C:\Users\a\Documents\C:\Users\a\Desktop\file.txt"
+    const driveMatch = localPath.match(/^[A-Za-z]:\\.*?([A-Za-z]:\\.*)/);
+    if (driveMatch) localPath = driveMatch[1];
+
     this.onStatus(`Saving file to ${localPath}...`);
     const base64 = await this.codeInterpreter.readFileBase64(sandboxPath);
     const buffer = Buffer.from(base64, 'base64');
