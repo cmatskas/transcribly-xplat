@@ -12,6 +12,8 @@
 - 🔒 **Secure**: Local credential storage with encryption
 - ⚡ **Easy Credential Setup**: Auto-detect and paste AWS credentials from multiple formats
 - 🛡️ **Error Recovery**: Graceful error handling without requiring app restarts
+- 📊 **PowerPoint Support**: Upload and analyze `.pptx`/`.ppt` files — content is extracted automatically via code interpreter
+- 🖼️ **Flexible Image Generation**: Generate images using a SageMaker SDXL endpoint (optional) with automatic fallback to Amazon Nova Canvas
 
 ## Prerequisites
 
@@ -99,6 +101,22 @@ Your AWS IAM user or role must have the following permissions:
 }
 ```
 
+### SageMaker Image Generation (Optional)
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "sagemaker:InvokeEndpoint"
+            ],
+            "Resource": "arn:aws:sagemaker:*:*:endpoint/your-endpoint-name"
+        }
+    ]
+}
+```
+
 ## Installation
 
 ### Option 1: Download Pre-built Binaries (Recommended)
@@ -106,7 +124,7 @@ Your AWS IAM user or role must have the following permissions:
 1. Download the appropriate installer for your platform:
    - **Windows (64-bit)**: `Transcribely-Setup-x64.exe` (~80MB)
    - **Windows ARM64**: `Transcribely-Setup-arm64.exe` (~82MB)
-   - **macOS Universal**: `Transcribely-1.0.0-universal.dmg` (~174MB) - Works on Intel & Apple Silicon
+   - **macOS Universal**: `Transcribely-2.0.0-universal.dmg` (~174MB) - Works on Intel & Apple Silicon
 2. Run the installer and follow the setup instructions
 
 #### Windows Installation
@@ -183,6 +201,12 @@ Your AWS IAM user or role must have the following permissions:
      - ✅ Bedrock Access
      - ✅ Transcribe Access
      - ✅ S3 Access
+
+4. **Configure Image Generation** (Optional):
+   - Go to "Settings" → "Image Generation"
+   - Enter your SageMaker endpoint name to use an SDXL model for image generation
+   - Optionally enter an Inference Component Name if your endpoint uses one
+   - Leave blank to use Amazon Nova Canvas (default fallback)
 
 ### Supported Credential Formats
 
@@ -508,6 +532,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - 📖 Documentation: [Wiki](https://github.com/cmatskas/transcribly-xplat/blob/main/README.md)
 
 ## Changelog
+
+### v2.0.0
+- PowerPoint (`.pptx`/`.ppt`) file upload and analysis support
+- Content extracted automatically from PowerPoint files via code interpreter (python-pptx)
+- SageMaker SDXL endpoint support for image generation
+- Automatic fallback to Amazon Nova Canvas when no SageMaker endpoint is configured
+- New Image Generation settings panel (endpoint name + inference component)
 
 ### v1.0.0
 - Initial release
