@@ -121,6 +121,8 @@ Your AWS IAM user or role must have the following permissions:
 
 ### Option 1: Download Pre-built Binaries (Recommended)
 
+Download directory: [here](https://amazoncorporate.box.com/s/rwc0pbifx50uf7g2xi8mxanahq5qnljn)
+
 1. Download the appropriate installer for your platform:
    - **Windows (64-bit)**: `Transcribely-Setup-x64.exe` (~80MB)
    - **Windows ARM64**: `Transcribely-Setup-arm64.exe` (~82MB)

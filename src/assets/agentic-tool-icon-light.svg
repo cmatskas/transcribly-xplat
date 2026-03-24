@@ -1,0 +1,62 @@
+<svg width="512" height="512" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <style>
+    .ring { fill: none; stroke-linecap: round; }
+    .pulse-l { animation: pulse-l 2.4s ease-in-out infinite; }
+    .spin-cw  { animation: spin-cw  8s  linear infinite; }
+    .spin-ccw { animation: spin-ccw 12s linear infinite; }
+    .orbit1   { animation: orbit1 4s linear infinite; }
+    .orbit2   { animation: orbit2 6s linear infinite; }
+    .fade     { animation: fade 2s ease-in-out infinite alternate; }
+    @keyframes pulse-l {
+      0%,100% { r: 44; fill: #4f46e5; }
+      50%      { r: 50; fill: #4338ca; }
+    }
+    @keyframes spin-cw  { to { transform: rotate(360deg);  } }
+    @keyframes spin-ccw { to { transform: rotate(-360deg); } }
+    @keyframes orbit1 {
+      from { transform: rotate(0deg)   translateX(130px) rotate(0deg);    }
+      to   { transform: rotate(360deg) translateX(130px) rotate(-360deg); }
+    }
+    @keyframes orbit2 {
+      from { transform: rotate(180deg) translateX(130px) rotate(-180deg); }
+      to   { transform: rotate(540deg) translateX(130px) rotate(-540deg); }
+    }
+    @keyframes fade {
+      from { opacity: 0.5; }
+      to   { opacity: 1;   }
+    }
+  </style>
+</defs>
+<g transform="translate(340,340)">
+  <circle class="ring" r="210" stroke="#334155" stroke-width="1.5" stroke-dasharray="6 5" opacity="0.3"/>
+  <circle class="ring" r="155" stroke="#334155" stroke-width="1.2" stroke-dasharray="4 6" opacity="0.2"/>
+  <g class="spin-cw"  style="transform-origin:0 0"><circle class="ring" r="210" stroke="#4f46e5" stroke-width="5"   stroke-dasharray="90 240" opacity="1"/></g>
+  <g class="spin-ccw" style="transform-origin:0 0"><circle class="ring" r="155" stroke="#0369a1" stroke-width="3.5" stroke-dasharray="60 206" opacity="1"/></g>
+  <g class="orbit1" style="transform-origin:0 0">
+    <circle r="14" fill="#4f46e5" opacity="1"/>
+    <circle r="5"  fill="white"   opacity="0.95"/>
+  </g>
+  <g class="orbit2" style="transform-origin:0 0">
+    <circle r="10" fill="#0369a1" opacity="1"/>
+    <circle r="3.5" fill="white" opacity="0.95"/>
+  </g>
+  <line x1="0" y1="0" x2="0"    y2="-155" stroke="#334155" stroke-width="0.75" stroke-dasharray="3 5" opacity="0.25"/>
+  <line x1="0" y1="0" x2="134"  y2="77"   stroke="#334155" stroke-width="0.75" stroke-dasharray="3 5" opacity="0.25"/>
+  <line x1="0" y1="0" x2="-134" y2="77"   stroke="#334155" stroke-width="0.75" stroke-dasharray="3 5" opacity="0.25"/>
+  <circle r="66" fill="none" stroke="#4f46e5" stroke-width="2" opacity="0.2"/>
+  <circle class="pulse-l" cx="0" cy="0" r="44"/>
+  <g stroke="white" stroke-width="1.8" stroke-linecap="round" opacity="0.85">
+    <line x1="-16" y1="-8" x2="-6" y2="-8"/>
+    <line x1="-6"  y1="-8" x2="-6" y2="8"/>
+    <line x1="-6"  y1="8"  x2="6"  y2="8"/>
+    <line x1="6"   y1="8"  x2="16" y2="8"/>
+    <circle cx="16"  cy="8"  r="2.5" fill="white"/>
+    <circle cx="-16" cy="-8" r="2.5" fill="white"/>
+  </g>
+  <circle cx="0" cy="0" r="5" fill="white" opacity="0.95"/>
+  <circle cx="0"    cy="-155" r="7" fill="#4f46e5" class="fade"/>
+  <circle cx="134"  cy="77"   r="7" fill="#6366f1" class="fade" style="animation-delay:.8s"/>
+  <circle cx="-134" cy="77"   r="7" fill="#0369a1" class="fade" style="animation-delay:1.6s"/>
+</g>
+</svg>
