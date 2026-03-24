@@ -45,15 +45,26 @@ class MemoryManager {
       return { id: existing.id, status: existing.status, alreadyExisted: true };
     }
 
-    const res = await this.controlClient.send(new CreateMemoryCommand({
-      name: MEMORY_NAME,
-      description: 'Transcribely agent memory — stores conversation context and user preferences',
-      strategies: DEFAULT_STRATEGIES,
-      eventExpiryDuration: EVENT_EXPIRY_DAYS,
-    }));
-
-    this.memoryId = res.memory.id;
-    return { id: res.memory.id, status: res.memory.status, alreadyExisted: false };
+    try {
+      const res = await this.controlClient.send(new CreateMemoryCommand({
+        name: MEMORY_NAME,
+        description: 'Transcribely agent memory — stores conversation context and user preferences',
+        strategies: DEFAULT_STRATEGIES,
+        eventExpiryDuration: EVENT_EXPIRY_DAYS,
+      }));
+      this.memoryId = res.memory.id;
+      return { id: res.memory.id, status: res.memory.status, alreadyExisted: false };
+    } catch (err) {
+      // List may have missed it (eventual consistency) — try fetching again before giving up
+      if (err.name === 'ValidationException' && err.message?.includes('already exists')) {
+        const found = await this.findExistingMemory();
+        if (found) {
+          this.memoryId = found.id;
+          return { id: found.id, status: found.status, alreadyExisted: true };
+        }
+      }
+      throw err;
+    }
   }
 
   /** Poll until memory is ACTIVE. Returns final status. */
