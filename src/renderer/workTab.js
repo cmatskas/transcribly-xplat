@@ -398,6 +398,13 @@
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  // Trigger LTM extraction on app quit if there are messages in the current session
+  window.electronAPI.receive('app-before-quit', () => {
+    if (workMessages.length > 0) {
+      window.electronAPI.invoke('memory-extract', { sessionId }).catch(() => {});
+    }
+  });
+
   // Expose for initialization from index.js
   if (typeof window !== 'undefined') {
     window.WorkTab = { init };

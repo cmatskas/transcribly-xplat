@@ -180,6 +180,12 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
 });
 
+app.on('before-quit', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('app-before-quit');
+  }
+});
+
 // Credential management IPC handlers
 ipcMain.handle('save-credentials', async (event, credentials) => {
   try {
