@@ -251,6 +251,14 @@ ipcMain.handle('quick-validate-credentials', async () => {
 ipcMain.handle('memory-enable', async () => {
   if (!awsClients.agentCoreConfig) throw new Error('AWS credentials not configured');
   const settings = await settingsManager.loadSettings();
+
+  // If memoryId already exists, just re-enable — no need to create
+  if (settings.memoryId) {
+    settings.memoryEnabled = true;
+    await settingsManager.saveSettings(settings);
+    return { id: settings.memoryId, status: 'ACTIVE', alreadyExisted: true };
+  }
+
   const mm = new MemoryManager(awsClients.agentCoreConfig);
   mm.setActorId(settings.userId);
   const result = await mm.createMemory();
