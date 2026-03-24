@@ -29,10 +29,12 @@ class MemoryManager {
     this.dataClient = new BedrockAgentCoreClient(clientConfig);
     this.controlClient = new BedrockAgentCoreControlClient(clientConfig);
     this.memoryId = null;
+    this.actorId = ACTOR_ID; // default, overridden via setActorId()
   }
 
   /** Set memoryId from stored config */
   setMemoryId(id) { this.memoryId = id; }
+  setActorId(id) { this.actorId = id; }
 
   // ── Control Plane ──────────────────────────────────────────────
 
@@ -113,7 +115,7 @@ class MemoryManager {
 
     await this.dataClient.send(new CreateEventCommand({
       memoryId: this.memoryId,
-      actorId: ACTOR_ID,
+      actorId: this.actorId,
       sessionId,
       eventTimestamp: new Date(),
       payload,
@@ -126,7 +128,7 @@ class MemoryManager {
     try {
       const res = await this.dataClient.send(new ListEventsCommand({
         memoryId: this.memoryId,
-        actorId: ACTOR_ID,
+        actorId: this.actorId,
         sessionId,
         maxResults,
         includePayloads: true,
@@ -173,7 +175,7 @@ class MemoryManager {
     try {
       await this.dataClient.send(new StartMemoryExtractionJobCommand({
         memoryId: this.memoryId,
-        actorId: ACTOR_ID,
+        actorId: this.actorId,
         sessionId,
       }));
     } catch (err) {

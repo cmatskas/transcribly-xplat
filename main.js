@@ -140,6 +140,12 @@ app.whenReady().then(async () => {
   ]);
   currentSettings = loadedSettings;
 
+  // Generate a unique userId for this installation if not already set
+  if (!currentSettings.userId) {
+    currentSettings.userId = require('crypto').randomUUID();
+    await settingsManager.saveSettings(currentSettings);
+  }
+
   // Check if credentials exist
   const hasCredentials = await credentialsManager.hasCredentials();
 
@@ -238,12 +244,13 @@ ipcMain.handle('quick-validate-credentials', async () => {
 
 ipcMain.handle('memory-enable', async () => {
   if (!awsClients.agentCoreConfig) throw new Error('AWS credentials not configured');
+  const settings = await settingsManager.loadSettings();
   const mm = new MemoryManager(awsClients.agentCoreConfig);
+  mm.setActorId(settings.userId);
   const result = await mm.createMemory();
   if (result.status !== 'ACTIVE' && !result.alreadyExisted) {
     await mm.waitForActive();
   }
-  const settings = await settingsManager.loadSettings();
   settings.memoryId = result.id;
   settings.memoryEnabled = true;
   await settingsManager.saveSettings(settings);
@@ -251,7 +258,6 @@ ipcMain.handle('memory-enable', async () => {
 });
 
 ipcMain.handle('memory-disable', async () => {
-  // Just disable — keep the memoryId so it can be re-enabled without recreating
   const settings = await settingsManager.loadSettings();
   settings.memoryEnabled = false;
   await settingsManager.saveSettings(settings);
@@ -290,6 +296,7 @@ ipcMain.handle('memory-extract', async (event, { sessionId }) => {
   if (!settings.memoryId || !awsClients.agentCoreConfig) return;
   const mm = new MemoryManager(awsClients.agentCoreConfig);
   mm.setMemoryId(settings.memoryId);
+  mm.setActorId(settings.userId);
   await mm.startExtraction(sessionId);
 });
 
@@ -531,6 +538,7 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
   if (settings.memoryId && settings.memoryEnabled && awsClients.agentCoreConfig) {
     memManager = new MemoryManager(awsClients.agentCoreConfig);
     memManager.setMemoryId(settings.memoryId);
+    memManager.setActorId(settings.userId);
   }
 
   const ciManager = new CodeInterpreterManager(awsClients.agentCoreConfig);
