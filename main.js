@@ -332,6 +332,14 @@ ipcMain.handle('work-history-delete', async (event, { id }) => {
   await workHistoryManager.remove(id);
 });
 
+ipcMain.handle('work-history-rename', async (event, { id, title }) => {
+  await workHistoryManager.rename(id, title);
+});
+
+ipcMain.handle('work-history-star', async (event, { id }) => {
+  return await workHistoryManager.toggleStar(id);
+});
+
 ipcMain.handle('navigate-to-main', async () => {
   // Close child windows without reloading the main window (preserves chat state)
   const allWindows = BrowserWindow.getAllWindows();

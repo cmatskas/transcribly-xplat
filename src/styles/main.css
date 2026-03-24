@@ -1293,6 +1293,85 @@ body {
     padding: 24px 12px;
 }
 
+/* Context Menu */
+.sidebar-context-menu {
+    position: fixed;
+    z-index: 9999;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 4px;
+    min-width: 160px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+.ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+}
+.ctx-item:hover { background: var(--bg-primary); }
+.ctx-danger { color: var(--error, #ef4444); }
+.ctx-danger:hover { background: rgba(239,68,68,0.1); }
+.ctx-divider { height: 1px; background: var(--border-color); margin: 4px 0; }
+
+/* Rename Modal */
+.rename-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.rename-modal {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    width: 340px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+}
+.rename-modal h6 { margin-bottom: 12px; }
+.rename-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+/* Sidebar star icon */
+.sidebar-item-star {
+    color: #f59e0b;
+    font-size: 0.7rem;
+    margin-right: 4px;
+    flex-shrink: 0;
+}
+
+/* Sidebar menu button (replaces delete button) */
+.sidebar-menu-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    opacity: 0;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+}
+.sidebar-item:hover .sidebar-menu-btn { opacity: 1; }
+
 #work-page {
     height: calc(100vh - 56px); /* full viewport minus navbar */
     overflow: hidden;

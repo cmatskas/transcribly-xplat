@@ -320,33 +320,128 @@
         return;
       }
 
-      const groups = groupByDate(sessions);
-      list.innerHTML = groups.map(g => `
+      const starred = sessions.filter(s => s.starred);
+      const unstarred = sessions.filter(s => !s.starred);
+      const groups = groupByDate(unstarred);
+
+      let html = '';
+      if (starred.length > 0) {
+        html += '<div class="sidebar-group-label">Starred</div>';
+        html += starred.map(s => renderItem(s)).join('');
+      }
+      html += groups.map(g => `
         <div class="sidebar-group-label">${g.label}</div>
-        ${g.items.map(s => `
-          <div class="sidebar-item${s.id === sessionId ? ' active' : ''}" data-id="${s.id}">
-            <span class="sidebar-item-title">${escapeHtml(s.title || 'Untitled')}</span>
-            <button class="sidebar-delete-btn" data-id="${s.id}" title="Delete"><i class="bi bi-trash3"></i></button>
-          </div>`).join('')}
+        ${g.items.map(s => renderItem(s)).join('')}
       `).join('');
+
+      list.innerHTML = html;
 
       list.querySelectorAll('.sidebar-item').forEach(el => {
         el.addEventListener('click', (e) => {
-          if (e.target.closest('.sidebar-delete-btn')) return;
+          if (e.target.closest('.sidebar-menu-btn')) return;
           loadSession(el.dataset.id);
         });
       });
 
-      list.querySelectorAll('.sidebar-delete-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
+      list.querySelectorAll('.sidebar-menu-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
           e.stopPropagation();
-          await window.electronAPI.invoke('work-history-delete', { id: btn.dataset.id });
-          if (btn.dataset.id === sessionId) startNewChat();
-          else refreshSidebar();
+          showContextMenu(e, btn.dataset.id, !!btn.dataset.starred);
         });
       });
     } catch { list.innerHTML = '<div class="sidebar-empty">Error loading history</div>'; }
   }
+
+  function renderItem(s) {
+    return `<div class="sidebar-item${s.id === sessionId ? ' active' : ''}" data-id="${s.id}">
+      ${s.starred ? '<i class="bi bi-star-fill sidebar-item-star"></i>' : ''}
+      <span class="sidebar-item-title">${escapeHtml(s.title || 'Untitled')}</span>
+      <button class="sidebar-menu-btn" data-id="${s.id}" data-starred="${s.starred ? '1' : ''}" title="More"><i class="bi bi-three-dots"></i></button>
+    </div>`;
+  }
+
+  // ── Context Menu ──────────────────────────────────────────
+  let ctxTargetId = null;
+
+  function showContextMenu(e, id, isStarred) {
+    ctxTargetId = id;
+    const menu = document.getElementById('sidebarContextMenu');
+    const starBtn = menu.querySelector('[data-action="star"]');
+    starBtn.innerHTML = isStarred
+      ? '<i class="bi bi-star-fill"></i> <span>Unstar</span>'
+      : '<i class="bi bi-star"></i> <span>Star</span>';
+    menu.style.display = 'block';
+    menu.style.left = `${e.clientX}px`;
+    menu.style.top = `${e.clientY}px`;
+    // Keep menu in viewport
+    requestAnimationFrame(() => {
+      const rect = menu.getBoundingClientRect();
+      if (rect.right > window.innerWidth) menu.style.left = `${window.innerWidth - rect.width - 8}px`;
+      if (rect.bottom > window.innerHeight) menu.style.top = `${window.innerHeight - rect.height - 8}px`;
+    });
+  }
+
+  function hideContextMenu() {
+    document.getElementById('sidebarContextMenu').style.display = 'none';
+    ctxTargetId = null;
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.sidebar-context-menu')) hideContextMenu();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { hideContextMenu(); hideRenameModal(); } });
+
+  document.querySelectorAll('#sidebarContextMenu .ctx-item').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const action = btn.dataset.action;
+      const id = ctxTargetId;
+      hideContextMenu();
+      if (!id) return;
+      if (action === 'star') {
+        await window.electronAPI.invoke('work-history-star', { id });
+        refreshSidebar();
+      } else if (action === 'rename') {
+        showRenameModal(id);
+      } else if (action === 'delete') {
+        if (!confirm('Delete this conversation?')) return;
+        await window.electronAPI.invoke('work-history-delete', { id });
+        if (id === sessionId) startNewChat();
+        else refreshSidebar();
+      }
+    });
+  });
+
+  // ── Rename Modal ──────────────────────────────────────────
+  let renameTargetId = null;
+
+  function showRenameModal(id) {
+    renameTargetId = id;
+    const item = document.querySelector(`.sidebar-item[data-id="${id}"] .sidebar-item-title`);
+    const modal = document.getElementById('renameModal');
+    const input = document.getElementById('renameInput');
+    input.value = item ? item.textContent : '';
+    modal.style.display = 'flex';
+    input.focus();
+    input.select();
+  }
+
+  function hideRenameModal() {
+    document.getElementById('renameModal').style.display = 'none';
+    renameTargetId = null;
+  }
+
+  document.getElementById('renameCancelBtn').addEventListener('click', hideRenameModal);
+  document.getElementById('renameSaveBtn').addEventListener('click', async () => {
+    const title = document.getElementById('renameInput').value.trim();
+    if (title && renameTargetId) {
+      await window.electronAPI.invoke('work-history-rename', { id: renameTargetId, title });
+      refreshSidebar();
+    }
+    hideRenameModal();
+  });
+  document.getElementById('renameInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('renameSaveBtn').click();
+  });
 
   async function loadSession(id) {
     saveSession(); // save current first

@@ -18,6 +18,12 @@ class WorkHistoryManager {
   async save(session) {
     await this._ensureDir();
     session.updatedAt = new Date().toISOString();
+    // Preserve starred/customTitle from existing file
+    try {
+      const existing = JSON.parse(await fs.readFile(this._filePath(session.id), 'utf8'));
+      if (existing.starred !== undefined && session.starred === undefined) session.starred = existing.starred;
+      if (existing.customTitle && !session.customTitle) session.customTitle = existing.customTitle;
+    } catch { /* new session */ }
     if (!session.title && session.messages.length > 0) {
       const first = session.messages.find(m => m.role === 'user');
       session.title = first ? first.content.slice(0, 50) : 'Untitled';
@@ -37,10 +43,23 @@ class WorkHistoryManager {
     for (const f of files.filter(f => f.endsWith('.json'))) {
       try {
         const data = JSON.parse(await fs.readFile(path.join(this.dir, f), 'utf8'));
-        sessions.push({ id: data.id, title: data.title, createdAt: data.createdAt, updatedAt: data.updatedAt });
+        sessions.push({ id: data.id, title: data.customTitle || data.title, createdAt: data.createdAt, updatedAt: data.updatedAt, starred: !!data.starred });
       } catch { /* skip corrupt */ }
     }
     return sessions.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  }
+
+  async rename(id, newTitle) {
+    const data = JSON.parse(await fs.readFile(this._filePath(id), 'utf8'));
+    data.customTitle = newTitle;
+    await fs.writeFile(this._filePath(id), JSON.stringify(data));
+  }
+
+  async toggleStar(id) {
+    const data = JSON.parse(await fs.readFile(this._filePath(id), 'utf8'));
+    data.starred = !data.starred;
+    await fs.writeFile(this._filePath(id), JSON.stringify(data));
+    return data.starred;
   }
 
   async remove(id) {
