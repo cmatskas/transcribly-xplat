@@ -3,7 +3,6 @@ const {
   ListEventsCommand,
   RetrieveMemoryRecordsCommand,
   StartMemoryExtractionJobCommand,
-  ListSessionsCommand,
 } = require('@aws-sdk/client-bedrock-agentcore');
 
 const {
@@ -12,6 +11,7 @@ const {
   GetMemoryCommand,
   ListMemoriesCommand,
   DeleteMemoryCommand,
+  UpdateMemoryCommand,
 } = require('@aws-sdk/client-bedrock-agentcore-control');
 
 const { BedrockAgentCoreClient } = require('@aws-sdk/client-bedrock-agentcore');
@@ -44,6 +44,7 @@ class MemoryManager {
     const existing = await this.findExistingMemory();
     if (existing) {
       this.memoryId = existing.id;
+      await this._ensureStrategies();
       return { id: existing.id, status: existing.status, alreadyExisted: true };
     }
 
@@ -55,17 +56,38 @@ class MemoryManager {
         eventExpiryDuration: EVENT_EXPIRY_DAYS,
       }));
       this.memoryId = res.memory.id;
+      // Verify strategies were applied; add them if not
+      await this._ensureStrategies();
       return { id: res.memory.id, status: res.memory.status, alreadyExisted: false };
     } catch (err) {
-      // List may have missed it (eventual consistency) — try fetching again before giving up
       if (err.name === 'ValidationException' && err.message?.includes('already exists')) {
         const found = await this.findExistingMemory();
         if (found) {
           this.memoryId = found.id;
+          await this._ensureStrategies();
           return { id: found.id, status: found.status, alreadyExisted: true };
         }
       }
       throw err;
+    }
+  }
+
+  /** Ensure the memory has strategies configured; add them via UpdateMemory if missing. */
+  async _ensureStrategies() {
+    if (!this.memoryId) return;
+    try {
+      const res = await this.controlClient.send(new GetMemoryCommand({ memoryId: this.memoryId }));
+      if (!res.memory.strategies || res.memory.strategies.length === 0) {
+        console.log('Memory has no strategies — adding defaults via UpdateMemory');
+        await this.controlClient.send(new UpdateMemoryCommand({
+          memoryId: this.memoryId,
+          memoryStrategies: {
+            addMemoryStrategies: DEFAULT_STRATEGIES,
+          },
+        }));
+      }
+    } catch (err) {
+      console.warn('Failed to ensure memory strategies:', err.message);
     }
   }
 
