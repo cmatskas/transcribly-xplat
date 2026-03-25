@@ -573,8 +573,8 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
     memoryManager: memManager,
     sessionId,
     settings,
-    onStatus: (status) => event.sender.send('agent-status', status),
-    onChunk: (chunk) => event.sender.send('agent-stream-chunk', chunk),
+    onStatus: (status) => event.sender.send('agent-status', { sessionId, status }),
+    onChunk: (chunk) => event.sender.send('agent-stream-chunk', { sessionId, chunk }),
   });
 
   skillsManager.resetActivations();

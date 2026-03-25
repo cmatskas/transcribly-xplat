@@ -1372,6 +1372,23 @@ body {
 }
 .sidebar-item:hover .sidebar-menu-btn { opacity: 1; }
 
+/* Working indicator in sidebar */
+.sidebar-working-indicator {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    flex-shrink: 0;
+    animation: sidebar-pulse 1.5s ease-in-out infinite;
+}
+@keyframes sidebar-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+}
+
+/* Inner container for session DOM */
+.chat-history-inner {
+    min-height: 100%;
+}
+
 #work-page {
     height: calc(100vh - 56px); /* full viewport minus navbar */
     overflow: hidden;
