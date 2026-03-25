@@ -37,7 +37,6 @@
     "@smithy/signature-v4": "^5.3.12",
     "bootstrap": "^5.3.0",
     "bootstrap-icons": "^1.11.1",
-    "dompurify": "^3.3.3",
     "marked": "^17.0.4",
     "playwright-core": "^1.58.2",
     "toastify-js": "^1.12.0"
@@ -47,8 +46,7 @@
     "electron": "^40.7.0",
     "electron-builder": "^26.8.1",
     "jest": "^30.0.4",
-    "jest-environment-jsdom": "^30.0.4",
-    "jsdom": "^28.1.0"
+    "jest-environment-jsdom": "^30.0.4"
   },
   "jest": {
     "testEnvironment": "jest-environment-jsdom",

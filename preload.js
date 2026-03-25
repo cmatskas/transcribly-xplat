@@ -1,14 +1,22 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const Toastify = require('toastify-js');
 const { marked } = require('marked');
-const createDOMPurify = require('dompurify');
-const { JSDOM } = require('jsdom');
-const DOMPurify = createDOMPurify(new JSDOM('').window);
 
 // Configure marked for safe rendering
 marked.setOptions({ breaks: true, gfm: true });
 
-contextBridge.exposeInMainWorld('marked', { parse: (md) => DOMPurify.sanitize(marked.parse(md)) });
+// Lightweight HTML sanitizer — strips script tags, event handlers, and dangerous elements
+function sanitizeHtml(html) {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<iframe\b[^>]*>.*?<\/iframe>/gi, '')
+    .replace(/<object\b[^>]*>.*?<\/object>/gi, '')
+    .replace(/<embed\b[^>]*>/gi, '')
+    .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript\s*:/gi, 'blocked:');
+}
+
+contextBridge.exposeInMainWorld('marked', { parse: (md) => sanitizeHtml(marked.parse(md)) });
 
 const ALLOWED_INVOKE_CHANNELS = new Set([
     'add-custom-prompt', 'compress-conversation', 'create-conversation', 'delete-conversation',
