@@ -1,7 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const Toastify = require('toastify-js');
 const { marked } = require('marked');
-const DOMPurify = require('dompurify');
+const createDOMPurify = require('dompurify');
+const { JSDOM } = require('jsdom');
+const DOMPurify = createDOMPurify(new JSDOM('').window);
 
 // Configure marked for safe rendering
 marked.setOptions({ breaks: true, gfm: true });
