@@ -137,6 +137,9 @@
     document.getElementById('sidebarToggle').addEventListener('click', toggleSidebar);
     document.getElementById('sidebarNewChat').addEventListener('click', startNewChat);
 
+    initContextMenu();
+    initRenameModal();
+
     // Initialize the active session's container with greeting
     const session = getActiveSession();
     session.container.innerHTML = `
@@ -459,31 +462,33 @@
     ctxTargetId = null;
   }
 
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.sidebar-context-menu')) hideContextMenu();
-  });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { hideContextMenu(); hideRenameModal(); } });
-
-  document.querySelectorAll('#sidebarContextMenu .ctx-item').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const action = btn.dataset.action;
-      const id = ctxTargetId;
-      hideContextMenu();
-      if (!id) return;
-      if (action === 'star') {
-        await window.electronAPI.invoke('work-history-star', { id });
-        refreshSidebar();
-      } else if (action === 'rename') {
-        showRenameModal(id);
-      } else if (action === 'delete') {
-        if (!confirm('Delete this conversation?')) return;
-        await window.electronAPI.invoke('work-history-delete', { id });
-        sessions.delete(id);
-        if (id === activeSessionId) startNewChat();
-        else refreshSidebar();
-      }
+  function initContextMenu() {
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.sidebar-context-menu')) hideContextMenu();
     });
-  });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { hideContextMenu(); hideRenameModal(); } });
+
+    document.querySelectorAll('#sidebarContextMenu .ctx-item').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const action = btn.dataset.action;
+        const id = ctxTargetId;
+        hideContextMenu();
+        if (!id) return;
+        if (action === 'star') {
+          await window.electronAPI.invoke('work-history-star', { id });
+          refreshSidebar();
+        } else if (action === 'rename') {
+          showRenameModal(id);
+        } else if (action === 'delete') {
+          if (!confirm('Delete this conversation?')) return;
+          await window.electronAPI.invoke('work-history-delete', { id });
+          sessions.delete(id);
+          if (id === activeSessionId) startNewChat();
+          else refreshSidebar();
+        }
+      });
+    });
+  }
 
   // ── Rename Modal ──────────────────────────────────────────
   let renameTargetId = null;
@@ -500,22 +505,25 @@
   }
 
   function hideRenameModal() {
-    document.getElementById('renameModal').style.display = 'none';
+    const modal = document.getElementById('renameModal');
+    if (modal) modal.style.display = 'none';
     renameTargetId = null;
   }
 
-  document.getElementById('renameCancelBtn').addEventListener('click', hideRenameModal);
-  document.getElementById('renameSaveBtn').addEventListener('click', async () => {
-    const title = document.getElementById('renameInput').value.trim();
-    if (title && renameTargetId) {
-      await window.electronAPI.invoke('work-history-rename', { id: renameTargetId, title });
-      refreshSidebar();
-    }
-    hideRenameModal();
-  });
-  document.getElementById('renameInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('renameSaveBtn').click();
-  });
+  function initRenameModal() {
+    document.getElementById('renameCancelBtn').addEventListener('click', hideRenameModal);
+    document.getElementById('renameSaveBtn').addEventListener('click', async () => {
+      const title = document.getElementById('renameInput').value.trim();
+      if (title && renameTargetId) {
+        await window.electronAPI.invoke('work-history-rename', { id: renameTargetId, title });
+        refreshSidebar();
+      }
+      hideRenameModal();
+    });
+    document.getElementById('renameInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('renameSaveBtn').click();
+    });
+  }
 
   function groupByDate(sessionList) {
     const now = new Date();
