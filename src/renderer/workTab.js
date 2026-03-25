@@ -1,21 +1,63 @@
 /**
  * Work tab — agentic chat interface using AgentCore Code Interpreter.
  * Uses shared ChatRenderer and FileManager modules.
+ * Each session gets its own DOM container for full isolation.
  */
 
 (function () {
   const CR = window.ChatRenderer;
   const FM = window.FileManager;
 
-  let workMessages = [];
-  let isProcessing = false;
+  // ── Per-session state map ─────────────────────────────────
+  // Key: sessionId, Value: { container, messages, streamingEl, streamingText, activityLog, lastEntry, processing }
+  const sessions = new Map();
+
+  let activeSessionId = localStorage.getItem('workSessionId') || generateSessionId();
   let workingDirectory = null;
-  let sessionId = localStorage.getItem('workSessionId') || generateSessionId();
+  let credentialsVerified = false;
 
   function generateSessionId() {
     const id = `session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     localStorage.setItem('workSessionId', id);
     return id;
+  }
+
+  function getOrCreateSession(id) {
+    if (!sessions.has(id)) {
+      const container = document.createElement('div');
+      container.className = 'chat-history-inner';
+      sessions.set(id, {
+        container,
+        messages: [],
+        streamingEl: null,
+        streamingText: '',
+        activityLog: null,
+        lastEntry: null,
+        processing: false,
+      });
+    }
+    return sessions.get(id);
+  }
+
+  function getActiveSession() {
+    return getOrCreateSession(activeSessionId);
+  }
+
+  // The outer wrapper that holds the active session's container
+  function getHost() {
+    return document.getElementById('workChatHistory');
+  }
+
+  // Swap the visible DOM container to the given session
+  function showSession(id) {
+    const host = getHost();
+    // Detach current (but keep in map)
+    while (host.firstChild) host.removeChild(host.firstChild);
+    // Attach target
+    const session = getOrCreateSession(id);
+    host.appendChild(session.container);
+    activeSessionId = id;
+    localStorage.setItem('workSessionId', id);
   }
 
   // File manager for the Work tab's own file input
@@ -28,10 +70,6 @@
     countId: 'workFileCount',
     maxFiles: 5,
   });
-
-  function getContainer() {
-    return document.getElementById('workChatHistory');
-  }
 
   function showToast(msg, type) {
     if (window.electronAPI && window.electronAPI.showToast) {
@@ -66,8 +104,6 @@
     });
     document.addEventListener('click', () => attachMenu.classList.remove('open'));
 
-    // Attach files option — fileManager.setup() already triggers the file picker,
-    // so we only need to close the popover menu here.
     document.getElementById('workAttachFiles').addEventListener('click', () => {
       attachMenu.classList.remove('open');
     });
@@ -86,7 +122,7 @@
       }
     });
 
-    // New Chat button — triggers LTM extraction on old session, resets state
+    // New Chat button
     const newChatBtn = document.getElementById('workNewChatBtn');
     if (newChatBtn) {
       newChatBtn.addEventListener('click', startNewChat);
@@ -101,69 +137,79 @@
     document.getElementById('sidebarToggle').addEventListener('click', toggleSidebar);
     document.getElementById('sidebarNewChat').addEventListener('click', startNewChat);
 
+    initContextMenu();
+    initRenameModal();
+
+    // Initialize the active session's container with greeting
+    const session = getActiveSession();
+    session.container.innerHTML = `
+      <div id="workPlaceholder" class="work-greeting">
+        <div class="work-greeting-icon"><img src="../assets/agentic-tool-icon-light.svg" alt="Agent" class="greeting-icon-img greeting-icon-light"><img src="../assets/agentic-tool-icon-dark.svg" alt="Agent" class="greeting-icon-img greeting-icon-dark"></div>
+        <div class="work-greeting-text">What can I help you build today?</div>
+      </div>`;
+    showSession(activeSessionId);
     refreshSidebar();
 
-    // Listen for agent status updates — build activity log
-    window.electronAPI.receive('agent-status', (status) => {
-      const container = getContainer();
+    // ── IPC listeners — route by sessionId ──────────────────
+    window.electronAPI.receive('agent-status', (data) => {
+      const { sessionId, status } = data;
+      const s = sessions.get(sessionId);
+      if (!s) return;
 
-      // Rich status object: { tool, detail, state }
       if (typeof status === 'object' && status.tool) {
-        if (!activityLog) {
-          activityLog = CR.createActivityLog(container);
+        if (!s.activityLog) {
+          s.activityLog = CR.createActivityLog(s.container);
         }
         if (status.state === 'running') {
-          lastEntry = CR.addActivityEntry(activityLog, status);
-        } else if (status.state === 'done' && lastEntry) {
-          CR.completeActivityEntry(lastEntry);
-          lastEntry = null;
+          s.lastEntry = CR.addActivityEntry(s.activityLog, status);
+        } else if (status.state === 'done' && s.lastEntry) {
+          CR.completeActivityEntry(s.lastEntry);
+          s.lastEntry = null;
         }
       } else {
-        // Legacy string status fallback
-        const prev = container.querySelector('.chat-status-message:last-child');
+        const prev = s.container.querySelector('.chat-status-message:last-child');
         if (prev) prev.remove();
-        CR.appendStatusMessage(container, status);
+        CR.appendStatusMessage(s.container, status);
+      }
+
+      // Auto-scroll if this is the visible session
+      if (sessionId === activeSessionId) {
+        getHost().scrollTop = getHost().scrollHeight;
       }
     });
 
-    // Listen for agent stream chunks
-    window.electronAPI.receive('agent-stream-chunk', (chunk) => {
-      updateStreamingBubble(chunk);
+    window.electronAPI.receive('agent-stream-chunk', (data) => {
+      const { sessionId, chunk } = data;
+      const s = sessions.get(sessionId);
+      if (!s) return;
+
+      s.streamingText += chunk;
+
+      if (!s.streamingEl) {
+        const msg = { role: 'assistant', content: '', timestamp: new Date().toISOString() };
+        s.streamingEl = CR.appendChatMessage(s.container, msg, {
+          onCopy: () => navigator.clipboard.writeText(s.streamingText).then(
+            () => showToast('Copied to clipboard', 'success'),
+            () => showToast('Failed to copy', 'error')
+          ),
+        });
+      }
+
+      const bubble = s.streamingEl.querySelector('.chat-bubble');
+      const contentEl = bubble.querySelector('.chat-bubble-content');
+      if (contentEl) {
+        contentEl.innerHTML = CR.formatText(s.streamingText);
+      }
+
+      if (sessionId === activeSessionId) {
+        getHost().scrollTop = getHost().scrollHeight;
+      }
     });
   }
 
-  let streamingEl = null;
-  let streamingText = '';
-  let activityLog = null;
-  let lastEntry = null;
-
-  function updateStreamingBubble(chunk) {
-    const container = getContainer();
-    streamingText += chunk;
-
-    if (!streamingEl) {
-      const msg = { role: 'assistant', content: '', timestamp: new Date().toISOString() };
-      streamingEl = CR.appendChatMessage(container, msg, {
-        onCopy: () => navigator.clipboard.writeText(streamingText).then(
-          () => showToast('Copied to clipboard', 'success'),
-          () => showToast('Failed to copy', 'error')
-        ),
-      });
-    }
-
-    const bubble = streamingEl.querySelector('.chat-bubble');
-    const contentEl = bubble.querySelector('.chat-bubble-content');
-    if (contentEl) {
-      contentEl.innerHTML = CR.formatText(streamingText);
-    }
-
-    container.scrollTop = container.scrollHeight;
-  }
-
-  let credentialsVerified = false;
-
   async function sendWorkMessage() {
-    if (isProcessing) return;
+    const session = getActiveSession();
+    if (session.processing) return;
 
     const promptInput = document.getElementById('workPromptEditor');
     const model = document.getElementById('workModelSelect').value;
@@ -174,7 +220,6 @@
       return;
     }
 
-    // Lazy credential check — once per session
     if (!credentialsVerified) {
       const check = await window.electronAPI.invoke('quick-validate-credentials');
       if (!check.valid) {
@@ -184,13 +229,12 @@
       credentialsVerified = true;
     }
 
-    // Prepend working directory context if set
     const fullPrompt = workingDirectory
       ? `[Working directory: ${workingDirectory}]\n\n${prompt}`
       : prompt;
 
-    isProcessing = true;
-    const container = getContainer();
+    session.processing = true;
+    const container = session.container;
 
     // Remove placeholder/greeting
     const placeholder = container.querySelector('.work-greeting') || container.querySelector('.chat-placeholder');
@@ -198,7 +242,7 @@
 
     // Show user message
     const userMsg = { role: 'user', content: prompt, timestamp: new Date().toISOString() };
-    workMessages.push(userMsg);
+    session.messages.push(userMsg);
     CR.appendChatMessage(container, userMsg);
     promptInput.value = '';
     promptInput.style.height = 'auto';
@@ -206,17 +250,22 @@
     // Show thinking
     const thinkingEl = CR.appendThinking(container);
 
-    // Reset streaming and activity state
-    streamingEl = null;
-    streamingText = '';
-    activityLog = null;
-    lastEntry = null;
+    // Reset streaming and activity state for this session
+    session.streamingEl = null;
+    session.streamingText = '';
+    session.activityLog = null;
+    session.lastEntry = null;
 
-    // Build history for Bedrock (exclude current message)
-    const history = workMessages.slice(0, -1).map(m => ({
+    const history = session.messages.slice(0, -1).map(m => ({
       role: m.role,
       content: [{ text: m.content }],
     }));
+
+    // Capture sessionId for this invocation
+    const sid = activeSessionId;
+
+    // Update sidebar to show working state
+    refreshSidebar();
 
     try {
       const files = workFiles.getFiles();
@@ -226,19 +275,14 @@
         prompt: fullPrompt,
         conversationHistory: history,
         files,
-        sessionId,
+        sessionId: sid,
       });
 
       thinkingEl.remove();
-
-      // Finish activity log
-      CR.finishActivityLog(activityLog);
-
-      // Remove any remaining legacy status messages
+      CR.finishActivityLog(session.activityLog);
       container.querySelectorAll('.chat-status-message').forEach(el => el.remove());
 
-      // If streaming didn't produce a bubble, create one from the response
-      if (!streamingEl && response) {
+      if (!session.streamingEl && response) {
         const assistantMsg = { role: 'assistant', content: response, timestamp: new Date().toISOString() };
         CR.appendChatMessage(container, assistantMsg, {
           onCopy: () => navigator.clipboard.writeText(response).then(
@@ -246,28 +290,27 @@
             () => showToast('Failed to copy', 'error')
           ),
         });
-        workMessages.push(assistantMsg);
-      } else if (streamingText) {
-        workMessages.push({ role: 'assistant', content: streamingText, timestamp: new Date().toISOString() });
+        session.messages.push(assistantMsg);
+      } else if (session.streamingText) {
+        session.messages.push({ role: 'assistant', content: session.streamingText, timestamp: new Date().toISOString() });
       }
 
-      // Clear files after send
       if (files.length > 0) {
         workFiles.clearFiles();
       }
 
-      // Auto-save session and refresh sidebar
-      saveSession();
+      saveSession(sid, session.messages);
       refreshSidebar();
 
     } catch (error) {
       thinkingEl.remove();
-      CR.finishActivityLog(activityLog);
+      CR.finishActivityLog(session.activityLog);
       container.querySelectorAll('.chat-status-message').forEach(el => el.remove());
       CR.appendChatError(container, error.message);
       showToast(`Agent error: ${error.message}`, 'error');
     } finally {
-      isProcessing = false;
+      session.processing = false;
+      refreshSidebar();
     }
   }
 
@@ -280,33 +323,28 @@
   }
 
   function startNewChat() {
-    // Save current session before starting new one
-    saveSession();
-    if (workMessages.length > 0) {
-      window.electronAPI.invoke('memory-extract', { sessionId }).catch(() => {});
+    saveSession(activeSessionId, getActiveSession().messages);
+    if (getActiveSession().messages.length > 0) {
+      window.electronAPI.invoke('memory-extract', { sessionId: activeSessionId }).catch(() => {});
     }
-    sessionId = generateSessionId();
-    workMessages = [];
-    streamingEl = null;
-    streamingText = '';
-    activityLog = null;
-    lastEntry = null;
-    const container = getContainer();
-    container.innerHTML = `
+    const newId = generateSessionId();
+    const session = getOrCreateSession(newId);
+    session.container.innerHTML = `
       <div id="workPlaceholder" class="work-greeting">
         <div class="work-greeting-icon"><img src="../assets/agentic-tool-icon-light.svg" alt="Agent" class="greeting-icon-img greeting-icon-light"><img src="../assets/agentic-tool-icon-dark.svg" alt="Agent" class="greeting-icon-img greeting-icon-dark"></div>
         <div class="work-greeting-text">What can I help you build today?</div>
       </div>`;
+    showSession(newId);
     refreshSidebar();
   }
 
-  async function saveSession() {
-    if (workMessages.length === 0) return;
+  async function saveSession(id, messages) {
+    if (!messages || messages.length === 0) return;
     try {
       await window.electronAPI.invoke('work-history-save', {
-        id: sessionId,
-        messages: workMessages,
-        createdAt: workMessages[0]?.timestamp || new Date().toISOString(),
+        id,
+        messages,
+        createdAt: messages[0]?.timestamp || new Date().toISOString(),
       });
     } catch { /* non-critical */ }
   }
@@ -314,14 +352,14 @@
   async function refreshSidebar() {
     const list = document.getElementById('sidebarList');
     try {
-      const sessions = await window.electronAPI.invoke('work-history-list');
-      if (sessions.length === 0) {
+      const allSessions = await window.electronAPI.invoke('work-history-list');
+      if (allSessions.length === 0) {
         list.innerHTML = '<div class="sidebar-empty">No conversations yet</div>';
         return;
       }
 
-      const starred = sessions.filter(s => s.starred);
-      const unstarred = sessions.filter(s => !s.starred);
+      const starred = allSessions.filter(s => s.starred);
+      const unstarred = allSessions.filter(s => !s.starred);
       const groups = groupByDate(unstarred);
 
       let html = '';
@@ -339,7 +377,7 @@
       list.querySelectorAll('.sidebar-item').forEach(el => {
         el.addEventListener('click', (e) => {
           if (e.target.closest('.sidebar-menu-btn')) return;
-          loadSession(el.dataset.id);
+          switchToSession(el.dataset.id);
         });
       });
 
@@ -353,11 +391,50 @@
   }
 
   function renderItem(s) {
-    return `<div class="sidebar-item${s.id === sessionId ? ' active' : ''}" data-id="${s.id}">
+    const isActive = s.id === activeSessionId;
+    const sess = sessions.get(s.id);
+    const isWorking = sess && sess.processing;
+    return `<div class="sidebar-item${isActive ? ' active' : ''}" data-id="${s.id}">
       ${s.starred ? '<i class="bi bi-star-fill sidebar-item-star"></i>' : ''}
       <span class="sidebar-item-title">${escapeHtml(s.title || 'Untitled')}</span>
+      ${isWorking ? '<span class="sidebar-working-indicator" title="Agent working"><i class="bi bi-three-dots"></i></span>' : ''}
       <button class="sidebar-menu-btn" data-id="${s.id}" data-starred="${s.starred ? '1' : ''}" title="More"><i class="bi bi-three-dots"></i></button>
     </div>`;
+  }
+
+  async function switchToSession(id) {
+    if (id === activeSessionId) return;
+
+    // Save current session
+    saveSession(activeSessionId, getActiveSession().messages);
+
+    // If target session is already in memory (live DOM), just swap
+    if (sessions.has(id)) {
+      showSession(id);
+      refreshSidebar();
+      return;
+    }
+
+    // Otherwise load from disk
+    try {
+      const data = await window.electronAPI.invoke('work-history-load', { id });
+      const session = getOrCreateSession(id);
+      session.messages = data.messages || [];
+      session.container.innerHTML = '';
+      session.messages.forEach(msg => {
+        CR.appendChatMessage(session.container, msg, {
+          onCopy: () => navigator.clipboard.writeText(msg.content).then(
+            () => showToast('Copied to clipboard', 'success'),
+            () => showToast('Failed to copy', 'error')
+          ),
+        });
+      });
+      showSession(id);
+      getHost().scrollTop = getHost().scrollHeight;
+      refreshSidebar();
+    } catch (err) {
+      showToast(`Failed to load session: ${err.message}`, 'error');
+    }
   }
 
   // ── Context Menu ──────────────────────────────────────────
@@ -373,7 +450,6 @@
     menu.style.display = 'block';
     menu.style.left = `${e.clientX}px`;
     menu.style.top = `${e.clientY}px`;
-    // Keep menu in viewport
     requestAnimationFrame(() => {
       const rect = menu.getBoundingClientRect();
       if (rect.right > window.innerWidth) menu.style.left = `${window.innerWidth - rect.width - 8}px`;
@@ -386,30 +462,33 @@
     ctxTargetId = null;
   }
 
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.sidebar-context-menu')) hideContextMenu();
-  });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { hideContextMenu(); hideRenameModal(); } });
-
-  document.querySelectorAll('#sidebarContextMenu .ctx-item').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const action = btn.dataset.action;
-      const id = ctxTargetId;
-      hideContextMenu();
-      if (!id) return;
-      if (action === 'star') {
-        await window.electronAPI.invoke('work-history-star', { id });
-        refreshSidebar();
-      } else if (action === 'rename') {
-        showRenameModal(id);
-      } else if (action === 'delete') {
-        if (!confirm('Delete this conversation?')) return;
-        await window.electronAPI.invoke('work-history-delete', { id });
-        if (id === sessionId) startNewChat();
-        else refreshSidebar();
-      }
+  function initContextMenu() {
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.sidebar-context-menu')) hideContextMenu();
     });
-  });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { hideContextMenu(); hideRenameModal(); } });
+
+    document.querySelectorAll('#sidebarContextMenu .ctx-item').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const action = btn.dataset.action;
+        const id = ctxTargetId;
+        hideContextMenu();
+        if (!id) return;
+        if (action === 'star') {
+          await window.electronAPI.invoke('work-history-star', { id });
+          refreshSidebar();
+        } else if (action === 'rename') {
+          showRenameModal(id);
+        } else if (action === 'delete') {
+          if (!confirm('Delete this conversation?')) return;
+          await window.electronAPI.invoke('work-history-delete', { id });
+          sessions.delete(id);
+          if (id === activeSessionId) startNewChat();
+          else refreshSidebar();
+        }
+      });
+    });
+  }
 
   // ── Rename Modal ──────────────────────────────────────────
   let renameTargetId = null;
@@ -426,60 +505,34 @@
   }
 
   function hideRenameModal() {
-    document.getElementById('renameModal').style.display = 'none';
+    const modal = document.getElementById('renameModal');
+    if (modal) modal.style.display = 'none';
     renameTargetId = null;
   }
 
-  document.getElementById('renameCancelBtn').addEventListener('click', hideRenameModal);
-  document.getElementById('renameSaveBtn').addEventListener('click', async () => {
-    const title = document.getElementById('renameInput').value.trim();
-    if (title && renameTargetId) {
-      await window.electronAPI.invoke('work-history-rename', { id: renameTargetId, title });
-      refreshSidebar();
-    }
-    hideRenameModal();
-  });
-  document.getElementById('renameInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('renameSaveBtn').click();
-  });
-
-  async function loadSession(id) {
-    saveSession(); // save current first
-    try {
-      const session = await window.electronAPI.invoke('work-history-load', { id });
-      sessionId = session.id;
-      localStorage.setItem('workSessionId', sessionId);
-      workMessages = session.messages || [];
-      streamingEl = null;
-      streamingText = '';
-      activityLog = null;
-      lastEntry = null;
-
-      const container = getContainer();
-      container.innerHTML = '';
-      workMessages.forEach(msg => {
-        CR.appendChatMessage(container, msg, {
-          onCopy: () => navigator.clipboard.writeText(msg.content).then(
-            () => showToast('Copied to clipboard', 'success'),
-            () => showToast('Failed to copy', 'error')
-          ),
-        });
-      });
-      container.scrollTop = container.scrollHeight;
-      refreshSidebar();
-    } catch (err) {
-      showToast(`Failed to load session: ${err.message}`, 'error');
-    }
+  function initRenameModal() {
+    document.getElementById('renameCancelBtn').addEventListener('click', hideRenameModal);
+    document.getElementById('renameSaveBtn').addEventListener('click', async () => {
+      const title = document.getElementById('renameInput').value.trim();
+      if (title && renameTargetId) {
+        await window.electronAPI.invoke('work-history-rename', { id: renameTargetId, title });
+        refreshSidebar();
+      }
+      hideRenameModal();
+    });
+    document.getElementById('renameInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('renameSaveBtn').click();
+    });
   }
 
-  function groupByDate(sessions) {
+  function groupByDate(sessionList) {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const yesterday = new Date(today - 86400000);
     const weekAgo = new Date(today - 7 * 86400000);
 
     const groups = { Today: [], Yesterday: [], 'This Week': [], Older: [] };
-    for (const s of sessions) {
+    for (const s of sessionList) {
       const d = new Date(s.updatedAt);
       if (d >= today) groups.Today.push(s);
       else if (d >= yesterday) groups.Yesterday.push(s);
@@ -493,14 +546,14 @@
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  // Trigger LTM extraction on app quit if there are messages in the current session
+  // Trigger LTM extraction on app quit
   window.electronAPI.receive('app-before-quit', () => {
-    if (workMessages.length > 0) {
-      window.electronAPI.invoke('memory-extract', { sessionId }).catch(() => {});
+    const session = getActiveSession();
+    if (session.messages.length > 0) {
+      window.electronAPI.invoke('memory-extract', { sessionId: activeSessionId }).catch(() => {});
     }
   });
 
-  // Expose for initialization from index.js
   if (typeof window !== 'undefined') {
     window.WorkTab = { init };
   }

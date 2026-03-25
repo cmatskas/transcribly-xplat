@@ -5,7 +5,36 @@ const { marked } = require('marked');
 // Configure marked for safe rendering
 marked.setOptions({ breaks: true, gfm: true });
 
-contextBridge.exposeInMainWorld('marked', { parse: (md) => marked.parse(md) });
+// Lightweight HTML sanitizer — strips script tags, event handlers, and dangerous elements
+function sanitizeHtml(html) {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<iframe\b[^>]*>.*?<\/iframe>/gi, '')
+    .replace(/<object\b[^>]*>.*?<\/object>/gi, '')
+    .replace(/<embed\b[^>]*>/gi, '')
+    .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript\s*:/gi, 'blocked:');
+}
+
+contextBridge.exposeInMainWorld('marked', { parse: (md) => sanitizeHtml(marked.parse(md)) });
+
+const ALLOWED_INVOKE_CHANNELS = new Set([
+    'add-custom-prompt', 'compress-conversation', 'create-conversation', 'delete-conversation',
+    'delete-credentials', 'delete-custom-prompt', 'delete-settings', 'get-app-version',
+    'get-bedrock-models', 'get-custom-prompts', 'get-default-settings', 'get-knowledge-bases',
+    'get-prompt-templates', 'get-skills', 'has-credentials', 'invoke-agent', 'list-conversations',
+    'load-conversation', 'load-credentials', 'load-settings', 'memory-delete', 'memory-disable',
+    'memory-enable', 'memory-extract', 'memory-status', 'navigate-to-main', 'open-skills-folder',
+    'quick-validate-credentials', 'refresh-skills', 'save-conversation', 'save-credentials',
+    'save-settings', 'select-directory', 'send-to-bedrock', 'toggle-skill', 'transcribe-media',
+    'update-custom-prompt', 'validate-credentials', 'work-history-delete', 'work-history-list',
+    'work-history-load', 'work-history-rename', 'work-history-save', 'work-history-star',
+]);
+
+const ALLOWED_RECEIVE_CHANNELS = new Set([
+    'agent-status', 'agent-stream-chunk', 'bedrock-stream-chunk', 'bedrock-stream-complete',
+    'transcription-progress', 'app-before-quit', 'show-settings',
+]);
 
 contextBridge.exposeInMainWorld('electronAPI', {
     showToast: (message, type) => {
@@ -21,33 +50,37 @@ contextBridge.exposeInMainWorld('electronAPI', {
             text: message,
             duration: 5000,
             close: true,
-            gravity: "top", // Position top
-            position: "center", // Center it
+            gravity: "top",
+            position: "center",
             className: types[type] || '',
-            stopOnFocus: true, // Stop timer on hover
-            offset: { y: 80 }, // Position it just below the header banner
+            stopOnFocus: true,
+            offset: { y: 80 },
             style: {
                 borderRadius: "8px",
                 fontSize: "14px",
                 fontWeight: "500",
                 padding: "12px 20px"
             },
-            onClick: function(){} // Callback after click
+            onClick: function(){}
         }).showToast();
     }, 
     send: (channel, data) => {
-        ipcRenderer.send(channel, data);
+        if (ALLOWED_INVOKE_CHANNELS.has(channel)) ipcRenderer.send(channel, data);
     },
     receive: (channel, func) => {
-        ipcRenderer.on(channel, (event, ...args) => func(...args));
+        if (ALLOWED_RECEIVE_CHANNELS.has(channel)) {
+            ipcRenderer.on(channel, (event, ...args) => func(...args));
+        }
     },
     removeAllListeners: (channel) => {
-        ipcRenderer.removeAllListeners(channel);
+        if (ALLOWED_RECEIVE_CHANNELS.has(channel)) ipcRenderer.removeAllListeners(channel);
     },
     invoke: (channel, data) => {
+        if (!ALLOWED_INVOKE_CHANNELS.has(channel)) return Promise.reject(new Error(`Blocked IPC channel: ${channel}`));
         return ipcRenderer.invoke(channel, data);
     },
     invokeAsync: async (channel, data) => {
+        if (!ALLOWED_INVOKE_CHANNELS.has(channel)) throw new Error(`Blocked IPC channel: ${channel}`);
         return await ipcRenderer.invoke(channel, data);
     }
 });

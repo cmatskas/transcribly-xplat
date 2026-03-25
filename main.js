@@ -112,8 +112,9 @@ function createWindow() {
     height: 800,
     icon: getIconPath(),
     webPreferences: {
-      nodeIntegration: true,
+      nodeIntegration: false,
       contextIsolation: true,
+      sandbox: false,
       preload: path.join(__dirname, 'preload.js')
     }
   });
@@ -561,6 +562,7 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
     memManager = new MemoryManager(awsClients.agentCoreConfig);
     memManager.setMemoryId(settings.memoryId);
     memManager.setActorId(settings.userId);
+    memManager._ensureStrategies().catch(err => console.warn('Strategy check failed:', err.message));
   }
 
   const ciManager = new CodeInterpreterManager(awsClients.agentCoreConfig);
@@ -573,8 +575,8 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
     memoryManager: memManager,
     sessionId,
     settings,
-    onStatus: (status) => event.sender.send('agent-status', status),
-    onChunk: (chunk) => event.sender.send('agent-stream-chunk', chunk),
+    onStatus: (status) => event.sender.send('agent-status', { sessionId, status }),
+    onChunk: (chunk) => event.sender.send('agent-stream-chunk', { sessionId, chunk }),
   });
 
   skillsManager.resetActivations();

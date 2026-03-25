@@ -1,7 +1,6 @@
 const { ConverseStreamCommand } = require('@aws-sdk/client-bedrock-runtime');
 const { SageMakerRuntimeClient, InvokeEndpointCommand } = require('@aws-sdk/client-sagemaker-runtime');
 const { sanitizeFileName } = require('../utils');
-const { region } = require('../../../config');
 const fs = require('fs').promises;
 const path = require('path');
 
@@ -427,23 +426,35 @@ print("\\n\\n".join(slides))
 
   async _handleSaveFile(sandboxPath, localPath) {
     // Fix double-path bug: agent may concatenate working dir with an absolute path
-    // e.g. "C:\Users\a\Documents\C:\Users\a\Desktop\file.txt"
     const driveMatch = localPath.match(/^[A-Za-z]:\\.*?([A-Za-z]:\\.*)/);
     if (driveMatch) localPath = driveMatch[1];
 
-    this.onStatus(`Saving file to ${localPath}...`);
+    // Block writes outside user home directory
+    const resolved = path.resolve(localPath);
+    const home = require('os').homedir();
+    if (!resolved.startsWith(home) && !resolved.startsWith('/tmp')) {
+      return { error: `Blocked: save path must be within user home directory (${home})` };
+    }
+
+    this.onStatus(`Saving file to ${resolved}...`);
     const base64 = await this.codeInterpreter.readFileBase64(sandboxPath);
     const buffer = Buffer.from(base64, 'base64');
-    await fs.mkdir(path.dirname(localPath), { recursive: true });
-    await fs.writeFile(localPath, buffer);
-    return { success: true, path: localPath, size: buffer.length };
+    await fs.mkdir(path.dirname(resolved), { recursive: true });
+    await fs.writeFile(resolved, buffer);
+    return { success: true, path: resolved, size: buffer.length };
   }
 
   async _handleReadFile(localPath, sandboxPath) {
-    this.onStatus(`Reading ${localPath}...`);
-    const buffer = await fs.readFile(localPath);
+    // Block reads outside user home directory
+    const resolved = path.resolve(localPath);
+    const home = require('os').homedir();
+    if (!resolved.startsWith(home) && !resolved.startsWith('/tmp')) {
+      return { error: `Blocked: read path must be within user home directory (${home})` };
+    }
+
+    this.onStatus(`Reading ${resolved}...`);
+    const buffer = await fs.readFile(resolved);
     const base64 = buffer.toString('base64');
-    // Write to sandbox via code execution
     const code = `
 import base64
 data = base64.b64decode("${base64}")
@@ -468,7 +479,7 @@ print(f"Wrote {len(data)} bytes to ${sandboxPath}")
     if (smEndpoint) {
       try {
         // Primary: SageMaker SDXL endpoint
-        const smClient = new SageMakerRuntimeClient({ region });
+        const smClient = new SageMakerRuntimeClient({ region: this.settings.region || 'us-east-1' });
         const payload = JSON.stringify({
           text_prompts: [
             { text: prompt },
