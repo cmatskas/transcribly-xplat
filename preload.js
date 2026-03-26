@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('marked', { parse: (md) => sanitizeHtml(marked.p
 
 const ALLOWED_INVOKE_CHANNELS = new Set([
     'add-custom-prompt', 'compress-conversation', 'create-conversation', 'delete-conversation',
+    'install-update',
     'delete-credentials', 'delete-custom-prompt', 'delete-settings', 'get-app-version',
     'get-bedrock-models', 'get-custom-prompts', 'get-default-settings', 'get-knowledge-bases',
     'get-prompt-templates', 'get-skills', 'has-credentials', 'invoke-agent', 'list-conversations',
@@ -33,7 +34,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
 
 const ALLOWED_RECEIVE_CHANNELS = new Set([
     'agent-status', 'agent-stream-chunk', 'bedrock-stream-chunk', 'bedrock-stream-complete',
-    'transcription-progress', 'app-before-quit', 'show-settings',
+    'transcription-progress', 'app-before-quit', 'show-settings', 'update-available', 'update-downloaded',
 ]);
 
 contextBridge.exposeInMainWorld('electronAPI', {

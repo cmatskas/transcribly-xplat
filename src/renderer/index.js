@@ -559,6 +559,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.electronAPI.receive('show-settings', () => {
         showSettingsPage();
     });
+
+    // Auto-update notifications
+    window.electronAPI.receive('update-available', (version) => {
+        const banner = document.getElementById('updateBanner');
+        document.getElementById('updateBannerText').textContent = `Update available: v${version} — downloading in background...`;
+        banner.style.display = 'block';
+    });
+    window.electronAPI.receive('update-downloaded', () => {
+        const banner = document.getElementById('updateBanner');
+        document.getElementById('updateBannerText').textContent = 'Update ready to install.';
+        document.getElementById('updateInstallBtn').style.display = 'inline-block';
+        banner.style.display = 'block';
+    });
+    document.getElementById('updateInstallBtn')?.addEventListener('click', () => {
+        window.electronAPI.invoke('install-update');
+    });
     
     // Auto-load the most recent conversation
     const conversations = await window.electronAPI.invoke('list-conversations');
