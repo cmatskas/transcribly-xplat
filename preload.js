@@ -19,7 +19,7 @@ function sanitizeHtml(html) {
 contextBridge.exposeInMainWorld('marked', { parse: (md) => sanitizeHtml(marked.parse(md)) });
 
 const ALLOWED_INVOKE_CHANNELS = new Set([
-    'add-custom-prompt', 'compress-conversation', 'create-conversation', 'delete-conversation',
+    'add-custom-prompt', 'cancel-agent', 'cancel-bedrock', 'compress-conversation', 'create-conversation', 'delete-conversation',
     'delete-credentials', 'delete-custom-prompt', 'delete-settings', 'get-app-version',
     'get-bedrock-models', 'get-custom-prompts', 'get-default-settings', 'get-knowledge-bases',
     'get-prompt-templates', 'get-skills', 'has-credentials', 'invoke-agent', 'list-conversations',

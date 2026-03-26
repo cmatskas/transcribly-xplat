@@ -387,11 +387,30 @@ ipcMain.handle('delete-settings', async () => {
   }
 });
 
+// ── Abort controllers for cancellation ───────────────────────
+const agentAbortControllers = new Map();  // sessionId → AbortController
+let bedrockAbortController = null;        // single controller for Analyze tab
+
+ipcMain.handle('cancel-agent', (event, { sessionId }) => {
+  const ctrl = agentAbortControllers.get(sessionId);
+  if (ctrl) { ctrl.abort(); agentAbortControllers.delete(sessionId); }
+});
+
+ipcMain.handle('cancel-bedrock', () => {
+  if (bedrockAbortController) { bedrockAbortController.abort(); bedrockAbortController = null; }
+});
+
 ipcMain.handle('send-to-bedrock', async (event, { model, prompt, knowledgeBaseId, conversationHistory, files = [] }) => {
-  if (knowledgeBaseId) {
-    return await invokeBedrockWithKB(model, prompt, knowledgeBaseId);
-  } else {
-    return await invokeBedrockNoKB(model, prompt, conversationHistory, files, event);
+  bedrockAbortController = new AbortController();
+  const { signal } = bedrockAbortController;
+  try {
+    if (knowledgeBaseId) {
+      return await invokeBedrockWithKB(model, prompt, knowledgeBaseId);
+    } else {
+      return await invokeBedrockNoKB(model, prompt, conversationHistory, files, event, signal);
+    }
+  } finally {
+    bedrockAbortController = null;
   }
 });
 
@@ -555,6 +574,9 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
     throw new Error('AWS credentials not configured');
   }
 
+  const abortController = new AbortController();
+  agentAbortControllers.set(sessionId, abortController);
+
   // Set up memory if configured
   const settings = await settingsManager.loadSettings();
   let memManager = null;
@@ -575,12 +597,17 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
     memoryManager: memManager,
     sessionId,
     settings,
+    signal: abortController.signal,
     onStatus: (status) => event.sender.send('agent-status', { sessionId, status }),
     onChunk: (chunk) => event.sender.send('agent-stream-chunk', { sessionId, chunk }),
   });
 
   skillsManager.resetActivations();
-  return await executor.run(model, prompt, conversationHistory, files);
+  try {
+    return await executor.run(model, prompt, conversationHistory, files);
+  } finally {
+    agentAbortControllers.delete(sessionId);
+  }
 });
 
 // Add handler to get Bedrock models from config
@@ -794,7 +821,7 @@ async function uploadToS3(file, bucket, key) {
   }
 }
 
-async function invokeBedrockNoKB(model, prompt, conversationHistory, files = [], event = null) {
+async function invokeBedrockNoKB(model, prompt, conversationHistory, files = [], event = null, signal = null) {
   try {
     if (!awsClients.bedrock) {
       throw new Error('AWS credentials not configured');
@@ -902,7 +929,7 @@ print("\\n\\n".join(slides))
       }
     });
 
-    const response = await awsClients.bedrock.send(command);
+    const response = await awsClients.bedrock.send(command, signal ? { abortSignal: signal } : {});
     
     // Stream the response
     let fullText = '';

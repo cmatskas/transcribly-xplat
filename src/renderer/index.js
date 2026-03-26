@@ -274,7 +274,31 @@ uploadZone.addEventListener('drop', (e) => {
 });
 
 // Handle prompt submission
-document.getElementById('invokeBedrockBtn').addEventListener('click', sendMessage);
+let analyzeProcessing = false;
+
+function setAnalyzeBtnState(processing) {
+    const btn = document.getElementById('invokeBedrockBtn');
+    if (!btn) return;
+    const icon = btn.querySelector('i');
+    analyzeProcessing = processing;
+    if (processing) {
+        icon.className = 'bi bi-stop-circle-fill';
+        btn.classList.add('stop-mode');
+        btn.title = 'Stop';
+    } else {
+        icon.className = 'bi bi-arrow-up';
+        btn.classList.remove('stop-mode');
+        btn.title = 'Send (Enter)';
+    }
+}
+
+document.getElementById('invokeBedrockBtn').addEventListener('click', () => {
+    if (analyzeProcessing) {
+        window.electronAPI.invoke('cancel-bedrock').catch(() => {});
+    } else {
+        sendMessage();
+    }
+});
 
 const promptEditor = document.getElementById('promptEditor');
 
@@ -358,6 +382,7 @@ async function sendMessage() {
 
     // Show thinking indicator
     const thinkingEl = appendThinking();
+    setAnalyzeBtnState(true);
 
     // Build Bedrock history (exclude the message we just added — it's sent as prompt)
     const history = currentConversation.messages
@@ -466,6 +491,8 @@ async function sendMessage() {
         thinkingEl.remove();
         appendChatError(error.message);
         showErrorToast(`Bedrock error: ${error.message}`);
+    } finally {
+        setAnalyzeBtnState(false);
     }
 }
 
