@@ -651,6 +651,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Changelog
 
+### v2.2.0
+- **Cancellation**: Send button toggles to a red stop button during agent/Bedrock execution
+  - Work tab: cancels the running agent mid-stream, preserving partial output
+  - Analyze tab: cancels the Bedrock streaming response
+  - Cost-efficient — billed only for tokens generated before cancellation
+
 ### v2.0.1
 - **Agent Memory**: Short-term (STM) and long-term (LTM) memory via AWS Bedrock AgentCore Memory
   - Toggle memory on/off without destroying the memory resource

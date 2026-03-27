@@ -1577,11 +1577,20 @@ body {
     justify-content: center;
     cursor: pointer;
     font-size: 1rem;
-    transition: opacity 0.15s;
+    transition: background 0.15s, opacity 0.15s;
 }
 
 .work-send-btn:hover {
     opacity: 0.85;
+}
+
+.work-send-btn.stop-mode {
+    background: #ef4444;
+}
+
+.work-send-btn.stop-mode:hover {
+    background: #dc2626;
+    opacity: 1;
 }
 
 /* File list positioned above input card */

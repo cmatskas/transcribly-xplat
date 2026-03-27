@@ -85,7 +85,14 @@
     const attachBtn = document.getElementById('workAttachFileBtn');
     const attachMenu = document.getElementById('workAttachMenu');
 
-    sendBtn.addEventListener('click', sendWorkMessage);
+    sendBtn.addEventListener('click', () => {
+      const session = getActiveSession();
+      if (session.processing) {
+        cancelWorkMessage();
+      } else {
+        sendWorkMessage();
+      }
+    });
     promptInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -207,6 +214,26 @@
     });
   }
 
+  function setSendBtnState(processing) {
+    const btn = document.getElementById('workSendBtn');
+    if (!btn) return;
+    const icon = btn.querySelector('i');
+    if (processing) {
+      icon.className = 'bi bi-stop-circle-fill';
+      btn.classList.add('stop-mode');
+      btn.title = 'Stop';
+    } else {
+      icon.className = 'bi bi-arrow-up';
+      btn.classList.remove('stop-mode');
+      btn.title = 'Send (Enter)';
+    }
+  }
+
+  async function cancelWorkMessage() {
+    const sid = activeSessionId;
+    await window.electronAPI.invoke('cancel-agent', { sessionId: sid }).catch(() => {});
+  }
+
   async function sendWorkMessage() {
     const session = getActiveSession();
     if (session.processing) return;
@@ -234,6 +261,7 @@
       : prompt;
 
     session.processing = true;
+    setSendBtnState(true);
     const container = session.container;
 
     // Remove placeholder/greeting
@@ -310,6 +338,7 @@
       showToast(`Agent error: ${error.message}`, 'error');
     } finally {
       session.processing = false;
+      setSendBtnState(false);
       refreshSidebar();
     }
   }

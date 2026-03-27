@@ -11,7 +11,7 @@ const path = require('path');
  *       feed toolResult back → Converse again → repeat until end_turn.
  */
 class AgentToolExecutor {
-  constructor({ bedrockClient, skillsManager, codeInterpreterManager, browserManager, memoryManager, sessionId, settings, onStatus, onChunk }) {
+  constructor({ bedrockClient, skillsManager, codeInterpreterManager, browserManager, memoryManager, sessionId, settings, signal, onStatus, onChunk }) {
     this.bedrock = bedrockClient;
     this.skills = skillsManager;
     this.codeInterpreter = codeInterpreterManager;
@@ -19,6 +19,7 @@ class AgentToolExecutor {
     this.memory = memoryManager;
     this.sessionId = sessionId;
     this.settings = settings || {};
+    this.signal = signal || null;
     this.onStatus = onStatus || (() => {});
     this.onChunk = onChunk || (() => {});
   }
@@ -232,9 +233,16 @@ print("\\n\\n".join(slides))
     let sessionStarted = false;
     const maxIterations = 15;
     let finalText = '';
+    let accumulatedText = ''; // track streamed text for abort case
 
     try {
       for (let i = 0; i < maxIterations; i++) {
+        // Check for cancellation before each iteration
+        if (this.signal?.aborted) {
+          finalText = accumulatedText || '';
+          return finalText;
+        }
+
         const response = await this._converse(model, messages);
 
         // Collect assistant response
@@ -245,6 +253,7 @@ print("\\n\\n".join(slides))
         const textParts = assistantContent.filter(b => b.text);
         for (const part of textParts) {
           this.onChunk(part.text);
+          accumulatedText += part.text;
         }
 
         if (response.stopReason !== 'tool_use') {
@@ -317,7 +326,7 @@ print("\\n\\n".join(slides))
       inferenceConfig: { maxTokens: model.includes('claude') ? 16384 : 8192, temperature: 0.7 },
     });
 
-    const response = await this.bedrock.send(command);
+    const response = await this.bedrock.send(command, { abortSignal: this.signal });
 
     // Collect the full streamed response into content blocks
     const content = [];
