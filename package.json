@@ -99,12 +99,10 @@
       "icon": "src/assets/app.icns",
       "category": "public.app-category.productivity",
       "target": [
-        { "target": "dmg", "arch": ["universal"] },
-        { "target": "zip", "arch": ["universal"] }
+        "dmg"
       ],
       "artifactName": "${productName}-${version}-universal.${ext}",
-      "darkModeSupport": true,
-      "notarize": false
+      "darkModeSupport": true
     },
     "win": {
       "icon": "src/assets/favicon-win.ico",
@@ -138,17 +136,6 @@
       "bucket": "transcribely-releases",
       "region": "us-east-1",
       "path": "/releases"
-    },
-    "mac": {
-      "icon": "src/assets/app.icns",
-      "category": "public.app-category.productivity",
-      "target": [
-        { "target": "dmg", "arch": ["universal"] },
-        { "target": "zip", "arch": ["universal"] }
-      ],
-      "artifactName": "${productName}-${version}-universal.${ext}",
-      "darkModeSupport": true,
-      "notarize": false
     }
   }
 }
