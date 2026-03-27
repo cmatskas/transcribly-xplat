@@ -4,6 +4,7 @@ const config = require('./config.js');
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { Upload } = require('@aws-sdk/lib-storage');
 const logger = require('./logger');
+const { autoUpdater } = require('electron-updater');
 
 const { BedrockRuntimeClient, ConverseCommand, ConverseStreamCommand } = require('@aws-sdk/client-bedrock-runtime');
 //const { BedrockClient } = require('@aws-sdk/client-bedrock');
@@ -175,6 +176,30 @@ app.whenReady().then(async () => {
       createWindow();
     }
   });
+
+  // ── Auto-updater ──────────────────────────────────────────
+  // Only run in packaged app, not in dev
+  if (app.isPackaged) {
+    autoUpdater.logger = logger;
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on('update-available', (info) => {
+      mainWindow?.webContents.send('update-available', info.version);
+    });
+
+    autoUpdater.on('update-downloaded', () => {
+      mainWindow?.webContents.send('update-downloaded');
+    });
+
+    autoUpdater.on('error', (err) => {
+      logger.log('warn', `Auto-updater error: ${err.message}`);
+    });
+
+    // Check for updates 10 seconds after launch, then every 4 hours
+    setTimeout(() => autoUpdater.checkForUpdates(), 10000);
+    setInterval(() => autoUpdater.checkForUpdates(), 4 * 60 * 60 * 1000);
+  }
 });
 
 app.on('window-all-closed', function () {
@@ -617,6 +642,10 @@ ipcMain.handle('get-bedrock-models', () => {
 
 ipcMain.handle('get-app-version', () => {
   return app.getVersion();
+});
+
+ipcMain.handle('install-update', () => {
+  autoUpdater.quitAndInstall();
 });
 
 // Add handler to get Bedrock knowledge bases

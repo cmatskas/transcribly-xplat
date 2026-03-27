@@ -656,6 +656,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   - Work tab: cancels the running agent mid-stream, preserving partial output
   - Analyze tab: cancels the Bedrock streaming response
   - Cost-efficient — billed only for tokens generated before cancellation
+- **Auto-Updates**: Automatic update notifications via S3
+  - App checks for updates 10 seconds after launch and every 4 hours
+  - Blue banner appears when an update is available or downloaded
+  - "Restart & Install" button applies the update immediately
+  - Windows: fully automatic. macOS: requires Apple Developer signing (pending)
 
 ### v2.0.1
 - **Agent Memory**: Short-term (STM) and long-term (LTM) memory via AWS Bedrock AgentCore Memory
