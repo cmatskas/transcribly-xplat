@@ -53,30 +53,34 @@ class SwarmOrchestrator {
           const output = await this._runAgent(swarmId, agentConfig, previousOutput, brief, i);
 
           // Quality gate loop
-          if (agentConfig.isQualityGate && output.startsWith('REVISE:')) {
-            const maxRetries = agentConfig.maxRetries || 2;
-            const retryKey = agentConfig.id;
-            state.retries[retryKey] = (state.retries[retryKey] || 0) + 1;
+          if (agentConfig.isQualityGate) {
+            const trimmed = output.trimStart();
+            if (trimmed.startsWith('REVISE:') || trimmed.startsWith('REVISE\n')) {
+              const maxRetries = agentConfig.maxRetries || 2;
+              const retryKey = agentConfig.id;
+              const attempts = (state.retries[retryKey] || 0) + 1;
+              state.retries[retryKey] = attempts;
 
-            if (state.retries[retryKey] <= maxRetries && i >= 2) {
-              const feedback = output.slice(7).trim();
-              // Re-run the agent before the quality gate with feedback
-              const prevAgent = template.agents[i - 1];
-              state.agents[i].status = 'pending';
-              state.agents[i - 1].status = 'running';
-              this.onEvent('swarm-agent-started', { swarmId, agentIndex: i - 1, role: prevAgent.id, label: `${prevAgent.label} (revision)` });
-              const revised = await this._runAgent(swarmId, prevAgent, previousOutput + '\n\nREVISION FEEDBACK:\n' + feedback, brief, i - 1);
-              state.agents[i - 1].output = revised;
-              await this._saveCheckpoint(swarmId, i - 1, revised);
-              this.onEvent('swarm-agent-done', { swarmId, agentIndex: i - 1, output: revised });
-              previousOutput = revised;
-              i--; // Re-run quality gate
-              continue;
+              if (attempts < maxRetries && i >= 2) {
+                const feedback = trimmed.replace(/^REVISE:?\s*/, '').trim();
+                const prevAgent = template.agents[i - 1];
+                state.agents[i].status = 'pending';
+                state.agents[i - 1].status = 'running';
+                this.onEvent('swarm-agent-started', { swarmId, agentIndex: i - 1, role: prevAgent.id, label: `${prevAgent.label} (revision ${attempts})` });
+                const revised = await this._runAgent(swarmId, prevAgent, previousOutput + '\n\nREVISION FEEDBACK:\n' + feedback, brief, i - 1);
+                state.agents[i - 1].output = revised;
+                await this._saveCheckpoint(swarmId, i - 1, revised);
+                this.onEvent('swarm-agent-done', { swarmId, agentIndex: i - 1, output: revised });
+                previousOutput = revised;
+                i--;
+                continue;
+              }
+              // Max retries exceeded — pass through with whatever content follows REVISE:
+              previousOutput = trimmed.replace(/^REVISE:?\s*/, '').trim() || previousOutput;
+            } else {
+              // PASS or unexpected format — strip "PASS" prefix if present, use content
+              previousOutput = trimmed.replace(/^PASS\s*/, '').trim() || previousOutput;
             }
-            // Max retries exceeded — pass through
-            previousOutput = output.replace(/^REVISE:/, '').trim();
-          } else if (agentConfig.isQualityGate && output.startsWith('PASS')) {
-            previousOutput = output.slice(4).trim();
           } else {
             previousOutput = output;
           }
