@@ -267,6 +267,9 @@
                         <a class="nav-link" href="#" data-settings-tab="configuration">Configuration</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="#" data-settings-tab="skills">Skills</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="#" data-settings-tab="about">About</a>
                     </li>
                 </ul>
@@ -420,6 +423,83 @@
                         <button type="button" class="btn btn-primary" id="saveConfigBtn">
                             <i class="bi bi-check-circle me-1"></i>Save Configuration
                         </button>
+                    </div>
+                </div>
+
+                <!-- Skills Tab -->
+                <div id="settings-skills" class="settings-tab-content" style="display:none;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h6 class="mb-0"><i class="bi bi-lightning me-2"></i>Agent Skills</h6>
+                            <small class="text-muted">Manage skills that enhance the Work tab agent</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-secondary" id="openSkillsFolderBtn" title="Open skills folder">
+                                <i class="bi bi-folder2-open"></i>
+                            </button>
+                            <button class="btn btn-sm btn-primary" id="createSkillBtn">
+                                <i class="bi bi-plus-lg me-1"></i>New Skill
+                            </button>
+                        </div>
+                    </div>
+                    <div id="skillsList"></div>
+
+                    <!-- Skill Editor Modal (inline) -->
+                    <div id="skillEditorPanel" style="display:none;">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0" id="skillEditorTitle">Edit Skill</h6>
+                                <button class="btn btn-sm btn-outline-secondary" id="skillEditorCloseBtn">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
+                            <div class="card-body p-0">
+                                <textarea id="skillEditorContent" class="form-control border-0 rounded-0" rows="20" style="font-family:monospace;font-size:0.85rem;resize:vertical;"></textarea>
+                            </div>
+                            <div class="card-footer d-flex justify-content-end gap-2">
+                                <button class="btn btn-sm btn-outline-secondary" id="skillEditorCancelBtn">Cancel</button>
+                                <button class="btn btn-sm btn-primary" id="skillEditorSaveBtn">
+                                    <i class="bi bi-check-lg me-1"></i>Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- New Skill Form -->
+                    <div id="newSkillPanel" style="display:none;">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">Create New Skill</h6>
+                                <button class="btn btn-sm btn-outline-secondary" id="newSkillCloseBtn">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="newSkillName" class="form-label">Skill Name</label>
+                                    <input type="text" class="form-control" id="newSkillName" placeholder="my-skill" pattern="[a-z0-9\-]+" title="Lowercase letters, numbers, and hyphens only">
+                                </div>
+                                <label class="form-label">SKILL.md Content</label>
+                                <textarea id="newSkillContent" class="form-control" rows="16" style="font-family:monospace;font-size:0.85rem;resize:vertical;">---
+name: my-skill
+description: "Describe when this skill should be activated."
+metadata:
+  provider: agentcore-code-interpreter
+  version: "1.0"
+---
+
+# My Skill
+
+Instructions for the agent go here.
+</textarea>
+                            </div>
+                            <div class="card-footer d-flex justify-content-end gap-2">
+                                <button class="btn btn-sm btn-outline-secondary" id="newSkillCancelBtn">Cancel</button>
+                                <button class="btn btn-sm btn-primary" id="newSkillSaveBtn">
+                                    <i class="bi bi-check-lg me-1"></i>Create
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

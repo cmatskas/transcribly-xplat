@@ -26,10 +26,15 @@ class AgentToolExecutor {
     this._savedLocally = new Set();  // track files saved to local filesystem
   }
 
-  buildSystemPrompt(memoryContext = '') {
+  async buildSystemPrompt(memoryContext = '') {
     const catalog = this.skills.getCatalog();
+    const autoSkills = await this.skills.getAutoActivateSkills();
+    const autoBlock = autoSkills.length > 0
+      ? `\n\n<active_skills>\n${autoSkills.map(s => `<skill name="${s.name}">\n${s.body}\n</skill>`).join('\n')}\n</active_skills>\n\nThe skills above are always active — follow their instructions automatically without needing to call activate_skill for them.`
+      : '';
+
     const base = catalog.length === 0
-      ? `You are a powerful work agent that completes complex, multi-step tasks. You can execute Python code via execute_code, read local files via read_local_file, and save files to the user's filesystem via save_file_locally. After generating any file, you MUST call save_file_locally to deliver it to the user and tell them the full local path where it was saved. Never leave generated files only in the sandbox.`
+      ? `You are a powerful work agent that completes complex, multi-step tasks. You can execute Python code via execute_code, read local files via read_local_file, and save files to the user's filesystem via save_file_locally. After generating any file, you MUST call save_file_locally to deliver it to the user and tell them the full local path where it was saved. Never leave generated files only in the sandbox.${autoBlock}`
       : `You are a powerful work agent that completes complex, multi-step tasks using tools.
 
 <available_skills>
@@ -53,7 +58,7 @@ Before giving your FINAL response, verify ALL of the following — if any is NO,
 1. Did you generate any file in the sandbox (/tmp/)? If yes, have you called save_file_locally for EACH one?
 2. Have you told the user the exact local path of every saved file?
 3. If the task was to create a document/report, does it now exist on the user's local filesystem?
-</completion_checklist>`;
+</completion_checklist>${autoBlock}`;
 
     return memoryContext
       ? `${base}\n\nYou have persistent memory of past conversations with this user. Use the context below to personalise your responses and recall previous interactions when relevant.\n\n${memoryContext}`
@@ -351,7 +356,7 @@ print("\\n\\n".join(slides))
   async _converse(model, messages) {
     const command = new ConverseStreamCommand({
       modelId: model,
-      system: [{ text: this.buildSystemPrompt(this._memoryContext) }],
+      system: [{ text: await this.buildSystemPrompt(this._memoryContext) }],
       messages,
       toolConfig: this.getToolConfig(),
       inferenceConfig: { maxTokens: model.includes('claude') ? 16384 : 8192, temperature: 0.7 },

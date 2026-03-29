@@ -583,6 +583,37 @@ ipcMain.handle('open-skills-folder', async () => {
   await skillsManager.openSkillsFolder();
 });
 
+ipcMain.handle('get-skill-content', async (event, name) => {
+  const skill = skillsManager.getSkill(name);
+  if (!skill) return null;
+  const content = await require('fs').promises.readFile(skill.location, 'utf8');
+  return content;
+});
+
+ipcMain.handle('save-skill-content', async (event, { name, content }) => {
+  const skill = skillsManager.getSkill(name);
+  if (!skill) throw new Error('Skill not found');
+  await require('fs').promises.writeFile(skill.location, content, 'utf8');
+  await skillsManager.refresh();
+  return true;
+});
+
+ipcMain.handle('delete-skill', async (event, name) => {
+  const skill = skillsManager.getSkill(name);
+  if (!skill) throw new Error('Skill not found');
+  await require('fs').promises.rm(require('path').dirname(skill.location), { recursive: true, force: true });
+  await skillsManager.refresh();
+  return true;
+});
+
+ipcMain.handle('create-skill', async (event, { name, content }) => {
+  const dir = require('path').join(skillsManager.userSkillsDir, name);
+  await require('fs').promises.mkdir(dir, { recursive: true });
+  await require('fs').promises.writeFile(require('path').join(dir, 'SKILL.md'), content, 'utf8');
+  await skillsManager.refresh();
+  return true;
+});
+
 // Directory picker
 ipcMain.handle('select-directory', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {

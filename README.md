@@ -14,6 +14,7 @@
 - 🛡️ **Error Recovery**: Graceful error handling without requiring app restarts
 - 📊 **PowerPoint Support**: Upload and analyze `.pptx`/`.ppt` files — content is extracted automatically via code interpreter
 - 🖼️ **Flexible Image Generation**: Generate images using a SageMaker SDXL endpoint (optional) with automatic fallback to Amazon Nova Canvas
+- 🧠 **Agent Skills**: 14 bundled skills for document creation, marketing analysis, copy editing, customer research, and more — with a UI to manage, edit, and create custom skills
 
 ## Prerequisites
 
@@ -126,7 +127,7 @@ Download directory: [here](https://amazoncorporate.box.com/s/rwc0pbifx50uf7g2xi8
 1. Download the appropriate installer for your platform:
    - **Windows (64-bit)**: `Transcribely-Setup-x64.exe` (~80MB)
    - **Windows ARM64**: `Transcribely-Setup-arm64.exe` (~82MB)
-   - **macOS Universal**: `Transcribely-2.0.1-universal.dmg` (~174MB) - Works on Intel & Apple Silicon
+   - **macOS Universal**: `Transcribely-2.4.0-universal.dmg` (~174MB) - Works on Intel & Apple Silicon
 2. Run the installer and follow the setup instructions
 
 #### Windows Installation
@@ -650,6 +651,28 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - 📖 Documentation: [Wiki](https://github.com/cmatskas/transcribly-xplat/blob/main/README.md)
 
 ## Changelog
+
+### v2.4.0
+- **Skills Management UI**: New "Skills" tab in Settings for reviewing, editing, deleting, and creating agent skills
+  - Inline SKILL.md editor with monospace textarea
+  - Create new skills with template scaffolding
+  - Enable/disable toggle per skill
+  - "Always-on" badge for auto-activate skills
+  - Open skills folder button for direct filesystem access
+- **11 New Agent Skills** adapted from GSD, marketingskills, and community sources:
+  - `customer-research` — Analyze transcripts, meeting notes, and interviews using JTBD extraction framework
+  - `copy-editing` — Eight Sweeps review framework with AI de-slop detection (22 patterns, vocabulary tiers, tone-aware calibration)
+  - `copywriting` — Marketing copy and keynote narrative framework with dynamic scoping and 6 foundational questions
+  - `doc-coauthoring` — 3-stage collaborative document creation (Context Gathering → Refinement → Reader Testing)
+  - `launch-strategy` — ORB framework and 5-phase launch planning
+  - `marketing-psychology` — Behavioral science mental models for persuasive messaging
+  - `analysis-framework` — Structured analysis frameworks (goal-backward, trade-off matrix, decision framework)
+  - `research-first` — Research-before-action protocol for unfamiliar domains
+  - `task-planner` — Structured task decomposition for complex multi-step requests
+  - `self-correction` — Auto-fix runtime errors, install missing libraries, adapt to data formats
+- **Skill Auto-Activate**: Skills can declare `auto-activate: "true"` in frontmatter to inject their full instructions into every agent conversation without requiring manual activation
+- **Lazy Skill Loading**: Skills now load only frontmatter (1KB) at startup; full body loaded on-demand when activated — improves startup time with many skills
+- **Skill Discovery**: Skills discovered from project (`.agents/skills/`), user (`~/.agents/skills/`), and app-bundled directories with priority ordering
 
 ### v2.2.0
 - **Cancellation**: Send button toggles to a red stop button during agent/Bedrock execution

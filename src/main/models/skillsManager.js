@@ -35,6 +35,17 @@ class SkillsManager {
       .map(({ name, description }) => ({ name, description }));
   }
 
+  /** Return skills marked auto-activate with their full bodies loaded */
+  async getAutoActivateSkills() {
+    const auto = (this.cache || []).filter(s => s.autoActivate && !this.disabledSkills.has(s.name));
+    const results = [];
+    for (const s of auto) {
+      const body = await this.getSkillBody(s.name);
+      if (body) results.push({ name: s.name, body });
+    }
+    return results;
+  }
+
   /** Tier 2: full body for activation */
   async getSkillBody(name) {
     const skill = (this.cache || []).find(s => s.name === name);
@@ -78,7 +89,10 @@ class SkillsManager {
   }
 
   getSkills() {
-    return this.cache || [];
+    return (this.cache || []).map(s => ({
+      ...s,
+      disabled: this.disabledSkills.has(s.name),
+    }));
   }
 
   getSkill(name) {
@@ -149,8 +163,13 @@ class SkillsManager {
 
       const skillFile = path.join(dir, entry.name, 'SKILL.md');
       try {
-        const content = await fs.readFile(skillFile, 'utf8');
-        const skill = this._parseSkillFile(content, skillFile);
+        // Read only the first 1KB — enough for frontmatter, avoids loading full body
+        const fh = await fs.open(skillFile, 'r');
+        const buf = Buffer.alloc(1024);
+        const { bytesRead } = await fh.read(buf, 0, 1024, 0);
+        await fh.close();
+        const header = buf.toString('utf8', 0, bytesRead);
+        const skill = this._parseSkillFile(header, skillFile);
         if (skill) skills.push(skill);
       } catch {
         // No SKILL.md in this directory — skip
@@ -178,7 +197,8 @@ class SkillsManager {
       license: frontmatter.license || null,
       compatibility: frontmatter.compatibility || null,
       allowedTools: frontmatter['allowed-tools'] || null,
-      body: this._extractBody(content),
+      autoActivate: frontmatter['auto-activate'] === 'true',
+      // body intentionally omitted — lazy-loaded by getSkillBody()
     };
   }
 

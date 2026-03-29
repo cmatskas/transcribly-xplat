@@ -15,6 +15,7 @@
         if (target === 'credentials') loadCredentials();
         if (target === 'configuration') loadConfig();
         if (target === 'about') loadAbout();
+        if (target === 'skills') loadSkills();
       });
     });
 
@@ -249,6 +250,153 @@
       window.electronAPI.showToast(`Failed: ${err.message}`, 'error');
     }
   }
+
+  // ── Skills ──────────────────────────────────────────────
+
+  let _editingSkill = null;
+
+  async function loadSkills() {
+    const list = document.getElementById('skillsList');
+    const editor = document.getElementById('skillEditorPanel');
+    const newPanel = document.getElementById('newSkillPanel');
+    editor.style.display = 'none';
+    newPanel.style.display = 'none';
+
+    try {
+      const skills = await window.electronAPI.invoke('get-skills');
+      if (!skills || skills.length === 0) {
+        list.innerHTML = '<div class="text-muted small text-center py-4">No skills installed.</div>';
+        return;
+      }
+      list.innerHTML = skills.map(s => `
+        <div class="card mb-2">
+          <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
+            <div class="flex-grow-1 me-3" style="min-width:0;">
+              <div class="d-flex align-items-center gap-2">
+                <strong class="small">${esc(s.name)}</strong>
+                ${s.autoActivate ? '<span class="badge bg-primary bg-opacity-25 text-primary" style="font-size:0.65rem;">always-on</span>' : ''}
+                ${s.scope ? `<span class="badge bg-secondary bg-opacity-25 text-muted" style="font-size:0.65rem;">${esc(s.scope)}</span>` : ''}
+              </div>
+              <div class="text-muted small text-truncate">${esc(s.description)}</div>
+            </div>
+            <div class="d-flex align-items-center gap-1 flex-shrink-0">
+              <button class="btn btn-sm btn-outline-secondary skill-edit-btn" data-skill="${esc(s.name)}" title="Edit"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn-sm btn-outline-danger skill-delete-btn" data-skill="${esc(s.name)}" title="Delete"><i class="bi bi-trash"></i></button>
+              <div class="form-check form-switch mb-0 ms-2">
+                <input class="form-check-input skill-toggle" type="checkbox" data-skill="${esc(s.name)}" ${s.disabled ? '' : 'checked'}>
+              </div>
+            </div>
+          </div>
+        </div>`).join('');
+
+      // Wire edit buttons
+      list.querySelectorAll('.skill-edit-btn').forEach(btn => {
+        btn.addEventListener('click', () => openSkillEditor(btn.dataset.skill));
+      });
+      // Wire delete buttons
+      list.querySelectorAll('.skill-delete-btn').forEach(btn => {
+        btn.addEventListener('click', () => deleteSkill(btn.dataset.skill));
+      });
+      // Wire toggles
+      list.querySelectorAll('.skill-toggle').forEach(toggle => {
+        toggle.addEventListener('change', () => {
+          window.electronAPI.invoke('toggle-skill', { name: toggle.dataset.skill, enabled: toggle.checked });
+        });
+      });
+    } catch (err) {
+      list.innerHTML = `<div class="text-danger small">${esc(err.message)}</div>`;
+    }
+  }
+
+  async function openSkillEditor(name) {
+    _editingSkill = name;
+    const editor = document.getElementById('skillEditorPanel');
+    const list = document.getElementById('skillsList');
+    const newPanel = document.getElementById('newSkillPanel');
+    newPanel.style.display = 'none';
+    document.getElementById('skillEditorTitle').textContent = `Edit: ${name}`;
+    document.getElementById('skillEditorContent').value = 'Loading...';
+    list.style.display = 'none';
+    editor.style.display = '';
+
+    try {
+      const content = await window.electronAPI.invoke('get-skill-content', name);
+      document.getElementById('skillEditorContent').value = content || '';
+    } catch (err) {
+      document.getElementById('skillEditorContent').value = `Error: ${err.message}`;
+    }
+  }
+
+  async function saveSkillEditor() {
+    if (!_editingSkill) return;
+    try {
+      await window.electronAPI.invoke('save-skill-content', {
+        name: _editingSkill,
+        content: document.getElementById('skillEditorContent').value,
+      });
+      window.electronAPI.showToast('Skill saved!', 'success');
+      closeSkillEditor();
+      loadSkills();
+    } catch (err) {
+      window.electronAPI.showToast(`Error: ${err.message}`, 'error');
+    }
+  }
+
+  function closeSkillEditor() {
+    _editingSkill = null;
+    document.getElementById('skillEditorPanel').style.display = 'none';
+    document.getElementById('skillsList').style.display = '';
+  }
+
+  async function deleteSkill(name) {
+    if (!confirm(`Delete skill "${name}"? This cannot be undone.`)) return;
+    try {
+      await window.electronAPI.invoke('delete-skill', name);
+      window.electronAPI.showToast('Skill deleted', 'info');
+      loadSkills();
+    } catch (err) {
+      window.electronAPI.showToast(`Error: ${err.message}`, 'error');
+    }
+  }
+
+  function openNewSkillPanel() {
+    document.getElementById('newSkillPanel').style.display = '';
+    document.getElementById('skillsList').style.display = 'none';
+    document.getElementById('skillEditorPanel').style.display = 'none';
+    document.getElementById('newSkillName').value = '';
+    document.getElementById('newSkillContent').value = `---\nname: my-skill\ndescription: "Describe when this skill should be activated."\nmetadata:\n  provider: agentcore-code-interpreter\n  version: "1.0"\n---\n\n# My Skill\n\nInstructions for the agent go here.\n`;
+  }
+
+  function closeNewSkillPanel() {
+    document.getElementById('newSkillPanel').style.display = 'none';
+    document.getElementById('skillsList').style.display = '';
+  }
+
+  async function createNewSkill() {
+    const name = document.getElementById('newSkillName').value.trim().toLowerCase().replace(/[^a-z0-9\-]/g, '-');
+    const content = document.getElementById('newSkillContent').value;
+    if (!name) { window.electronAPI.showToast('Skill name is required', 'error'); return; }
+    try {
+      await window.electronAPI.invoke('create-skill', { name, content });
+      window.electronAPI.showToast('Skill created!', 'success');
+      closeNewSkillPanel();
+      loadSkills();
+    } catch (err) {
+      window.electronAPI.showToast(`Error: ${err.message}`, 'error');
+    }
+  }
+
+  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+  // Wire skill buttons
+  document.getElementById('createSkillBtn').addEventListener('click', openNewSkillPanel);
+  document.getElementById('openSkillsFolderBtn').addEventListener('click', () => window.electronAPI.invoke('open-skills-folder'));
+  document.getElementById('skillEditorCloseBtn').addEventListener('click', closeSkillEditor);
+  document.getElementById('skillEditorCancelBtn').addEventListener('click', closeSkillEditor);
+  document.getElementById('skillEditorSaveBtn').addEventListener('click', saveSkillEditor);
+  document.getElementById('newSkillCloseBtn').addEventListener('click', closeNewSkillPanel);
+  document.getElementById('newSkillCancelBtn').addEventListener('click', closeNewSkillPanel);
+  document.getElementById('newSkillSaveBtn').addEventListener('click', createNewSkill);
 
   // ── About ──────────────────────────────────────────────────
 
