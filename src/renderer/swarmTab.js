@@ -38,6 +38,13 @@
     document.getElementById('swarmInputDefaultBtn').addEventListener('click', answerInputDefault);
     document.getElementById('swarmNewRunBtn').addEventListener('click', resetToTemplates);
 
+    // Auto-expand textarea
+    const brief = document.getElementById('swarmBrief');
+    brief.addEventListener('input', () => {
+      brief.style.height = 'auto';
+      brief.style.height = Math.min(brief.scrollHeight, 300) + 'px';
+    });
+
     // IPC listeners
     window.electronAPI.receive('swarm-agent-started', onAgentStarted);
     window.electronAPI.receive('swarm-agent-chunk', onAgentChunk);
@@ -67,6 +74,7 @@
     document.getElementById('swarmInputPanel').style.display = 'none';
     document.getElementById('swarmDonePanel').style.display = 'none';
     document.getElementById('swarmBrief').value = '';
+    document.getElementById('swarmBrief').style.height = 'auto';
   }
 
   async function startPipeline() {
@@ -153,7 +161,12 @@
   function onError({ swarmId, error, agentIndex }) {
     if (swarmId !== activeSwarmId) return;
     if (agentOutputs[agentIndex]) agentOutputs[agentIndex].status = 'error';
+    // Stop any still-running agents
+    Object.values(agentOutputs).forEach(a => { if (a.status === 'running') a.status = 'error'; });
     renderStepper();
+    document.getElementById('swarmDonePanel').style.display = '';
+    document.getElementById('swarmDoneMessage').innerHTML =
+      `<span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>${esc(error)}</span>`;
     window.electronAPI.showToast(`Agent error: ${error}`, 'error');
   }
 
