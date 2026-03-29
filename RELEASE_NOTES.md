@@ -1,151 +1,73 @@
-# Transcribely Release Notes
+# Release Notes
 
-## Version 1.1.0
+## v2.4.0
+- **Skills Management UI**: New "Skills" tab in Settings for reviewing, editing, deleting, and creating agent skills
+  - Inline SKILL.md editor with monospace textarea
+  - Create new skills with template scaffolding
+  - Enable/disable toggle per skill
+  - "Always-on" badge for auto-activate skills
+  - Open skills folder button for direct filesystem access
+- **11 New Agent Skills** adapted from GSD, marketingskills, and community sources:
+  - `customer-research` — Analyze transcripts, meeting notes, and interviews using JTBD extraction framework
+  - `copy-editing` — Eight Sweeps review framework with AI de-slop detection (22 patterns, vocabulary tiers, tone-aware calibration)
+  - `copywriting` — Marketing copy and keynote narrative framework with dynamic scoping and 6 foundational questions
+  - `doc-coauthoring` — 3-stage collaborative document creation (Context Gathering → Refinement → Reader Testing)
+  - `launch-strategy` — ORB framework and 5-phase launch planning
+  - `marketing-psychology` — Behavioral science mental models for persuasive messaging
+  - `analysis-framework` — Structured analysis frameworks (goal-backward, trade-off matrix, decision framework)
+  - `research-first` — Research-before-action protocol for unfamiliar domains
+  - `task-planner` — Structured task decomposition for complex multi-step requests
+  - `self-correction` — Auto-fix runtime errors, install missing libraries, adapt to data formats
+- **Skill Auto-Activate**: Skills can declare `auto-activate: "true"` in frontmatter to inject their full instructions into every agent conversation without requiring manual activation
+- **Lazy Skill Loading**: Skills now load only frontmatter (1KB) at startup; full body loaded on-demand when activated — improves startup time with many skills
+- **Skill Discovery**: Skills discovered from project (`.agents/skills/`), user (`~/.agents/skills/`), and app-bundled directories with priority ordering
 
-### 🎉 Major Features
+## v2.2.0
+- **Cancellation**: Send button toggles to a red stop button during agent/Bedrock execution
+  - Work tab: cancels the running agent mid-stream, preserving partial output
+  - Analyze tab: cancels the Bedrock streaming response
+  - Cost-efficient — billed only for tokens generated before cancellation
+- **Auto-Updates**: Automatic update notifications via S3
+  - App checks for updates 10 seconds after launch and every 4 hours
+  - Blue banner appears when an update is available or downloaded
+  - "Restart & Install" button applies the update immediately
+  - Windows: fully automatic. macOS: requires Apple Developer signing (pending)
 
-#### Streaming AI Responses
-- **Real-time streaming**: AI responses now appear word-by-word as they're generated, providing immediate feedback
-- Powered by AWS Bedrock ConverseStreamCommand API
-- Significantly improved user experience with no waiting for complete responses
+## v2.0.1
+- **Agent Memory**: Short-term (STM) and long-term (LTM) memory via AWS Bedrock AgentCore Memory
+  - Toggle memory on/off without destroying the memory resource
+  - Per-installation user isolation via unique IDs
+  - Automatic LTM extraction on new chat and app quit
+  - Agent is context-aware and references past conversations when memory is available
+- **Conversation Management**: Claude-style history sidebar
+  - Star/favourite conversations for quick access
+  - Rename conversations via modal dialog
+  - Delete with confirmation prompt
+  - Grouped sections: Starred, Today, Yesterday, This Week, Older
+  - Context menu (three-dots) on each conversation
+- **Image Generation**: Flexible image generation with provider fallback
+  - Primary: SageMaker SDXL endpoint (optional, configurable in settings)
+  - Fallback: Amazon Nova Canvas via Bedrock (default when no SageMaker endpoint configured)
+  - New settings panel for endpoint name and inference component
+- **Settings Redesign**: In-page settings with tabbed layout (Credentials, Configuration, About)
+  - Settings persist correctly across all fields including memory and image generation
+- **Theme-Aware Icons**: Greeting icon switches between light/dark variants based on theme
+- **Bug Fixes**:
+  - Memory settings no longer wiped when saving other settings
+  - Memory toggle correctly reflects persisted state on app load
+  - Re-enabling memory no longer attempts to recreate the AWS resource
 
-#### Document Attachment Support
-- **Attach up to 5 documents** per message to provide context to AI models
-- Supported formats: PDF, DOC, DOCX, XLS, XLSX, CSV, HTML, TXT, MD
-- Maximum 10MB per file
-- Claude-style **+ button** in chat input for intuitive file attachment
-- Visual file list with icons and individual remove buttons
-- Files automatically cleared after sending
+## v2.0.0
+- PowerPoint (`.pptx`/`.ppt`) file upload and analysis support
+- Content extracted automatically from PowerPoint files via code interpreter (python-pptx)
+- SageMaker SDXL endpoint support for image generation
+- Automatic fallback to Amazon Nova Canvas when no SageMaker endpoint is configured
+- New Image Generation settings panel (endpoint name + inference component)
 
-#### Conversation Memory & Persistence
-- **Multi-turn conversations** with full context retention
-- Conversations automatically saved and persist across app restarts
-- **Auto-load most recent conversation** on startup
-- Sidebar with searchable conversation list
-- Create, load, and delete conversations
-- **Smart compression**: Automatically summarizes old messages when conversation exceeds 20 messages
-- Chat-style UI with user/assistant message bubbles
-
-#### Enhanced Chat Interface
-- **Modern chat UI** inspired by Claude and ChatGPT
-- Floating + and send buttons inside textarea (overlay design)
-- Auto-resizing textarea (grows with content, max 300px)
-- Individual **copy button** on each assistant response
-- Thinking indicator while AI processes
-- Keyboard shortcuts: Enter to send, Shift+Enter for new line
-- Timestamps on all messages
-
-### 📤 Export & Sharing
-
-- **Export conversations as Markdown** files (.md format)
-- Copy full conversation to clipboard (markdown formatted)
-- Copy individual responses with one click
-- Download transcripts with timestamps
-
-### 🎨 UI/UX Improvements
-
-- **Dark theme support** with system preference detection
-- Theme toggle: Light → Dark → Auto (system)
-- Improved layout with collapsible content sections
-- Consistent button styling across the app
-- Better scrolling behavior in transcription and analysis panels
-- Responsive design with proper height management
-
-### 🎵 Media Transcription
-
-- **AWS Transcribe integration** for audio/video files
-- Supported formats: MP3, MP4, WAV, M4A, FLAC, and more
-- **Clickable timestamps** - jump to specific moments in media player
-- Speaker identification and labeling
-- Real-time transcription progress updates
-- Download or copy transcripts
-
-### 🤖 AI Analysis Features
-
-- **Multiple AI models** supported:
-  - Claude Sonnet 3.7 & 4.5
-  - Nova Pro & Lite
-  - DeepSeek R1
-- **AWS Bedrock Knowledge Base** integration
-- Built-in prompt templates:
-  - Summarization
-  - Key Points extraction
-  - Action Items identification
-  - Sentiment Analysis
-  - Custom prompts
-- Option to include transcript in AI analysis
-- Citation support for Knowledge Base responses
-
-### 🔐 Credentials & Settings
-
-- **Secure AWS credential storage** with encryption
-- Auto-detect and parse credentials from multiple formats:
-  - Windows batch format (`set AWS_ACCESS_KEY_ID=...`)
-  - Unix export format (`export AWS_ACCESS_KEY_ID=...`)
-  - Simple key=value format
-- **Credential validation** with service-specific permission checks
-- Support for temporary credentials (session tokens)
-- Multiple AWS region support
-- Configurable settings with persistence
-
-### 🛠️ Developer & Quality
-
-- **Comprehensive unit tests** with Jest
-- Bedrock integration tests (optional, requires AWS credentials)
-- Test coverage reporting
-- VS Code debugger configuration
-- Improved error handling - no more locked UI on exceptions
-- Better logging system
-
-### 📦 Distribution
-
-- **macOS Universal binary** (Intel + Apple Silicon)
-- **Windows installers** (x64 and ARM64)
-- **Ad-hoc code signing** for macOS (prevents "app is damaged" errors)
-- High-quality app icons (512x512, ICNS, ICO formats)
-- Proper app metadata and branding
-
-### 🐛 Bug Fixes
-
-- Fixed modal dialogs that wouldn't dismiss
-- Fixed collapsing content boxes
-- Fixed inconsistent scrolling behaviors
-- Improved error recovery without requiring app restart
-- Better handling of expired AWS credentials
-- Fixed UI lock-ups when exceptions occur
-
----
-
-## Installation
-
-### macOS
-1. Download `Transcribely-1.1.0-universal.dmg`
-2. Open the DMG and drag Transcribely to Applications
-3. Right-click the app and select "Open" (first launch only)
-
-### Windows
-1. Download `Transcribely-Setup-x64.exe` (64-bit) or `Transcribely-Setup-arm64.exe` (ARM)
-2. Run the installer
-3. If you see a security warning, click "More info" then "Run anyway"
-
-## Requirements
-
-- **AWS Account** with Bedrock and Transcribe access
-- **Bedrock Models**: Enable access to desired models in AWS Console
-- **Internet connection** for AWS services
-- **System Requirements**:
-  - macOS 10.12+ or Windows 10/11
-  - 4GB RAM (8GB recommended)
-  - 200MB disk space
-
-## Getting Started
-
-1. Launch Transcribely
-2. Go to Settings → AWS Credentials
-3. Paste your AWS credentials (auto-detected format)
-4. Click "Save & Test Credentials"
-5. Start transcribing media or chatting with AI!
-
----
-
-**Made with ❤️ and Kiro by the Keynote Team**
+## v1.0.0
+- Initial release
+- AWS Transcribe integration
+- AWS Bedrock AI analysis
+- Knowledge Base support
+- Cross-platform desktop app
+- Dark/light theme support
