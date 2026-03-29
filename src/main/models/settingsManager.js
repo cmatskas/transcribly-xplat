@@ -17,6 +17,12 @@ class SettingsManager {
       userId: '',
       sagemakerImageEndpoint: '',
       sagemakerImageComponent: '',
+      bedrockModels: [
+        { id: 'Nova Pro', inferenceProfileId: 'us.amazon.nova-pro-v1:0', role: 'nova' },
+        { id: 'Claude 4.6 Sonnet', inferenceProfileId: 'us.anthropic.claude-sonnet-4-6-v1', role: 'sonnet' },
+        { id: 'Claude 4.6 Opus', inferenceProfileId: 'us.anthropic.claude-opus-4-6-v1', role: 'opus' },
+        { id: 'DeepSeek R1', inferenceProfileId: 'us.deepseek.r1-v1:0', role: '' },
+      ],
     };
   }
 
