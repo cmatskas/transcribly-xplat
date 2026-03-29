@@ -1,17 +1,8 @@
-/**
- * Tests for ConversationManager
- */
-
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
 
-// Mock electron app
-jest.mock('electron', () => ({
-    app: {
-        getPath: () => '/tmp'
-    }
-}));
+jest.mock('electron', () => ({ app: { getPath: () => '/tmp' } }));
 
 const ConversationManager = require('../../src/main/models/conversationManager');
 
@@ -20,189 +11,126 @@ describe('ConversationManager', () => {
     let testDir;
 
     beforeEach(async () => {
-        testDir = path.join(os.tmpdir(), `test-conversations-${Date.now()}`);
+        testDir = path.join(os.tmpdir(), `test-conv-${Date.now()}`);
         await fs.mkdir(testDir, { recursive: true });
         manager = new ConversationManager();
-        manager.conversationsFile = path.join(testDir, 'conversations.json');
+        manager.dir = testDir;
     });
 
     afterEach(async () => {
-        try {
-            await fs.rm(testDir, { recursive: true, force: true });
-        } catch (e) {
-            // Ignore cleanup errors
-        }
+        await fs.rm(testDir, { recursive: true, force: true }).catch(() => {});
     });
 
     describe('create()', () => {
-        test('should create new conversation with unique ID', async () => {
-            const conv = await manager.create();
-            expect(conv).toHaveProperty('id');
-            expect(conv).toHaveProperty('messages');
-            expect(conv).toHaveProperty('createdAt');
+        test('should create conversation with ID and title from prompt', () => {
+            const conv = manager.create('Hello world');
+            expect(conv.id).toMatch(/^conv_\d+$/);
+            expect(conv.title).toBe('Hello world');
             expect(conv.messages).toEqual([]);
+            expect(conv.createdAt).toBeDefined();
         });
 
-        test('should generate unique IDs for multiple conversations', async () => {
-            const conv1 = await manager.create();
-            const conv2 = await manager.create();
-            expect(conv1.id).not.toBe(conv2.id);
+        test('should truncate long prompts in title', () => {
+            const long = 'A'.repeat(100);
+            const conv = manager.create(long);
+            expect(conv.title.length).toBeLessThanOrEqual(51);
         });
 
-        test('should save conversation to file', async () => {
-            const conv = await manager.create();
-            const all = await manager.getAll();
-            expect(all).toHaveLength(1);
-            expect(all[0].id).toBe(conv.id);
-        });
-    });
-
-    describe('addMessage()', () => {
-        test('should add user message to conversation', async () => {
-            const conv = await manager.create();
-            await manager.addMessage(conv.id, 'user', 'Hello');
-            
-            const updated = await manager.get(conv.id);
-            expect(updated.messages).toHaveLength(1);
-            expect(updated.messages[0]).toMatchObject({
-                role: 'user',
-                content: 'Hello'
-            });
-        });
-
-        test('should add assistant message to conversation', async () => {
-            const conv = await manager.create();
-            await manager.addMessage(conv.id, 'assistant', 'Hi there');
-            
-            const updated = await manager.get(conv.id);
-            expect(updated.messages[0]).toMatchObject({
-                role: 'assistant',
-                content: 'Hi there'
-            });
-        });
-
-        test('should add timestamp to messages', async () => {
-            const conv = await manager.create();
-            await manager.addMessage(conv.id, 'user', 'Test');
-            
-            const updated = await manager.get(conv.id);
-            expect(updated.messages[0]).toHaveProperty('timestamp');
-        });
-
-        test('should throw error for non-existent conversation', async () => {
-            await expect(
-                manager.addMessage('invalid-id', 'user', 'Test')
-            ).rejects.toThrow('Conversation not found');
+        test('should generate unique IDs', async () => {
+            const c1 = manager.create('First');
+            await new Promise(r => setTimeout(r, 2));
+            const c2 = manager.create('Second');
+            expect(c1.id).not.toBe(c2.id);
         });
     });
 
-    describe('get()', () => {
-        test('should retrieve conversation by ID', async () => {
-            const conv = await manager.create();
-            const retrieved = await manager.get(conv.id);
-            expect(retrieved.id).toBe(conv.id);
+    describe('save() and load()', () => {
+        test('should save and load a conversation', async () => {
+            const conv = manager.create('Test');
+            conv.messages.push({ role: 'user', content: 'Hello', timestamp: new Date().toISOString() });
+            await manager.save(conv);
+
+            const loaded = await manager.load(conv.id);
+            expect(loaded.id).toBe(conv.id);
+            expect(loaded.messages).toHaveLength(1);
+            expect(loaded.messages[0].content).toBe('Hello');
         });
 
-        test('should return null for non-existent conversation', async () => {
-            const result = await manager.get('invalid-id');
-            expect(result).toBeNull();
+        test('should update updatedAt on save', async () => {
+            const conv = manager.create('Test');
+            const before = conv.updatedAt;
+            await new Promise(r => setTimeout(r, 10));
+            await manager.save(conv);
+            const loaded = await manager.load(conv.id);
+            expect(new Date(loaded.updatedAt).getTime()).toBeGreaterThanOrEqual(new Date(before).getTime());
         });
     });
 
-    describe('getAll()', () => {
+    describe('list()', () => {
         test('should return empty array when no conversations', async () => {
-            const all = await manager.getAll();
+            const all = await manager.list();
             expect(all).toEqual([]);
         });
 
-        test('should return all conversations', async () => {
-            await manager.create();
-            await manager.create();
-            await manager.create();
-            
-            const all = await manager.getAll();
-            expect(all).toHaveLength(3);
+        test('should list saved conversations', async () => {
+            await manager.save(manager.create('First'));
+            await new Promise(r => setTimeout(r, 2));
+            await manager.save(manager.create('Second'));
+            const all = await manager.list();
+            expect(all).toHaveLength(2);
         });
 
-        test('should return conversations sorted by creation date', async () => {
-            const conv1 = await manager.create();
-            await new Promise(resolve => setTimeout(resolve, 10));
-            const conv2 = await manager.create();
-            
-            const all = await manager.getAll();
-            expect(all[0].id).toBe(conv2.id);
-            expect(all[1].id).toBe(conv1.id);
+        test('should sort by updatedAt descending', async () => {
+            const c1 = manager.create('First');
+            await manager.save(c1);
+            await new Promise(r => setTimeout(r, 10));
+            const c2 = manager.create('Second');
+            await manager.save(c2);
+            const all = await manager.list();
+            expect(all[0].title).toBe('Second');
         });
     });
 
     describe('delete()', () => {
-        test('should delete conversation by ID', async () => {
-            const conv = await manager.create();
+        test('should delete a conversation', async () => {
+            const conv = manager.create('Test');
+            await manager.save(conv);
             await manager.delete(conv.id);
-            
-            const result = await manager.get(conv.id);
-            expect(result).toBeNull();
-        });
-
-        test('should not throw error when deleting non-existent conversation', async () => {
-            await expect(manager.delete('invalid-id')).resolves.not.toThrow();
-        });
-
-        test('should only delete specified conversation', async () => {
-            const conv1 = await manager.create();
-            const conv2 = await manager.create();
-            
-            await manager.delete(conv1.id);
-            
-            const all = await manager.getAll();
-            expect(all).toHaveLength(1);
-            expect(all[0].id).toBe(conv2.id);
+            const all = await manager.list();
+            expect(all).toHaveLength(0);
         });
     });
 
-    describe('compress()', () => {
-        test('should compress long conversations', async () => {
-            const conv = await manager.create();
-            
-            // Add many messages
-            for (let i = 0; i < 20; i++) {
-                await manager.addMessage(conv.id, 'user', `Message ${i}`);
-                await manager.addMessage(conv.id, 'assistant', `Response ${i}`);
-            }
-            
-            await manager.compress(conv.id, 10);
-            
-            const updated = await manager.get(conv.id);
-            expect(updated.messages.length).toBeLessThan(40);
+    describe('needsCompression()', () => {
+        test('should return true when messages exceed threshold', () => {
+            const conv = manager.create('Test');
+            for (let i = 0; i < 25; i++) conv.messages.push({ role: 'user', content: `msg ${i}` });
+            expect(manager.needsCompression(conv)).toBe(true);
         });
 
-        test('should keep system messages during compression', async () => {
-            const conv = await manager.create();
-            await manager.addMessage(conv.id, 'system', 'System prompt');
-            
-            for (let i = 0; i < 10; i++) {
-                await manager.addMessage(conv.id, 'user', `Message ${i}`);
-            }
-            
-            await manager.compress(conv.id, 5);
-            
-            const updated = await manager.get(conv.id);
-            const systemMsg = updated.messages.find(m => m.role === 'system');
-            expect(systemMsg).toBeTruthy();
+        test('should return false for short conversations', () => {
+            const conv = manager.create('Test');
+            conv.messages.push({ role: 'user', content: 'hi' });
+            expect(manager.needsCompression(conv)).toBe(false);
         });
     });
 
-    describe('Error Handling', () => {
-        test('should handle file read errors gracefully', async () => {
-            manager.conversationsFile = '/invalid/path/conversations.json';
-            const all = await manager.getAll();
-            expect(all).toEqual([]);
+    describe('applyCompression()', () => {
+        test('should replace old messages with summary and keep recent', () => {
+            const conv = manager.create('Test');
+            for (let i = 0; i < 25; i++) conv.messages.push({ role: 'user', content: `msg ${i}`, timestamp: new Date().toISOString() });
+            manager.applyCompression(conv, 'Summary of previous conversation');
+            expect(conv.messages.length).toBe(6); // 2 summary + 4 recent
+            expect(conv.messages[0].content).toContain('summary');
         });
+    });
 
-        test('should handle corrupted JSON file', async () => {
-            await fs.writeFile(manager.conversationsFile, 'invalid json');
-            const all = await manager.getAll();
-            expect(all).toEqual([]);
+    describe('toBedrockMessages()', () => {
+        test('should format messages for Bedrock API', () => {
+            const conv = manager.create('Test');
+            conv.messages.push({ role: 'user', content: 'Hello' });
+            const formatted = manager.toBedrockMessages(conv);
+            expect(formatted[0]).toEqual({ role: 'user', content: [{ text: 'Hello' }] });
         });
     });
 });
