@@ -28,6 +28,13 @@ class SwarmOrchestrator {
 
     try {
       await this._ensureDir(path.join(this.runsDir, swarmId));
+
+      // Resume from persisted state if available
+      try {
+        const persisted = JSON.parse(await fs.readFile(path.join(this.runsDir, swarmId, 'state.json'), 'utf8'));
+        state.retries = persisted.retries || {};
+      } catch { /* fresh run */ }
+
       let previousOutput = brief;
 
       for (let i = 0; i < template.agents.length; i++) {
@@ -82,7 +89,7 @@ class SwarmOrchestrator {
               previousOutput = trimmed.replace(/^PASS\s*/, '').trim() || previousOutput;
             }
           } else {
-            previousOutput = output;
+            previousOutput = output || previousOutput;
           }
 
           state.agents[i].status = 'done';
@@ -208,9 +215,11 @@ class SwarmOrchestrator {
   cancel(swarmId) {
     const run = this.runs.get(swarmId);
     if (run) run.aborted = true;
-    // Resolve any pending waits
-    for (const [key, val] of this._pendingInput) {
-      if (key.startsWith(swarmId)) { val.resolve(null); this._pendingInput.delete(key); }
+    // Resolve any pending waits for this specific swarm
+    const keysToResolve = [swarmId, `${swarmId}-input`];
+    for (const key of keysToResolve) {
+      const pending = this._pendingInput.get(key);
+      if (pending) { pending.resolve(null); this._pendingInput.delete(key); }
     }
   }
 
