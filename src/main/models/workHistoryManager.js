@@ -17,13 +17,17 @@ class WorkHistoryManager {
 
   async save(session) {
     await this._ensureDir();
-    session.updatedAt = new Date().toISOString();
-    // Preserve starred/customTitle from existing file
+    // Only update timestamp if messages changed
     try {
       const existing = JSON.parse(await fs.readFile(this._filePath(session.id), 'utf8'));
       if (existing.starred !== undefined && session.starred === undefined) session.starred = existing.starred;
       if (existing.customTitle && !session.customTitle) session.customTitle = existing.customTitle;
-    } catch { /* new session */ }
+      const changed = (existing.messages || []).length !== (session.messages || []).length;
+      session.updatedAt = changed ? new Date().toISOString() : existing.updatedAt;
+    } catch {
+      // New session
+      session.updatedAt = new Date().toISOString();
+    }
     if (!session.title && session.messages.length > 0) {
       const first = session.messages.find(m => m.role === 'user');
       session.title = first ? first.content.slice(0, 50) : 'Untitled';
