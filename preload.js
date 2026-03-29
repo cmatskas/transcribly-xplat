@@ -31,11 +31,14 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
     'create-skill', 'delete-skill', 'transcribe-media',
     'update-custom-prompt', 'validate-credentials', 'work-history-delete', 'work-history-list',
     'work-history-load', 'work-history-rename', 'work-history-save', 'work-history-star',
+    'swarm-run-pipeline', 'swarm-continue', 'swarm-cancel', 'swarm-answer-input', 'swarm-get-templates',
 ]);
 
 const ALLOWED_RECEIVE_CHANNELS = new Set([
     'agent-status', 'agent-stream-chunk', 'bedrock-stream-chunk', 'bedrock-stream-complete',
     'transcription-progress', 'app-before-quit', 'show-settings', 'update-available', 'update-downloaded',
+    'swarm-agent-started', 'swarm-agent-chunk', 'swarm-agent-done',
+    'swarm-review-pause', 'swarm-input-request', 'swarm-pipeline-done', 'swarm-error',
 ]);
 
 contextBridge.exposeInMainWorld('electronAPI', {

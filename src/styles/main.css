@@ -1894,3 +1894,21 @@ body {
     color: var(--accent-primary);
     text-decoration: underline;
 }
+
+/* ── Swarm Tab ──────────────────────────────────────── */
+.swarm-stepper { display: flex; align-items: flex-start; justify-content: center; gap: 0; padding: 1rem 0; flex-wrap: wrap; }
+.swarm-step { display: flex; flex-direction: column; align-items: center; position: relative; min-width: 90px; padding: 0 8px; }
+.swarm-step + .swarm-step::before { content: ''; position: absolute; left: -50%; top: 18px; width: 100%; height: 2px; background: var(--bs-border-color); z-index: 0; }
+.swarm-step-indicator { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 1; font-size: 0.9rem; }
+.swarm-step.pending .swarm-step-indicator { background: var(--bs-secondary-bg); color: var(--bs-secondary); }
+.swarm-step.running .swarm-step-indicator { background: #2563eb; color: white; animation: swarm-pulse 1.5s ease-in-out infinite; }
+.swarm-step.done .swarm-step-indicator { background: #16a34a; color: white; }
+.swarm-step.done + .swarm-step::before { background: #16a34a; }
+.swarm-step.paused .swarm-step-indicator { background: #d97706; color: white; }
+.swarm-step.error .swarm-step-indicator { background: #dc2626; color: white; }
+.swarm-step-label { text-align: center; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes swarm-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.4); } 50% { box-shadow: 0 0 0 8px rgba(37,99,235,0); } }
+
+.swarm-template-card { cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; }
+.swarm-template-card:hover { border-color: #2563eb; }
+.swarm-template-card.selected { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.25); }

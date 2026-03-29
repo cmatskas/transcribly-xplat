@@ -122,7 +122,7 @@ if (typeof window !== 'undefined') {
     });
 }
 
-const ALL_PAGES = ['transcribe', 'analyze', 'work', 'settings'];
+const ALL_PAGES = ['transcribe', 'analyze', 'work', 'swarm', 'settings'];
 
 function showPage(name) {
     ALL_PAGES.forEach(p => {
@@ -136,6 +136,7 @@ function showPage(name) {
 function showTranscribePage() { showPage('transcribe'); }
 function showAnalyzePage() { showPage('analyze'); }
 function showWorkPage() { showPage('work'); }
+function showSwarmPage() { showPage('swarm'); }
 function showSettingsPage() { showPage('settings'); }
 
 function downloadAnalysis() {
@@ -189,6 +190,7 @@ function copyAnalysis() {
 document.getElementById('nav-analyze').addEventListener('click', showAnalyzePage);
 document.getElementById('nav-transcribe').addEventListener('click', showTranscribePage);
 document.getElementById('nav-work').addEventListener('click', showWorkPage);
+document.getElementById('nav-swarm').addEventListener('click', showSwarmPage);
 document.getElementById('nav-settings').addEventListener('click', showSettingsPage);
 
 templateSelect.addEventListener('change', () => {
@@ -579,6 +581,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize Work tab
     if (window.WorkTab) {
         window.WorkTab.init();
+        if (window.SwarmTab) window.SwarmTab.init();
         if (window.SettingsTab) window.SettingsTab.init();
     }
 
