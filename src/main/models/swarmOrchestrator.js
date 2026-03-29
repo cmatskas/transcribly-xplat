@@ -5,6 +5,7 @@
 const { Agent, BedrockModel, tool } = require('@strands-agents/sdk');
 const { z } = require('zod');
 const { createSwarmTools } = require('./swarmTools');
+const { evaluate, decide, buildRubricPrompt, parseJudgeResponse } = require('./rubricEvaluator');
 const fs = require('fs').promises;
 const path = require('path');
 const { app } = require('electron');
@@ -61,36 +62,85 @@ class SwarmOrchestrator {
         } catch { /* no checkpoint, run agent */ }
 
         try {
-          const output = await this._runAgent(swarmId, agentConfig, previousOutput, brief, i);
+          const output = await this._runAgent(swarmId, agentConfig, previousOutput, brief, i, template.rubric);
 
           // Quality gate loop
           if (agentConfig.isQualityGate) {
-            const trimmed = output.trimStart();
-            if (trimmed.startsWith('REVISE:') || trimmed.startsWith('REVISE\n')) {
-              const maxRetries = agentConfig.maxRetries || 2;
-              const retryKey = agentConfig.id;
-              const attempts = (state.retries[retryKey] || 0) + 1;
-              state.retries[retryKey] = attempts;
+            const rubric = template.rubric;
+            const retryKey = agentConfig.id;
+            const maxRetries = agentConfig.maxRetries || 2;
+            const attempts = (state.retries[retryKey] || 0);
 
-              if (attempts < maxRetries && i >= 2) {
-                const feedback = trimmed.replace(/^REVISE:?\s*/, '').trim();
-                const prevAgent = template.agents[i - 1];
-                state.agents[i].status = 'pending';
-                state.agents[i - 1].status = 'running';
-                this.onEvent('swarm-agent-started', { swarmId, agentIndex: i - 1, role: prevAgent.id, label: `${prevAgent.label} (revision ${attempts})` });
-                const revised = await this._runAgent(swarmId, prevAgent, previousOutput + '\n\nREVISION FEEDBACK:\n' + feedback, brief, i - 1);
-                state.agents[i - 1].output = revised;
-                await this._saveCheckpoint(swarmId, i - 1, revised);
-                this.onEvent('swarm-agent-done', { swarmId, agentIndex: i - 1, output: revised });
-                previousOutput = revised;
-                i--;
-                continue;
+            if (rubric) {
+              // ── Rubric-based evaluation ──
+              // The quality gate agent was given a rubric prompt; parse its JSON scores
+              const scores = parseJudgeResponse(output);
+              if (scores) {
+                const result = evaluate(rubric.criteria, scores, rubric);
+                const decision = decide(result.score, { threshold: rubric.threshold, minPass: rubric.minPass, attempt: attempts, maxRetries });
+
+                // Persist rubric scores in state for observability
+                if (!state.rubric_scores) state.rubric_scores = {};
+                if (!state.rubric_scores[retryKey]) state.rubric_scores[retryKey] = [];
+                state.rubric_scores[retryKey].push({ attempt: attempts, score: result.score, axis_scores: result.axis_scores, decision });
+
+                if (decision === 'REVISE' && i >= 2) {
+                  state.retries[retryKey] = attempts + 1;
+                  const feedback = result.failing.map(f =>
+                    `${f.isPenalty ? 'PENALTY' : 'FAILED'}: "${f.text}" — ${f.reason}`
+                  ).join('\n');
+                  const prevAgent = template.agents[i - 1];
+                  state.agents[i].status = 'pending';
+                  state.agents[i - 1].status = 'running';
+                  this.onEvent('swarm-agent-started', { swarmId, agentIndex: i - 1, role: prevAgent.id, label: `${prevAgent.label} (revision ${attempts + 1})` });
+                  const revised = await this._runAgent(swarmId, prevAgent, previousOutput + '\n\nREVISION FEEDBACK (score: ' + result.score.toFixed(2) + '):\n' + feedback, brief, i - 1);
+                  state.agents[i - 1].output = revised;
+                  await this._saveCheckpoint(swarmId, i - 1, revised);
+                  this.onEvent('swarm-agent-done', { swarmId, agentIndex: i - 1, output: revised });
+                  previousOutput = revised;
+                  i--;
+                  continue;
+                } else if (decision === 'FAIL') {
+                  state.agents[i].status = 'error';
+                  state.status = 'error';
+                  this.onEvent('swarm-error', { swarmId, error: `Quality gate failed (score: ${result.score.toFixed(2)}, threshold: ${rubric.minPass})`, agentIndex: i });
+                  await this._saveState(swarmId, state);
+                  return;
+                }
+                // PASS or PASS_WITH_RESERVATIONS — continue
               }
-              // Max retries exceeded — pass through with whatever content follows REVISE:
-              previousOutput = trimmed.replace(/^REVISE:?\s*/, '').trim() || previousOutput;
+              // If JSON parsing failed, fall through to legacy string parsing
+              else {
+                const trimmed = output.trimStart();
+                if (trimmed.startsWith('REVISE:') || trimmed.startsWith('REVISE\n')) {
+                  previousOutput = trimmed.replace(/^REVISE:?\s*/, '').trim() || previousOutput;
+                } else {
+                  previousOutput = trimmed.replace(/^PASS\s*/, '').trim() || previousOutput;
+                }
+              }
             } else {
-              // PASS or unexpected format — strip "PASS" prefix if present, use content
-              previousOutput = trimmed.replace(/^PASS\s*/, '').trim() || previousOutput;
+              // ── Legacy string-based evaluation (no rubric defined) ──
+              const trimmed = output.trimStart();
+              if (trimmed.startsWith('REVISE:') || trimmed.startsWith('REVISE\n')) {
+                state.retries[retryKey] = attempts + 1;
+                if (attempts + 1 < maxRetries && i >= 2) {
+                  const feedback = trimmed.replace(/^REVISE:?\s*/, '').trim();
+                  const prevAgent = template.agents[i - 1];
+                  state.agents[i].status = 'pending';
+                  state.agents[i - 1].status = 'running';
+                  this.onEvent('swarm-agent-started', { swarmId, agentIndex: i - 1, role: prevAgent.id, label: `${prevAgent.label} (revision ${attempts + 1})` });
+                  const revised = await this._runAgent(swarmId, prevAgent, previousOutput + '\n\nREVISION FEEDBACK:\n' + feedback, brief, i - 1);
+                  state.agents[i - 1].output = revised;
+                  await this._saveCheckpoint(swarmId, i - 1, revised);
+                  this.onEvent('swarm-agent-done', { swarmId, agentIndex: i - 1, output: revised });
+                  previousOutput = revised;
+                  i--;
+                  continue;
+                }
+                previousOutput = trimmed.replace(/^REVISE:?\s*/, '').trim() || previousOutput;
+              } else {
+                previousOutput = trimmed.replace(/^PASS\s*/, '').trim() || previousOutput;
+              }
             }
           } else {
             previousOutput = output || previousOutput;
@@ -130,7 +180,7 @@ class SwarmOrchestrator {
     }
   }
 
-  async _runAgent(swarmId, agentConfig, input, brief, agentIndex) {
+  async _runAgent(swarmId, agentConfig, input, brief, agentIndex, rubric) {
     // Load skill bodies for this agent
     const skillBodies = [];
     for (const skillName of (agentConfig.skills || [])) {
@@ -142,7 +192,12 @@ class SwarmOrchestrator {
       ? `\n\n<active_skills>\n${skillBodies.map(s => `<skill name="${s.name}">\n${s.body}\n</skill>`).join('\n')}\n</active_skills>`
       : '';
 
-    const systemPrompt = `${agentConfig.prompt}${skillBlock}`;
+    // For rubric-based quality gates, use the structured rubric prompt
+    const basePrompt = (agentConfig.isQualityGate && rubric)
+      ? buildRubricPrompt(rubric.criteria, brief)
+      : agentConfig.prompt;
+
+    const systemPrompt = `${basePrompt}${skillBlock}`;
 
     const handoff = `<user_brief>\n${brief}\n</user_brief>\n\n<previous_output>\n${input}\n</previous_output>\n\nProceed with your task based on the above context.`;
 

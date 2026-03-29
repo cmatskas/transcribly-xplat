@@ -9,12 +9,81 @@ const MODELS = {
   nova: 'us.amazon.nova-pro-v1:0',
 };
 
+// ── Rubric definitions (binary criteria with penalties) ──────────────────────
+// Adapted from Scale AI Agentic Rubrics + Autorubric framework.
+// Positive weights reward, negative weights penalize when triggered.
+
+const RUBRICS = {
+  article: {
+    threshold: 0.75, minPass: 0.60,
+    criteria: [
+      // scope_alignment
+      { text: 'Covers all key points from the brief', weight: 3 },
+      { text: 'Within ±20% of target word count', weight: 1, canBeNA: true },
+      { text: 'No off-topic tangents or scope creep', weight: 1 },
+      // brief_fidelity
+      { text: 'Matches specified audience level and tone', weight: 3 },
+      { text: 'Includes specific data/statistics from research', weight: 2 },
+      { text: 'All claims supported by cited sources', weight: 2 },
+      // authenticity (penalties)
+      { text: 'Contains Tier 1 AI vocabulary (delve, tapestry, landscape, unleash, etc.)', weight: -3 },
+      { text: 'Contains hedge-stacking or weasel phrases', weight: -2 },
+      { text: 'Uses specific examples, not generic platitudes', weight: 2 },
+      // craft_quality
+      { text: 'Strong opening hook that earns the next paragraph', weight: 2 },
+      { text: 'Logical section flow with clear transitions', weight: 2 },
+      { text: 'Conclusion adds value (not just summary)', weight: 1 },
+      // penalties
+      { text: 'Contains filler paragraphs that could be deleted without losing meaning', weight: -2 },
+    ],
+  },
+  keynote: {
+    threshold: 0.75, minPass: 0.60,
+    criteria: [
+      { text: 'Covers the core message from the brief', weight: 3 },
+      { text: 'Appropriate slide count for time slot', weight: 2, canBeNA: true },
+      { text: 'Each slide has one clear takeaway', weight: 2 },
+      { text: 'Audience-appropriate complexity level', weight: 3 },
+      { text: 'Key data points from research included', weight: 2 },
+      { text: 'Call to action aligned with brief\'s goal', weight: 2 },
+      { text: 'Contains Tier 1 AI vocabulary', weight: -3 },
+      { text: 'Slide text is scannable (not paragraphs)', weight: 2 },
+      { text: 'Preserves intentional rhetorical devices', weight: 1 },
+      { text: 'Clear narrative arc across slides', weight: 3 },
+      { text: 'Speaker notes are conversational, not read-aloud prose', weight: 2 },
+      { text: 'Transitions between slides feel natural', weight: 1 },
+      { text: 'Contains slides that are just walls of text', weight: -2 },
+      { text: 'Speaker notes read like an essay, not spoken delivery', weight: -1 },
+    ],
+  },
+  speech: {
+    threshold: 0.75, minPass: 0.60,
+    criteria: [
+      { text: 'Addresses the core topic from the brief', weight: 3 },
+      { text: 'Fits target duration (timing marks add up)', weight: 2, canBeNA: true },
+      { text: 'Opening and closing are connected (callback)', weight: 2 },
+      { text: 'Audience-appropriate language and references', weight: 3 },
+      { text: 'Emotional register matches brief\'s intent', weight: 3 },
+      { text: 'Key message is unmistakable', weight: 2 },
+      { text: 'Contains Tier 1 AI vocabulary', weight: -2 },
+      { text: 'Sounds natural when read aloud', weight: 3 },
+      { text: 'Preserves rhetorical craft (anaphora, tricolon, etc.)', weight: 1 },
+      { text: 'Emotional arc builds and resolves', weight: 3 },
+      { text: 'Varied sentence rhythm (short punchy + longer flowing)', weight: 2 },
+      { text: 'Stage directions are practical and specific', weight: 1 },
+      { text: 'Contains passages that sound written, not spoken', weight: -2 },
+      { text: 'Contains generic motivational filler (believe in yourself, etc.)', weight: -1 },
+    ],
+  },
+};
+
 const TEMPLATES = {
   article: {
     id: 'article',
     name: 'Article / Blog Post',
     description: 'Research, outline, write, edit, and format a professional article',
     icon: 'bi-newspaper',
+    rubric: RUBRICS.article,
     agents: [
       { id: 'researcher', label: 'Researcher', model: MODELS.sonnet, skills: ['research-first', 'customer-research'], tools: ['web'],
         prompt: 'You are a research specialist. Given the user\'s topic, conduct thorough research using the web tool. Find authoritative sources, key statistics, expert opinions, and recent developments. Output a structured research brief with sections: Key Findings, Supporting Data, Source URLs, and Suggested Angles.' },
@@ -39,6 +108,7 @@ const TEMPLATES = {
     name: 'Keynote / Presentation',
     description: 'Research, outline, write speaker notes, and create a slide deck',
     icon: 'bi-easel',
+    rubric: RUBRICS.keynote,
     agents: [
       { id: 'researcher', label: 'Researcher', model: MODELS.sonnet, skills: ['research-first'], tools: ['web'],
         prompt: 'You are a presentation research specialist. Use the web tool to find compelling data points, statistics, quotes, case studies, and visual concepts for slides. Output: key statistics, memorable quotes, story angles, and visual metaphors.' },
@@ -63,6 +133,7 @@ const TEMPLATES = {
     name: 'Speech / Talk',
     description: 'Research, outline, write, and polish a speech with timing notes',
     icon: 'bi-mic',
+    rubric: RUBRICS.speech,
     agents: [
       { id: 'researcher', label: 'Researcher', model: MODELS.sonnet, skills: ['research-first'], tools: ['web'],
         prompt: 'Use the web tool to find compelling stories, anecdotes, data points, and quotes suitable for spoken delivery. Focus on emotional resonance and memorability. Output: key stories, supporting data, memorable quotes, audience engagement hooks.' },
@@ -89,4 +160,4 @@ function getAllTemplates() {
   }));
 }
 
-module.exports = { getTemplate, getAllTemplates, MODELS };
+module.exports = { getTemplate, getAllTemplates, MODELS, RUBRICS };
