@@ -187,11 +187,11 @@ function copyAnalysis() {
         });
 }
 
-document.getElementById('nav-analyze').addEventListener('click', showAnalyzePage);
-document.getElementById('nav-transcribe').addEventListener('click', showTranscribePage);
-document.getElementById('nav-work').addEventListener('click', showWorkPage);
-document.getElementById('nav-swarm').addEventListener('click', showSwarmPage);
-document.getElementById('nav-settings').addEventListener('click', showSettingsPage);
+document.getElementById('nav-analyze')?.addEventListener('click', showAnalyzePage);
+document.getElementById('nav-transcribe')?.addEventListener('click', showTranscribePage);
+document.getElementById('nav-work')?.addEventListener('click', showWorkPage);
+document.getElementById('nav-swarm')?.addEventListener('click', showSwarmPage);
+document.getElementById('nav-settings')?.addEventListener('click', showSettingsPage);
 
 templateSelect.addEventListener('change', () => {
     const selectedOption = templateSelect.options[templateSelect.selectedIndex];
