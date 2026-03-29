@@ -203,18 +203,35 @@
   function renderOutputs() {
     const container = document.getElementById('swarmOutputs');
     const entries = Object.entries(agentOutputs).sort((a, b) => a[0] - b[0]);
-    container.innerHTML = entries.map(([idx, a]) => {
-      const isActive = a.status === 'running';
-      const preview = a.text.length > 300 ? a.text.slice(0, 300) + '...' : a.text;
-      return `<div class="card mb-2">
-        <div class="card-header d-flex justify-content-between align-items-center py-2" data-bs-toggle="collapse" data-bs-target="#swarmOutput${idx}" style="cursor:pointer;">
-          <span class="small"><strong>${esc(a.label)}</strong> ${a.status === 'done' ? '<i class="bi bi-check-circle text-success ms-1"></i>' : a.status === 'running' ? '<span class="spinner-border spinner-border-sm ms-1"></span>' : a.status === 'error' ? '<i class="bi bi-x-circle text-danger ms-1"></i>' : ''}</span>
-        </div>
-        <div id="swarmOutput${idx}" class="collapse ${isActive ? 'show' : ''}">
-          <div class="card-body small" style="max-height:400px;overflow-y:auto;white-space:pre-wrap;font-family:monospace;font-size:0.8rem;" id="swarmOutputBody${idx}">${esc(isActive ? a.text : preview)}</div>
-        </div>
-      </div>`;
-    }).join('');
+
+    for (const [idx, a] of entries) {
+      let card = document.getElementById(`swarmCard${idx}`);
+      if (!card) {
+        card = document.createElement('div');
+        card.id = `swarmCard${idx}`;
+        card.className = 'card mb-2';
+        const isActive = a.status === 'running';
+        card.innerHTML = `
+          <div class="card-header d-flex justify-content-between align-items-center py-2" data-bs-toggle="collapse" data-bs-target="#swarmOutput${idx}" style="cursor:pointer;">
+            <span class="small" id="swarmCardHeader${idx}"></span>
+          </div>
+          <div id="swarmOutput${idx}" class="collapse ${isActive ? 'show' : ''}">
+            <div class="card-body small" style="max-height:400px;overflow-y:auto;white-space:pre-wrap;font-family:monospace;font-size:0.8rem;" id="swarmOutputBody${idx}"></div>
+          </div>`;
+        container.appendChild(card);
+      }
+      // Update header status
+      const statusIcon = a.status === 'done' ? '<i class="bi bi-check-circle text-success ms-1"></i>'
+        : a.status === 'running' ? '<span class="spinner-border spinner-border-sm ms-1"></span>'
+        : a.status === 'error' ? '<i class="bi bi-x-circle text-danger ms-1"></i>' : '';
+      const header = document.getElementById(`swarmCardHeader${idx}`);
+      if (header) header.innerHTML = `<strong>${esc(a.label)}</strong> ${statusIcon}`;
+      // Update body only if not actively streaming (chunks handled by updateActiveOutput)
+      if (a.status !== 'running') {
+        const body = document.getElementById(`swarmOutputBody${idx}`);
+        if (body) body.textContent = a.text.length > 300 ? a.text.slice(0, 300) + '...' : a.text;
+      }
+    }
   }
 
   function updateActiveOutput(agentIndex) {

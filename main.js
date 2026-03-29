@@ -621,7 +621,7 @@ ipcMain.handle('create-skill', async (event, { name, content }) => {
 function ensureSwarmOrchestrator() {
   if (!swarmOrchestrator) {
     swarmOrchestrator = new SwarmOrchestrator({
-      bedrockClient: awsClients.bedrock,
+      awsConfig: awsClients.agentCoreConfig,
       skillsManager,
       onEvent: (channel, data) => { if (mainWindow) mainWindow.webContents.send(channel, data); },
     });
@@ -632,6 +632,7 @@ function ensureSwarmOrchestrator() {
 ipcMain.handle('swarm-get-templates', async () => getAllTemplates());
 
 ipcMain.handle('swarm-run-pipeline', async (event, { templateId, brief, autonomyMode, files }) => {
+  if (!awsClients.bedrock) throw new Error('AWS credentials not configured');
   const orch = ensureSwarmOrchestrator();
   const template = getTemplate(templateId);
   if (!template) throw new Error(`Unknown template: ${templateId}`);

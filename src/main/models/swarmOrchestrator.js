@@ -2,20 +2,20 @@
  * SwarmOrchestrator — runs multi-agent pipelines using Strands Graph pattern.
  * Handles checkpoint persistence, quality gate loops, autonomy modes, and IPC streaming.
  */
-const { Agent, BedrockModel, Graph, tool } = require('@strands-agents/sdk');
+const { Agent, BedrockModel, tool } = require('@strands-agents/sdk');
 const { z } = require('zod');
 const fs = require('fs').promises;
 const path = require('path');
 const { app } = require('electron');
 
 class SwarmOrchestrator {
-  constructor({ bedrockClient, skillsManager, onEvent }) {
-    this.credentials = bedrockClient.config;
+  constructor({ awsConfig, skillsManager, onEvent }) {
+    this.awsConfig = awsConfig;
     this.skills = skillsManager;
     this.onEvent = onEvent || (() => {});
-    this.runs = new Map(); // swarmId → { aborted, state }
+    this.runs = new Map();
     this.runsDir = path.join(app.getPath('userData'), 'swarm-runs');
-    this._pendingInput = new Map(); // swarmId → { resolve }
+    this._pendingInput = new Map();
   }
 
   async runPipeline(swarmId, template, brief, autonomyMode, files) {
@@ -161,7 +161,8 @@ class SwarmOrchestrator {
 
     const model = new BedrockModel({
       modelId: agentConfig.model,
-      region: this.credentials?.region || 'us-east-1',
+      region: this.awsConfig.region,
+      credentials: this.awsConfig.credentials,
     });
 
     const agent = new Agent({ model, systemPrompt, tools, id: agentConfig.id });
@@ -169,9 +170,12 @@ class SwarmOrchestrator {
     let fullText = '';
     for await (const event of agent.stream(handoff)) {
       if (this.runs.get(swarmId)?.aborted) throw new Error('Pipeline cancelled');
-      if (event.type === 'contentBlockDelta' && event.data?.delta?.text) {
-        fullText += event.data.delta.text;
-        this.onEvent('swarm-agent-chunk', { swarmId, agentIndex, chunk: event.data.delta.text });
+      if (event.type === 'modelStreamUpdateEvent') {
+        const inner = event.event;
+        if (inner.type === 'contentBlockDelta' && inner.data?.delta?.type === 'textDelta') {
+          fullText += inner.data.delta.text;
+          this.onEvent('swarm-agent-chunk', { swarmId, agentIndex, chunk: inner.data.delta.text });
+        }
       }
     }
     return fullText;
