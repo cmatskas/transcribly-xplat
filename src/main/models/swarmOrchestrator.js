@@ -180,8 +180,10 @@ class SwarmOrchestrator {
 
     const model = new BedrockModel({
       modelId: agentConfig.model,
-      region: this.awsConfig.region,
-      credentials: this.awsConfig.credentials,
+      clientConfig: {
+        region: this.awsConfig.region,
+        credentials: this.awsConfig.credentials,
+      },
     });
 
     const agent = new Agent({ model, systemPrompt, tools, id: agentConfig.id });
