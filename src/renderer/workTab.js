@@ -352,6 +352,10 @@
   }
 
   function startNewChat() {
+    // Stash draft prompt from current session
+    const promptInput = document.getElementById('workPromptEditor');
+    getActiveSession().draftPrompt = promptInput.value;
+
     saveSession(activeSessionId, getActiveSession().messages);
     if (getActiveSession().messages.length > 0) {
       window.electronAPI.invoke('memory-extract', { sessionId: activeSessionId }).catch(() => {});
@@ -364,6 +368,8 @@
         <div class="work-greeting-text">What can I help you build today?</div>
       </div>`;
     showSession(newId);
+    promptInput.value = '';
+    promptInput.style.height = 'auto';
     refreshSidebar();
   }
 
@@ -434,12 +440,16 @@
   async function switchToSession(id) {
     if (id === activeSessionId) return;
 
-    // Save current session
+    // Save current session + stash draft prompt
+    const promptInput = document.getElementById('workPromptEditor');
+    getActiveSession().draftPrompt = promptInput.value;
     saveSession(activeSessionId, getActiveSession().messages);
 
     // If target session is already in memory (live DOM), just swap
     if (sessions.has(id)) {
       showSession(id);
+      promptInput.value = sessions.get(id).draftPrompt || '';
+      promptInput.style.height = 'auto';
       refreshSidebar();
       return;
     }
@@ -459,6 +469,8 @@
         });
       });
       showSession(id);
+      promptInput.value = '';
+      promptInput.style.height = 'auto';
       getHost().scrollTop = getHost().scrollHeight;
       refreshSidebar();
     } catch (err) {
