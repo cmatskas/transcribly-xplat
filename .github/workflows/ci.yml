@@ -12,7 +12,7 @@ jobs:
     
     strategy:
       matrix:
-        node-version: [18.x, 20.x, 22.x]
+        node-version: [20.x, 22.x]
     
     steps:
     - uses: actions/checkout@v4
@@ -26,4 +26,4 @@ jobs:
       run: npm install
     
     - name: Run unit tests
-      run: npm test -- --testPathIgnorePatterns="modalManager|themeManager|conversationManager" --testNamePattern="^((?!transcription|knowledge|Knowledge Base|Upload File|Download|Copy|download|copy).)*$"
+      run: npm test
