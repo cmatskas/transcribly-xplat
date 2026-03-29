@@ -4,14 +4,18 @@
  */
 const { Agent, BedrockModel, tool } = require('@strands-agents/sdk');
 const { z } = require('zod');
+const { createSwarmTools } = require('./swarmTools');
 const fs = require('fs').promises;
 const path = require('path');
 const { app } = require('electron');
 
 class SwarmOrchestrator {
-  constructor({ awsConfig, skillsManager, onEvent }) {
+  constructor({ awsConfig, skillsManager, codeInterpreterManager, browserManager, settings, onEvent }) {
     this.awsConfig = awsConfig;
     this.skills = skillsManager;
+    this.codeInterpreter = codeInterpreterManager;
+    this.browser = browserManager;
+    this.settings = settings;
     this.onEvent = onEvent || (() => {});
     this.runs = new Map();
     this.runsDir = path.join(app.getPath('userData'), 'swarm-runs');
@@ -142,8 +146,12 @@ class SwarmOrchestrator {
 
     const handoff = `<user_brief>\n${brief}\n</user_brief>\n\n<previous_output>\n${input}\n</previous_output>\n\nProceed with your task based on the above context.`;
 
-    // Build tools — include request_input for non-quality-gate agents
-    const tools = [];
+    // Build tools — platform tools from template config + request_input for non-quality-gate agents
+    const tools = createSwarmTools(
+      { codeInterpreterManager: this.codeInterpreter, browserManager: this.browser, settings: this.settings, onStatus: (msg) => this.onEvent('swarm-agent-chunk', { swarmId, agentIndex, chunk: `\n🔧 ${msg}\n` }) },
+      agentConfig.tools || []
+    );
+
     if (!agentConfig.isQualityGate) {
       const self = this;
       const sid = swarmId;

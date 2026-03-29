@@ -623,6 +623,9 @@ function ensureSwarmOrchestrator() {
     swarmOrchestrator = new SwarmOrchestrator({
       awsConfig: awsClients.agentCoreConfig,
       skillsManager,
+      codeInterpreterManager: new (require('./src/main/models/codeInterpreterManager'))(awsClients.agentCoreConfig),
+      browserManager: new (require('./src/main/models/browserManager'))(awsClients.agentCoreConfig),
+      settings: {},
       onEvent: (channel, data) => { if (mainWindow) mainWindow.webContents.send(channel, data); },
     });
   }
