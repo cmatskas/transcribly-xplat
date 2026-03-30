@@ -145,7 +145,26 @@ const TEMPLATES = {
       { id: 'quality-gate-2', label: 'Final Check', model: "creator", tools: [], isQualityGate: true, maxRetries: 2, skills: ['copy-editing'],
         prompt: 'Evaluate the edited article using the de-slop checklist from your copy-editing skill. Check: (1) addresses the brief, (2) free of all 22 AI slop patterns, (3) specific not generic, (4) right length/depth. If ALL pass: respond with "PASS" then the article unchanged. If ANY fail: respond with "REVISE:" then specific feedback referencing which patterns were found.' },
       { id: 'formatter', label: 'Formatter', model: "formatter", skills: ['docx'], tools: ['execute_code', 'save_file_locally'],
-        prompt: 'Format the final article as a professional Word document (.docx) with: title, heading hierarchy, styled paragraphs, and page numbers. Use execute_code to run python-docx code and save to /tmp/output.docx in the sandbox. Then call save_file_locally with sandbox_path=/tmp/output.docx and a local_path under the user\'s home ~/Documents/Transcribely/ with a descriptive filename. Tell the user the exact local path where the file was saved.' },
+        prompt: `You are a document formatter. Your ONLY job is to convert the final article into a .docx file and save it locally.
+
+You MUST follow these steps exactly:
+
+STEP 1: Call execute_code with a SINGLE Python script that:
+- Starts with: subprocess.check_call(['pip', 'install', '-q', 'python-docx', 'lxml'])
+- Creates the document using python-docx
+- Includes a header with the document title (right-aligned, 9pt, grey)
+- Includes a footer with "Amazon Confidential" on the left and page number on the right
+- Adds line numbers to all sections
+- Formats the content with proper heading hierarchy (Heading 1, Heading 2, etc.)
+- Uses styled paragraphs, bullet lists (style='List Bullet'), and tables where appropriate
+- Saves to /tmp/output.docx
+- Prints "SAVED: /tmp/output.docx" at the end
+
+STEP 2: Call save_file_locally with:
+- sandbox_path: /tmp/output.docx
+- local_path: ~/Documents/Transcribely/<descriptive_filename>.docx
+
+CRITICAL: Do NOT describe what you would do. Do NOT skip the execute_code call. Do NOT hallucinate file paths. Execute the code, then save the file. These are the only two actions you take.` },
     ],
     edges: [['researcher','planner'],['planner','quality-gate-1'],['quality-gate-1','writer'],['writer','editor'],['editor','quality-gate-2'],['quality-gate-2','formatter']],
   },
@@ -170,7 +189,25 @@ const TEMPLATES = {
       { id: 'quality-gate-2', label: 'Final Check', model: "creator", tools: [], isQualityGate: true, maxRetries: 2, skills: ['copy-editing'],
         prompt: 'Evaluate using the de-slop checklist at creative/inspirational register. Check: (1) addresses brief, (2) no Tier 1 AI vocabulary, (3) slides scannable, (4) speaker notes conversational. Preserve intentional rhetorical devices. If ALL pass: "PASS" then content unchanged. If ANY fail: "REVISE:" then feedback referencing specific patterns.' },
       { id: 'formatter', label: 'Slide Creator', model: "formatter", skills: ['pptx'], tools: ['execute_code', 'save_file_locally'],
-        prompt: 'Create a professional PowerPoint (.pptx) from the final slides and notes. Use execute_code to run python-pptx code with clean modern layout, consistent fonts, proper slide masters, speaker notes. Save to /tmp/output.pptx in the sandbox. Then call save_file_locally with sandbox_path=/tmp/output.pptx and a local_path under the user\'s home ~/Documents/Transcribely/ with a descriptive filename. Tell the user the exact local path where the file was saved.' },
+        prompt: `You are a presentation formatter. Your ONLY job is to convert the final slides into a .pptx file and save it locally.
+
+You MUST follow these steps exactly:
+
+STEP 1: Call execute_code with a SINGLE Python script that:
+- Starts with: subprocess.check_call(['pip', 'install', '-q', 'python-pptx'])
+- Creates a 16:9 widescreen presentation using python-pptx
+- Uses blank slide layouts and positions shapes manually for a clean modern look
+- Dark background (RGB 20, 24, 34), white text, accent colors for emphasis
+- Each slide has: title, content area, speaker notes (from the notes in the input)
+- Every slide footer: "Amazon Confidential" left-aligned, slide number right-aligned
+- Saves to /tmp/output.pptx
+- Prints "SAVED: /tmp/output.pptx" at the end
+
+STEP 2: Call save_file_locally with:
+- sandbox_path: /tmp/output.pptx
+- local_path: ~/Documents/Transcribely/<descriptive_filename>.pptx
+
+CRITICAL: Do NOT describe what you would do. Do NOT skip the execute_code call. Do NOT hallucinate file paths. Execute the code, then save the file. These are the only two actions you take.` },
     ],
     edges: [['researcher','planner'],['planner','quality-gate-1'],['quality-gate-1','writer'],['writer','editor'],['editor','quality-gate-2'],['quality-gate-2','formatter']],
   },
@@ -216,7 +253,26 @@ const TEMPLATES = {
       { id: 'editor', label: 'Editor', model: "worker", skills: ['copy-editing', 'demo-storyboard', 'analysis-framework'], tools: [],
         prompt: 'Apply the Eight Sweeps framework plus Sweep 9 (AWS Reference Audit). For demo storyboards specifically: verify all callouts are specific (not vague), narration sounds natural when spoken aloud, scene durations are realistic, click paths are explicit, and data shown is realistic. Check that no scene exceeds 30 seconds. Verify that frame references (if present) point to actual /tmp/frames/ paths from the analysis. Strip AI vocabulary. Output the complete polished storyboard.' },
       { id: 'formatter', label: 'Deck Creator', model: "formatter", skills: ['pptx'], tools: ['execute_code', 'save_file_locally'],
-        prompt: 'Create a professional storyboard deck (.pptx) from the final scene cards. Each slide = one scene card with: scene number and title as heading. If a scene references a frame image path (e.g. /tmp/frames/frame_0005_0010.jpg), embed it on the slide using prs.slides[-1].shapes.add_picture(path, ...). Add narration text below the image, callout notes in a text box, duration and transition in the footer. Use a clean dark layout. Save to /tmp/output.pptx in the sandbox. Then call save_file_locally with sandbox_path=/tmp/output.pptx and a local_path under the user\'s home ~/Documents/Transcribely/ with a descriptive filename. Tell the user the exact local path where the file was saved.' },
+        prompt: `You are a storyboard deck formatter. Your ONLY job is to convert the final scene cards into a .pptx file and save it locally.
+
+You MUST follow these steps exactly:
+
+STEP 1: Call execute_code with a SINGLE Python script that:
+- Starts with: subprocess.check_call(['pip', 'install', '-q', 'python-pptx'])
+- Creates a 16:9 widescreen presentation using python-pptx
+- Uses blank slide layouts and positions shapes manually
+- Dark background (RGB 20, 24, 34), white text, orange accents
+- One slide per scene card: scene number + title as heading, visual description, narration text, callout notes, duration + transition in footer area
+- If frame image paths are referenced (e.g. /tmp/frames/frame_0005_0010.jpg), check if the file exists with os.path.exists() before embedding with add_picture(). Skip missing images gracefully.
+- Every slide footer: "Amazon Confidential" left-aligned, slide number right-aligned
+- Saves to /tmp/output.pptx
+- Prints "SAVED: /tmp/output.pptx" at the end
+
+STEP 2: Call save_file_locally with:
+- sandbox_path: /tmp/output.pptx
+- local_path: ~/Documents/Transcribely/<descriptive_filename>.pptx
+
+CRITICAL: Do NOT describe what you would do. Do NOT skip the execute_code call. Do NOT hallucinate file paths. Execute the code, then save the file. These are the only two actions you take.` },
     ],
     edges: [['analyst','planner'],['planner','quality-gate-1'],['quality-gate-1','writer'],['writer','editor'],['editor','formatter']],
   },

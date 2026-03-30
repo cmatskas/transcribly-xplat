@@ -172,6 +172,14 @@ class SwarmOrchestrator {
             if (output) previousOutput = output;
           }
 
+          // Verify formatter agents actually saved a file locally
+          if (agentConfig.id === 'formatter' && output) {
+            const saved = await this._verifyLocalSave(swarmId, i, output);
+            if (saved) {
+              previousOutput = output + `\n\n✅ File verified at: ${saved}`;
+            }
+          }
+
           state.agents[i].status = 'done';
           state.agents[i].output = previousOutput;
           await this._saveCheckpoint(swarmId, i, previousOutput);
@@ -447,6 +455,28 @@ class SwarmOrchestrator {
       return `s3://${bucket}/${key}`;
     } catch (err) {
       this.onEvent('swarm-agent-chunk', { swarmId, agentIndex: 0, chunk: `\n⚠️ S3 upload failed: ${err.message}\n` });
+      return null;
+    }
+  }
+
+  async _verifyLocalSave(swarmId, agentIndex, output) {
+    try {
+      const fsLocal = require('fs').promises;
+      const os = require('os');
+      const home = os.homedir();
+      // Look for ~/Documents/Transcribely/*.docx or *.pptx in the output
+      const pathMatch = output.match(/~\/Documents\/Transcribely\/[^\s"'`]+\.(docx|pptx|xlsx)/i)
+        || output.match(new RegExp(home.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/Documents/Transcribely/[^\\s"\'`]+\\.(docx|pptx|xlsx)', 'i'));
+      if (!pathMatch) {
+        this.onEvent('swarm-agent-chunk', { swarmId, agentIndex, chunk: '\n⚠️ Formatter did not report a local file path.\n' });
+        return null;
+      }
+      const filePath = pathMatch[0].replace('~', home);
+      const stat = await fsLocal.stat(filePath);
+      this.onEvent('swarm-agent-chunk', { swarmId, agentIndex, chunk: `\n✅ Verified: ${filePath} (${(stat.size / 1024).toFixed(1)} KB)\n` });
+      return filePath;
+    } catch {
+      this.onEvent('swarm-agent-chunk', { swarmId, agentIndex, chunk: '\n❌ File was NOT saved to local machine. The formatter agent may have failed silently.\n' });
       return null;
     }
   }
