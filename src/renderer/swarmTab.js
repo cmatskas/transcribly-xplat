@@ -7,6 +7,7 @@
   let activeTemplate = null;
   let agentOutputs = {};
   let pendingInputRequest = null;
+  let swarmFiles = [];  // { name, path, size }
 
   function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
@@ -36,6 +37,42 @@
     document.getElementById('swarmCancelBtn').addEventListener('click', cancelPipeline);
     document.getElementById('swarmInputAnswerBtn').addEventListener('click', answerInput);
     document.getElementById('swarmInputDefaultBtn').addEventListener('click', answerInputDefault);
+
+    // File attachments
+    document.getElementById('swarmAttachBtn').addEventListener('click', () => {
+      const menu = document.getElementById('swarmAttachMenu');
+      menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+    });
+    document.getElementById('swarmAttachFiles').addEventListener('click', () => {
+      document.getElementById('swarmAttachMenu').style.display = 'none';
+      document.getElementById('swarmFileInput').click();
+    });
+    document.getElementById('swarmFileInput').addEventListener('change', (e) => {
+      for (const f of e.target.files) {
+        if (!swarmFiles.find(sf => sf.path === f.path)) {
+          swarmFiles.push({ name: f.name, path: f.path, size: f.size });
+        }
+      }
+      e.target.value = '';
+      renderSwarmFiles();
+    });
+    document.getElementById('swarmWorkspaceBtn').addEventListener('click', async () => {
+      document.getElementById('swarmAttachMenu').style.display = 'none';
+      const dir = await window.electronAPI.invoke('select-directory');
+      if (dir) {
+        swarmFiles.push({ name: `📁 ${dir.split('/').pop()}`, path: dir, size: 0, isDir: true });
+        renderSwarmFiles();
+      }
+    });
+    document.getElementById('swarmClearFiles').addEventListener('click', () => {
+      swarmFiles = [];
+      renderSwarmFiles();
+    });
+    // Close attach menu on outside click
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('swarmAttachMenu');
+      if (menu && !e.target.closest('.attach-menu-wrap')) menu.style.display = 'none';
+    });
     document.getElementById('swarmNewRunBtn').addEventListener('click', resetToTemplates);
 
     // Auto-expand textarea
@@ -63,8 +100,29 @@
     document.getElementById('swarmTemplates').style.display = 'none';
     document.getElementById('swarmBriefSection').style.display = '';
     document.getElementById('swarmStepper').style.display = 'none';
-    document.getElementById('swarmStatusBar').style.display = 'none';
+    document.getElementById('swarmOutputs').innerHTML = '';
+    document.getElementById('swarmDonePanel').style.display = 'none';
+    document.getElementById('swarmBriefDisplay').style.display = 'none';
+    clearStatus();
     document.getElementById('swarmTemplateName').textContent = activeTemplate.name;
+  }
+
+  function renderSwarmFiles() {
+    const list = document.getElementById('swarmFileList');
+    const items = document.getElementById('swarmFileItems');
+    const count = document.getElementById('swarmFileCount');
+    if (!swarmFiles.length) { list.style.display = 'none'; return; }
+    list.style.display = '';
+    count.textContent = swarmFiles.length;
+    items.innerHTML = swarmFiles.map((f, i) =>
+      `<div class="d-flex align-items-center justify-content-between small py-1">
+        <span><i class="bi ${f.isDir ? 'bi-folder' : 'bi-file-earmark'} me-1"></i>${esc(f.name)}</span>
+        <button class="btn btn-sm btn-link text-danger p-0 swarm-file-remove" data-idx="${i}"><i class="bi bi-x"></i></button>
+      </div>`
+    ).join('');
+    items.querySelectorAll('.swarm-file-remove').forEach(btn => {
+      btn.addEventListener('click', () => { swarmFiles.splice(parseInt(btn.dataset.idx), 1); renderSwarmFiles(); });
+    });
   }
 
   function resetToTemplates() {
@@ -81,6 +139,8 @@
     document.getElementById('swarmBriefDisplay').style.display = 'none';
     document.getElementById('swarmBrief').value = '';
     document.getElementById('swarmBrief').style.height = 'auto';
+    swarmFiles = [];
+    renderSwarmFiles();
     clearStatus();
   }
 
@@ -94,6 +154,7 @@
     try {
       const { swarmId } = await window.electronAPI.invoke('swarm-run-pipeline', {
         templateId: activeTemplate.id, brief, autonomyMode,
+        files: swarmFiles.map(f => ({ name: f.name, path: f.path, isDir: f.isDir || false })),
       });
       activeSwarmId = swarmId;
       agentOutputs = {};

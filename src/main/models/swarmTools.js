@@ -15,7 +15,7 @@ function createSwarmTools({ codeInterpreterManager, browserManager, settings, on
         try {
           if (!codeInterpreterManager.sessionId) {
             onStatus?.('Starting sandbox...');
-            await codeInterpreterManager.startSession();
+            await codeInterpreterManager.startSession(7200);
           }
           const result = await codeInterpreterManager.executeCode(input.code);
           if (!result.success) return JSON.stringify({ error: result.errors.join('\n'), output: result.text });
@@ -62,7 +62,7 @@ function createSwarmTools({ codeInterpreterManager, browserManager, settings, on
       callback: async (input) => {
         const fs = require('fs').promises;
         const content = await fs.readFile(input.local_path);
-        if (!codeInterpreterManager.sessionId) await codeInterpreterManager.startSession();
+        if (!codeInterpreterManager.sessionId) await codeInterpreterManager.startSession(7200);
         await codeInterpreterManager.uploadFile(input.sandbox_path, content);
         return `Uploaded ${input.local_path} to sandbox at ${input.sandbox_path}`;
       },

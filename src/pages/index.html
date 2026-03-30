@@ -266,25 +266,49 @@
                 <div id="swarmTemplates" class="row g-3 mb-4"></div>
 
                 <!-- Brief Input -->
-                <div id="swarmBriefSection" class="card mb-4" style="display:none;">
-                    <div class="card-body">
-                        <h6 class="mb-3" id="swarmTemplateName"></h6>
-                        <div class="mb-3">
-                            <label class="form-label">What do you want to create?</label>
-                            <textarea id="swarmBrief" class="form-control swarm-brief-auto" rows="3" placeholder="Describe your topic, audience, tone, length, and any specific requirements..."></textarea>
+                <div id="swarmBriefSection" style="display:none;">
+                    <button class="swarm-back-btn mb-3" id="swarmBackBtn"><i class="bi bi-arrow-left me-1"></i>Back to templates</button>
+                    <h6 class="mb-3" id="swarmTemplateName"></h6>
+
+                    <div class="work-input-card">
+                        <!-- File list inside the card -->
+                        <div id="swarmFileList" style="display:none; border-bottom: 1px solid var(--border-primary); padding-bottom: 8px; margin-bottom: 8px;">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small text-muted"><i class="bi bi-files me-1"></i>Files (<span id="swarmFileCount">0</span>)</span>
+                                <button type="button" class="btn btn-sm btn-link text-danger p-0" id="swarmClearFiles"><i class="bi bi-trash"></i></button>
+                            </div>
+                            <div id="swarmFileItems"></div>
                         </div>
-                        <div class="d-flex align-items-center gap-3">
-                            <div>
-                                <label class="form-label small mb-1">Supervision</label>
-                                <select id="swarmAutonomy" class="form-select form-select-sm" style="width:160px;">
+
+                        <input type="file" class="d-none" id="swarmFileInput" multiple>
+
+                        <textarea class="work-textarea swarm-brief-auto" id="swarmBrief" rows="2"
+                            placeholder="Describe your topic, audience, tone, length, and any specific requirements..."></textarea>
+                        <div class="work-input-toolbar">
+                            <div class="d-flex align-items-center gap-1">
+                                <div class="attach-menu-wrap">
+                                    <button id="swarmAttachBtn" class="work-tool-btn" title="Attach files or select workspace">
+                                        <i class="bi bi-plus-lg"></i>
+                                    </button>
+                                    <div class="attach-menu" id="swarmAttachMenu">
+                                        <button class="attach-menu-item" id="swarmAttachFiles">
+                                            <i class="bi bi-paperclip me-2"></i>Attach files
+                                        </button>
+                                        <button class="attach-menu-item" id="swarmWorkspaceBtn">
+                                            <i class="bi bi-folder2-open me-2"></i>Select workspace
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="work-toolbar-right">
+                                <select class="work-model-pill" id="swarmAutonomy">
                                     <option value="supervised">Supervised</option>
                                     <option value="guided" selected>Guided</option>
                                     <option value="autonomous">Autonomous</option>
                                 </select>
-                            </div>
-                            <div class="ms-auto d-flex gap-2">
-                                <button class="btn btn-outline-secondary btn-sm" id="swarmBackBtn">Back</button>
-                                <button class="btn btn-primary" id="swarmStartBtn"><i class="bi bi-play-fill me-1"></i>Start Swarm</button>
+                                <button id="swarmStartBtn" class="work-send-btn" title="Start Swarm">
+                                    <i class="bi bi-play-fill"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -367,6 +391,9 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#" data-settings-tab="models">Models</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-settings-tab="analytics">Analytics</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#" data-settings-tab="skills">Skills</a>
@@ -569,6 +596,20 @@
                             <div class="col-md-2">
                                 <button class="btn btn-primary btn-sm w-100" id="addModelBtn"><i class="bi bi-plus-lg me-1"></i>Add</button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics Tab -->
+                <div id="settings-analytics" class="settings-tab-content" style="display:none;">
+                    <div class="mb-3">
+                        <h6 class="mb-0"><i class="bi bi-graph-up me-2"></i>Quality Analytics</h6>
+                        <small class="text-muted">Pipeline performance across all swarm runs</small>
+                    </div>
+                    <div id="analyticsContent">
+                        <div class="text-center text-muted py-5">
+                            <i class="bi bi-hourglass-split fs-1 d-block mb-2"></i>
+                            Loading analytics...
                         </div>
                     </div>
                 </div>

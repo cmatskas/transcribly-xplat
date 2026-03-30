@@ -26,6 +26,8 @@ class SwarmOrchestrator {
   async runPipeline(swarmId, template, brief, autonomyMode, files) {
     const state = {
       swarmId, status: 'running', autonomyMode,
+      templateId: template.id, templateName: template.name,
+      startedAt: new Date().toISOString(),
       agents: template.agents.map(a => ({ id: a.id, label: a.label, status: 'pending', output: null })),
       currentIndex: 0, brief, retries: {},
     };
@@ -40,7 +42,18 @@ class SwarmOrchestrator {
         state.retries = persisted.retries || {};
       } catch { /* fresh run */ }
 
-      let previousOutput = brief;
+      // Adaptive learning: gather historical feedback + adapt rubric to brief
+      const historicalFeedback = await this._getHistoricalFeedback(template.id);
+      const adaptedRubric = template.rubric ? await this._adaptRubric(template.rubric, brief) : null;
+
+      // Upload attached files to sandbox
+      let fileContext = '';
+      if (files && files.length > 0) {
+        await this._uploadFilesToSandbox(files, swarmId);
+        fileContext = `\n\nAttached files available in the sandbox at /tmp/:\n${files.map(f => `- /tmp/${f.name}${f.isDir ? ' (workspace directory)' : ''}`).join('\n')}`;
+      }
+
+      let previousOutput = brief + fileContext;
 
       for (let i = 0; i < template.agents.length; i++) {
         if (this.runs.get(swarmId)?.aborted) { state.status = 'cancelled'; break; }
@@ -62,7 +75,7 @@ class SwarmOrchestrator {
         } catch { /* no checkpoint, run agent */ }
 
         try {
-          const output = await this._runAgent(swarmId, agentConfig, previousOutput, brief, i, template.rubric);
+          const output = await this._runAgent(swarmId, agentConfig, previousOutput, brief, i, adaptedRubric || template.rubric, historicalFeedback);
 
           // Quality gate loop
           if (agentConfig.isQualityGate) {
@@ -172,7 +185,10 @@ class SwarmOrchestrator {
       }
 
       if (state.status !== 'cancelled') state.status = 'completed';
+      state.completedAt = new Date().toISOString();
       await this._saveState(swarmId, state);
+      // Clean up checkpoint files — state.json has all we need for analytics
+      this._cleanupOutputFiles(swarmId).catch(() => {});
       this.onEvent('swarm-pipeline-done', { swarmId, finalOutput: previousOutput });
     } catch (err) {
       state.status = 'error';
@@ -180,7 +196,7 @@ class SwarmOrchestrator {
     }
   }
 
-  async _runAgent(swarmId, agentConfig, input, brief, agentIndex, rubric) {
+  async _runAgent(swarmId, agentConfig, input, brief, agentIndex, rubric, historicalFeedback) {
     // Load skill bodies for this agent
     const skillBodies = [];
     for (const skillName of (agentConfig.skills || [])) {
@@ -192,12 +208,17 @@ class SwarmOrchestrator {
       ? `\n\n<active_skills>\n${skillBodies.map(s => `<skill name="${s.name}">\n${s.body}\n</skill>`).join('\n')}\n</active_skills>`
       : '';
 
+    // Inject historical feedback for writer/editor agents (not quality gates, not researcher/planner/formatter)
+    const feedbackBlock = (historicalFeedback && ['writer', 'editor'].includes(agentConfig.id))
+      ? `\n\n${historicalFeedback}`
+      : '';
+
     // For rubric-based quality gates, use the structured rubric prompt
     const basePrompt = (agentConfig.isQualityGate && rubric)
       ? buildRubricPrompt(rubric.criteria, brief)
       : agentConfig.prompt;
 
-    const systemPrompt = `${basePrompt}\n\n<user_brief>\n${brief}\n</user_brief>${skillBlock}`;
+    const systemPrompt = `${basePrompt}\n\n<user_brief>\n${brief}\n</user_brief>${skillBlock}${feedbackBlock}`;
 
     // User message is just the previous agent's output — brief is in system prompt
     const handoff = input === brief
@@ -307,6 +328,156 @@ class SwarmOrchestrator {
 
   async _ensureDir(dir) {
     await fs.mkdir(dir, { recursive: true }).catch(() => {});
+  }
+
+  async _cleanupOutputFiles(swarmId) {
+    const dir = path.join(this.runsDir, swarmId);
+    const files = await fs.readdir(dir);
+    for (const f of files) {
+      if (f.endsWith('-output.md')) await fs.unlink(path.join(dir, f)).catch(() => {});
+    }
+  }
+
+  // ── Adaptive Learning ─────────────────────────────────
+
+  async _uploadFilesToSandbox(files, swarmId) {
+    if (!this.codeInterpreter.sessionId) {
+      this.onEvent('swarm-agent-chunk', { swarmId, agentIndex: 0, chunk: '\n🔧 Starting sandbox for file uploads...\n' });
+      await this.codeInterpreter.startSession(7200);
+    }
+    const fsLocal = require('fs').promises;
+    const pathMod = require('path');
+
+    const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'out', '.cache', 'target', '__pycache__', '.next', '.venv', 'env', '.env', '.tox', 'coverage', '.nyc_output']);
+    const ALLOWED_EXT = new Set([
+      // text & docs
+      '.txt', '.md', '.csv', '.json', '.yaml', '.yml', '.xml', '.html', '.htm', '.pdf', '.docx', '.pptx', '.xlsx', '.rtf',
+      // code
+      '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.go', '.rs', '.rb', '.php', '.c', '.cpp', '.h', '.cs', '.swift', '.kt', '.sh', '.bash', '.sql', '.r',
+      // config
+      '.toml', '.ini', '.cfg', '.env', '.properties', '.tf', '.hcl',
+      // image
+      '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico',
+      // video & audio
+      '.mp4', '.mov', '.avi', '.webm', '.mkv', '.mp3', '.wav', '.m4a',
+    ]);
+    const MAX_FILES = 50;
+
+    let uploaded = 0;
+    for (const f of files) {
+      try {
+        if (f.isDir) {
+          const collected = [];
+          const scan = async (dir) => {
+            if (collected.length >= MAX_FILES) return;
+            const entries = await fsLocal.readdir(dir, { withFileTypes: true });
+            for (const e of entries) {
+              if (collected.length >= MAX_FILES) break;
+              if (e.isDirectory() && !SKIP_DIRS.has(e.name)) {
+                await scan(pathMod.join(dir, e.name));
+              } else if (e.isFile() && ALLOWED_EXT.has(pathMod.extname(e.name).toLowerCase())) {
+                collected.push(pathMod.join(dir, e.name));
+              }
+            }
+          };
+          await scan(f.path);
+          for (const filePath of collected) {
+            const relPath = pathMod.relative(f.path, filePath);
+            const content = await fsLocal.readFile(filePath);
+            await this.codeInterpreter.uploadFile(`/tmp/${relPath}`, content);
+            uploaded++;
+          }
+          this.onEvent('swarm-agent-chunk', { swarmId, agentIndex: 0, chunk: `\n📁 Uploaded ${collected.length} files from workspace\n` });
+        } else {
+          const content = await fsLocal.readFile(f.path);
+          await this.codeInterpreter.uploadFile(`/tmp/${f.name}`, content);
+          uploaded++;
+          this.onEvent('swarm-agent-chunk', { swarmId, agentIndex: 0, chunk: `\n📎 Uploaded ${f.name}\n` });
+        }
+      } catch (err) {
+        this.onEvent('swarm-agent-chunk', { swarmId, agentIndex: 0, chunk: `\n⚠️ Failed to upload ${f.name}: ${err.message}\n` });
+      }
+    }
+  }
+
+  async _getHistoricalFeedback(templateId) {
+    try {
+      const dirs = await fs.readdir(this.runsDir);
+      const failures = {};
+
+      for (const dir of dirs.slice(-20)) { // last 20 runs max
+        try {
+          const raw = await fs.readFile(path.join(this.runsDir, dir, 'state.json'), 'utf8');
+          const state = JSON.parse(raw);
+          if (state.templateId !== templateId || !state.rubric_scores) continue;
+
+          for (const attempts of Object.values(state.rubric_scores)) {
+            for (const attempt of attempts) {
+              if (attempt.decision === 'REVISE' || attempt.decision === 'FAIL') {
+                // Track axis-level failures
+                for (const [axis, score] of Object.entries(attempt.axis_scores || {})) {
+                  if (score < 0.75) {
+                    if (!failures[axis]) failures[axis] = 0;
+                    failures[axis]++;
+                  }
+                }
+              }
+            }
+          }
+        } catch { /* skip */ }
+      }
+
+      const sorted = Object.entries(failures).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      if (!sorted.length) return null;
+
+      return `<historical_feedback>\nIn previous ${templateId} runs, the quality gate frequently flagged these issues:\n${sorted.map(([axis, count]) => `- "${axis}" failed ${count} time${count > 1 ? 's' : ''}`).join('\n')}\nAvoid these patterns proactively.\n</historical_feedback>`;
+    } catch { return null; }
+  }
+
+  async _adaptRubric(rubric, brief) {
+    try {
+      const model = new BedrockModel({
+        modelId: require('./pipelineTemplates').DEFAULT_MODELS.formatter,
+        clientConfig: { region: this.awsConfig.region, credentials: this.awsConfig.credentials },
+      });
+
+      const criteriaList = rubric.criteria.map((c, i) =>
+        `${i}: [weight ${c.weight}] "${c.text}"${c.canBeNA ? ' (can be N/A)' : ''}`
+      ).join('\n');
+
+      const agent = new Agent({
+        model,
+        systemPrompt: `You specialize in making evaluation criteria specific and concrete. Given generic rubric criteria and a user brief, rewrite each criterion to reference the specific content of the brief. Keep the same number of criteria, same weights, same meaning — just make the text specific. Output ONLY a JSON array of objects: [{"index": 0, "text": "specific criterion text"}, ...]`,
+        tools: [],
+        id: 'rubric-adapter',
+      });
+
+      let result = '';
+      for await (const event of agent.stream(`Brief: ${brief}\n\nCriteria:\n${criteriaList}`)) {
+        if (event.type === 'modelStreamUpdateEvent') {
+          const inner = event.event;
+          if (inner.type === 'modelContentBlockDeltaEvent' && inner.delta?.type === 'textDelta') {
+            result += inner.delta.text;
+          }
+        }
+      }
+
+      // Parse the adapted criteria
+      const start = result.indexOf('[');
+      const end = result.lastIndexOf(']');
+      if (start === -1 || end === -1) return null;
+
+      const adapted = JSON.parse(result.slice(start, end + 1));
+      const newCriteria = rubric.criteria.map((c, i) => {
+        const match = adapted.find(a => a.index === i);
+        return match ? { ...c, text: match.text } : c;
+      });
+
+      return { ...rubric, criteria: newCriteria };
+    } catch (err) {
+      // If adaptation fails, fall back to original rubric silently
+      return null;
+    }
   }
 }
 

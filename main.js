@@ -632,6 +632,81 @@ function createSwarmOrchestrator() {
 
 ipcMain.handle('swarm-get-templates', async () => getAllTemplates());
 
+ipcMain.handle('swarm-get-analytics', async () => {
+  const fs = require('fs').promises;
+  const path = require('path');
+  const runsDir = path.join(app.getPath('userData'), 'swarm-runs');
+  const runs = [];
+  try {
+    const dirs = await fs.readdir(runsDir);
+    for (const dir of dirs) {
+      try {
+        const raw = await fs.readFile(path.join(runsDir, dir, 'state.json'), 'utf8');
+        runs.push(JSON.parse(raw));
+      } catch { /* skip invalid */ }
+    }
+  } catch { /* no runs dir */ }
+
+  if (!runs.length) return { summary: null, templates: {}, insights: [] };
+
+  // Aggregate
+  const completed = runs.filter(r => r.status === 'completed');
+  const errored = runs.filter(r => r.status === 'error');
+  const templates = {};
+
+  for (const run of runs) {
+    const tid = run.templateId || 'unknown';
+    if (!templates[tid]) templates[tid] = { name: run.templateName || tid, runs: 0, completed: 0, errors: 0, scores: [], criteriaStats: {} };
+    const t = templates[tid];
+    t.runs++;
+    if (run.status === 'completed') t.completed++;
+    if (run.status === 'error') t.errors++;
+
+    // Collect rubric scores
+    for (const [gateId, attempts] of Object.entries(run.rubric_scores || {})) {
+      for (const attempt of attempts) {
+        t.scores.push(attempt.score);
+        // Per-criteria tracking from axis_scores
+        for (const [axis, score] of Object.entries(attempt.axis_scores || {})) {
+          if (!t.criteriaStats[axis]) t.criteriaStats[axis] = { pass: 0, fail: 0 };
+          if (score >= 0.75) t.criteriaStats[axis].pass++;
+          else t.criteriaStats[axis].fail++;
+        }
+      }
+    }
+  }
+
+  // Summary
+  const allScores = Object.values(templates).flatMap(t => t.scores);
+  const avgScore = allScores.length ? allScores.reduce((a, b) => a + b, 0) / allScores.length : 0;
+  const summary = {
+    totalRuns: runs.length,
+    completed: completed.length,
+    errors: errored.length,
+    passRate: runs.length ? Math.round((completed.length / runs.length) * 100) : 0,
+    avgScore: Math.round(avgScore * 100),
+  };
+
+  // Insights
+  const insights = [];
+  for (const [tid, t] of Object.entries(templates)) {
+    if (t.errors > 0 && t.errors / t.runs > 0.5) {
+      insights.push({ severity: 'error', message: `${t.name}: ${t.errors}/${t.runs} runs failed — check tool configuration` });
+    }
+    for (const [axis, stats] of Object.entries(t.criteriaStats)) {
+      const total = stats.pass + stats.fail;
+      if (total >= 3 && stats.fail / total > 0.5) {
+        insights.push({ severity: 'warn', message: `${t.name} → "${axis}" fails ${Math.round(stats.fail / total * 100)}% of the time — consider adjusting the writer prompt or rubric weight` });
+      }
+      if (total >= 5 && stats.pass === total) {
+        insights.push({ severity: 'info', message: `${t.name} → "${axis}" passes 100% — consider removing to save evaluation tokens` });
+      }
+    }
+  }
+
+  return { summary, templates, insights };
+});
+
 ipcMain.handle('swarm-run-pipeline', async (event, { templateId, brief, autonomyMode, files }) => {
   if (!awsClients.bedrock) throw new Error('AWS credentials not configured');
   // Resolve model roles from settings before fetching template
