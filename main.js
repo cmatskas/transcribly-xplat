@@ -746,6 +746,21 @@ ipcMain.handle('select-directory', async () => {
   return result.filePaths[0];
 });
 
+ipcMain.handle('select-files', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile', 'multiSelections'],
+    title: 'Select files to attach',
+  });
+  if (result.canceled || !result.filePaths.length) return [];
+  const path = require('path');
+  const fs = require('fs');
+  return result.filePaths.map(fp => ({
+    name: path.basename(fp),
+    path: fp,
+    size: fs.statSync(fp).size,
+  }));
+});
+
 // Agent handler — runs the agentic tool-use loop
 ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistory, files = [], sessionId }) => {
   if (!awsClients.bedrock) {
