@@ -17,6 +17,7 @@
         if (target === 'about') loadAbout();
         if (target === 'skills') loadSkills();
         if (target === 'models') loadModels();
+        if (target === 'analytics') loadAnalytics();
       });
     });
 
@@ -408,6 +409,97 @@
     } catch {
       document.getElementById('appVersionText').textContent = 'Version unknown';
     }
+  }
+
+  // ── Analytics Tab ────────────────────────────────────────
+
+  async function loadAnalytics() {
+    const container = document.getElementById('analyticsContent');
+    const data = await window.electronAPI.invoke('swarm-get-analytics');
+
+    if (!data.summary) {
+      container.innerHTML = `<div class="text-center text-muted py-5">
+        <i class="bi bi-bar-chart fs-1 d-block mb-2"></i>
+        No pipeline runs yet. Run a swarm pipeline to see analytics here.
+      </div>`;
+      return;
+    }
+
+    const s = data.summary;
+
+    // Summary cards
+    let html = `<div class="analytics-cards mb-4">
+      <div class="analytics-card">
+        <div class="analytics-card-num">${s.totalRuns}</div>
+        <div class="analytics-card-label">Total Runs</div>
+      </div>
+      <div class="analytics-card">
+        <div class="analytics-card-num">${s.passRate}%</div>
+        <div class="analytics-card-label">Pass Rate</div>
+      </div>
+      <div class="analytics-card">
+        <div class="analytics-card-num">${s.avgScore}%</div>
+        <div class="analytics-card-label">Avg Score</div>
+      </div>
+      <div class="analytics-card">
+        <div class="analytics-card-num">${s.errors}</div>
+        <div class="analytics-card-label">Errors</div>
+      </div>
+    </div>`;
+
+    // Per-template breakdown
+    for (const [tid, t] of Object.entries(data.templates)) {
+      const avg = t.scores.length ? Math.round(t.scores.reduce((a, b) => a + b, 0) / t.scores.length * 100) : 0;
+      const barWidth = Math.max(avg, 2);
+
+      html += `<div class="card mb-3">
+        <div class="card-header py-2"><strong>${esc(t.name)}</strong>
+          <span class="text-muted small ms-2">${t.runs} run${t.runs !== 1 ? 's' : ''} · ${t.completed} completed · ${t.errors} errors</span>
+        </div>
+        <div class="card-body py-2">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="small text-muted" style="width:70px">Avg: ${avg}%</span>
+            <div class="analytics-bar-bg"><div class="analytics-bar-fill" style="width:${barWidth}%"></div></div>
+          </div>`;
+
+      // Criteria heatmap
+      const criteria = Object.entries(t.criteriaStats).sort((a, b) => {
+        const aRate = a[1].fail / (a[1].pass + a[1].fail);
+        const bRate = b[1].fail / (b[1].pass + b[1].fail);
+        return bRate - aRate;
+      });
+
+      if (criteria.length) {
+        html += `<div class="small text-muted mb-1" style="font-size:0.7rem;letter-spacing:0.05em;font-weight:600">CRITERIA PERFORMANCE</div>`;
+        for (const [axis, stats] of criteria) {
+          const total = stats.pass + stats.fail;
+          const failRate = total ? stats.fail / total : 0;
+          const cls = failRate > 0.5 ? 'analytics-heat-red' : failRate > 0.2 ? 'analytics-heat-yellow' : 'analytics-heat-green';
+          html += `<div class="analytics-heat-row">
+            <span class="analytics-heat-icon ${cls}"><i class="bi ${failRate > 0.5 ? 'bi-x-circle-fill' : failRate > 0 ? 'bi-exclamation-circle-fill' : 'bi-check-circle-fill'}"></i></span>
+            <span class="analytics-heat-label">${esc(axis)}</span>
+            <span class="analytics-heat-stat ${cls}">${stats.pass}/${total}</span>
+          </div>`;
+        }
+      }
+
+      html += `</div></div>`;
+    }
+
+    // Insights
+    if (data.insights.length) {
+      html += `<div class="card"><div class="card-header py-2"><strong><i class="bi bi-lightbulb me-1"></i>Insights</strong></div>
+        <div class="card-body py-2">`;
+      for (const insight of data.insights) {
+        const icon = insight.severity === 'error' ? 'bi-exclamation-triangle text-danger'
+          : insight.severity === 'warn' ? 'bi-exclamation-circle text-warning'
+          : 'bi-info-circle text-info';
+        html += `<div class="small mb-2"><i class="bi ${icon} me-1"></i>${esc(insight.message)}</div>`;
+      }
+      html += `</div></div>`;
+    }
+
+    container.innerHTML = html;
   }
 
   // ── Models Tab ──────────────────────────────────────────

@@ -26,6 +26,8 @@ class SwarmOrchestrator {
   async runPipeline(swarmId, template, brief, autonomyMode, files) {
     const state = {
       swarmId, status: 'running', autonomyMode,
+      templateId: template.id, templateName: template.name,
+      startedAt: new Date().toISOString(),
       agents: template.agents.map(a => ({ id: a.id, label: a.label, status: 'pending', output: null })),
       currentIndex: 0, brief, retries: {},
     };
@@ -172,6 +174,7 @@ class SwarmOrchestrator {
       }
 
       if (state.status !== 'cancelled') state.status = 'completed';
+      state.completedAt = new Date().toISOString();
       await this._saveState(swarmId, state);
       this.onEvent('swarm-pipeline-done', { swarmId, finalOutput: previousOutput });
     } catch (err) {

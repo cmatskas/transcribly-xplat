@@ -1968,3 +1968,19 @@ body {
 .rubric-score { flex-shrink: 0; font-size: 0.78rem; font-weight: 600; margin-left: 0.5rem; }
 .rubric-score-pass { color: #16a34a; }
 .rubric-score-fail { color: #dc2626; }
+
+/* ── Analytics Dashboard ── */
+.analytics-cards { display: flex; gap: 12px; flex-wrap: wrap; }
+.analytics-card { flex: 1; min-width: 100px; text-align: center; padding: 16px 12px; border-radius: 10px; background: var(--bs-secondary-bg); }
+.analytics-card-num { font-size: 1.8rem; font-weight: 800; line-height: 1; }
+.analytics-card-label { font-size: 0.72rem; color: var(--bs-secondary); margin-top: 4px; }
+.analytics-bar-bg { flex: 1; height: 8px; border-radius: 4px; background: var(--bs-secondary-bg); overflow: hidden; }
+.analytics-bar-fill { height: 100%; border-radius: 4px; background: #16a34a; transition: width 0.5s ease; }
+.analytics-heat-row { display: flex; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--bs-border-color-translucent); }
+.analytics-heat-row:last-child { border-bottom: none; }
+.analytics-heat-icon { width: 24px; flex-shrink: 0; font-size: 0.9rem; }
+.analytics-heat-label { flex: 1; font-size: 0.8rem; }
+.analytics-heat-stat { flex-shrink: 0; font-size: 0.78rem; font-weight: 600; margin-left: 8px; }
+.analytics-heat-green { color: #16a34a; }
+.analytics-heat-yellow { color: #d97706; }
+.analytics-heat-red { color: #dc2626; }
