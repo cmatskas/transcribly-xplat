@@ -213,6 +213,11 @@ app.on('before-quit', () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('app-before-quit');
   }
+  // Clean up all persistent sandboxes
+  for (const [id, ci] of workSandboxes) {
+    if (ci?.sessionId) ci.stopSession().catch(() => {});
+  }
+  workSandboxes.clear();
 });
 
 // Credential management IPC handlers
@@ -781,6 +786,22 @@ ipcMain.handle('select-files', async () => {
   }));
 });
 
+// Persistent sandbox sessions per work conversation
+const workSandboxes = new Map(); // sessionId → CodeInterpreterManager
+
+function getOrCreateSandbox(sessionId) {
+  if (!workSandboxes.has(sessionId)) {
+    workSandboxes.set(sessionId, new CodeInterpreterManager(awsClients.agentCoreConfig));
+  }
+  return workSandboxes.get(sessionId);
+}
+
+async function cleanupSandbox(sessionId) {
+  const ci = workSandboxes.get(sessionId);
+  if (ci?.sessionId) await ci.stopSession().catch(() => {});
+  workSandboxes.delete(sessionId);
+}
+
 // Agent handler — runs the agentic tool-use loop
 ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistory, files = [], sessionId }) => {
   if (!awsClients.bedrock) {
@@ -800,7 +821,7 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
     memManager._ensureStrategies().catch(err => console.warn('Strategy check failed:', err.message));
   }
 
-  const ciManager = new CodeInterpreterManager(awsClients.agentCoreConfig);
+  const ciManager = getOrCreateSandbox(sessionId);
   const brManager = new BrowserManager(awsClients.agentCoreConfig);
   const executor = new AgentToolExecutor({
     bedrockClient: awsClients.bedrock,
@@ -821,6 +842,12 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
   } finally {
     agentAbortControllers.delete(sessionId);
   }
+});
+
+// Clean up sandbox when conversation ends
+ipcMain.handle('work-cleanup-session', async (_event, { sessionId }) => {
+  await cleanupSandbox(sessionId);
+  return { success: true };
 });
 
 // Add handler to get Bedrock models from settings (falls back to config)

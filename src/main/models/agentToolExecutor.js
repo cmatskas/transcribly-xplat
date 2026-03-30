@@ -346,10 +346,7 @@ print("\\n\\n".join(slides))
         }
       }
 
-      if (sessionStarted) {
-        this.onStatus({ tool: 'cleanup', detail: 'Closing sandbox', state: 'running' });
-        await this.codeInterpreter.stopSession().catch(() => {});
-      }
+      // Browser cleanup (sandbox is managed externally per conversation)
       if (this.browser.sessionId) {
         this.onStatus({ tool: 'cleanup', detail: 'Closing browser', state: 'running' });
         await this.browser.stopSession().catch(() => {});
