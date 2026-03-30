@@ -57,18 +57,76 @@ Your IAM user/role needs access to:
 - **AgentCore**: Code Interpreter and Browser access (for Work/Swarm tools)
 </details>
 
-## Swarm Pipelines
+## Work Tab
 
-The Swarm tab deploys teams of specialized AI agents:
+Your personal AI agent with a persistent sandbox. Attach files, ask for documents, iterate across multiple messages — the agent remembers everything within a conversation.
+
+**How it works:**
+1. Type a prompt or attach files (Word, PDF, Excel, PowerPoint, images)
+2. The agent activates relevant skills, writes and executes Python code in a secure sandbox, browses the web, and generates images
+3. Output files (`.docx`, `.pptx`, `.xlsx`) are saved to `~/Documents/Transcribely/`
+
+**Key capabilities:**
+- Files persist across messages — attach a document in message 1, ask for edits in message 5
+- Each conversation gets its own isolated sandbox and file state
+- The agent auto-installs Python packages as needed (`python-docx`, `python-pptx`, `openpyxl`, etc.)
+- Word documents include line numbers, headers, and "Amazon Confidential" footers automatically
+- System notifications alert you when long-running tasks complete
+
+<details>
+<summary>Tips for best results</summary>
+
+- For document creation, be specific: "Create a Word doc with an executive summary, 3 sections with headers, and a recommendations table"
+- Attach reference files — the agent reads them and uses them as context
+- Use the sidebar to switch between conversations without losing state
+- If the agent's code fails, it automatically retries with a fix
+</details>
+
+## Swarm Tab
+
+Multi-agent pipelines where teams of specialized AI agents collaborate to produce polished content. Each pipeline has researchers, writers, editors, quality gates, and formatters.
 
 | Template | Agents | Output |
 |---|---|---|
-| Article / Blog Post | 7 | Researched, edited .docx |
-| Keynote / Presentation | 7 | Slide deck .pptx with speaker notes |
+| Article / Blog Post | 7 | Researched, edited `.docx` |
+| Keynote / Presentation | 7 | Slide deck `.pptx` with speaker notes |
 | Speech / Talk | 6 | Timed speech with stage directions |
 | Demo / Storyboard | 6 | Scene-by-scene storyboard deck |
 
-Each pipeline includes quality gates with rubric-based evaluation, AWS content guidelines, and adaptive learning from past runs.
+**How it works:**
+1. Pick a template → write a brief → optionally attach files or a workspace folder
+2. Agents run sequentially: Researcher → Planner → Quality Gate → Writer → Editor → Final Check → Formatter
+3. At review points, the pipeline pauses for your feedback (you'll get a system notification)
+4. The formatter generates the final document and saves it locally
+
+**Video analysis (Demo template):** Attach an `.mp4` video and the Analyst agent uses Amazon Nova Premier to analyze it frame-by-frame. Keyframes are extracted and embedded directly into the storyboard deck.
+
+<details>
+<summary>Quality system</summary>
+
+- Each template has a weighted rubric (12–15 criteria) with penalty scoring for competitor references
+- Rubrics adapt to your specific brief before evaluation
+- The system learns from past runs — frequently-failing criteria get extra attention in future pipelines
+- View pass rates, criteria heatmaps, and insights in Settings → Analytics
+</details>
+
+## Chat Tab
+
+Conversational AI for analysis and Q&A. Lighter than the Work tab — no code execution or file generation, but supports knowledge base integration for RAG.
+
+- Attach documents for the model to analyze inline
+- Connect a Bedrock Knowledge Base in Settings for retrieval-augmented generation
+- Full conversation history with save/load
+- Choose any configured model (including DeepSeek, Mistral, Llama)
+
+## Transcribe Tab
+
+Audio and video transcription powered by AWS Transcribe.
+
+- Drag and drop media files or browse to select
+- Speaker diarization with labels
+- Timestamps per segment
+- Export transcription as text
 
 ## Agent Skills
 
@@ -83,7 +141,9 @@ Each pipeline includes quality gates with rubric-based evaluation, AWS content g
 | Creative | `algorithmic-art`, `demo-storyboard` |
 | Utility | `self-correction`, `web-browse` |
 
-Create custom skills in Settings → Skills → New Skill.
+Skills are loaded on demand — the Work tab agent activates them when your task matches. Swarm agents have skills pre-assigned per role.
+
+Create custom skills in Settings → Skills → New Skill. Each skill is a `SKILL.md` file with YAML frontmatter and markdown instructions.
 
 ## Model Configuration
 
@@ -94,8 +154,9 @@ Settings → Models lets you manage Bedrock models and assign pipeline roles:
 | Creator | Writing, quality evaluation — best model | Claude Opus 4.6 |
 | Worker | Research, planning, editing — balanced | Claude Sonnet 4.6 |
 | Formatter | Document generation — cheapest capable | Claude Haiku 4.5 |
+| Vision | Video analysis — multimodal | Amazon Nova Premier |
 
-Additional models (DeepSeek V3.2, Mistral Large 3, Llama 4 Maverick) available for the Chat tab.
+Additional models (DeepSeek V3.2, Mistral Large 3, Llama 4 Maverick) available for the Chat tab. Add or remove models and reassign roles from the UI.
 
 ## Development
 
