@@ -270,22 +270,18 @@
                     <button class="btn btn-link text-muted p-0 mb-2 small" id="swarmBackBtn"><i class="bi bi-arrow-left me-1"></i>Back to templates</button>
                     <h6 class="mb-3" id="swarmTemplateName"></h6>
 
-                    <!-- File list -->
-                    <div id="swarmFileList" class="work-file-list mb-2" style="display:none;">
-                        <div class="card card-sm">
-                            <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center">
-                                <span class="small"><i class="bi bi-files me-1"></i>Files (<span id="swarmFileCount">0</span>)</span>
-                                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" id="swarmClearFiles"><i class="bi bi-trash"></i></button>
-                            </div>
-                            <div class="card-body p-2">
-                                <div id="swarmFileItems"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <input type="file" class="d-none" id="swarmFileInput" multiple>
-
                     <div class="work-input-card">
+                        <!-- File list inside the card -->
+                        <div id="swarmFileList" style="display:none; border-bottom: 1px solid var(--border-primary); padding-bottom: 8px; margin-bottom: 8px;">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small text-muted"><i class="bi bi-files me-1"></i>Files (<span id="swarmFileCount">0</span>)</span>
+                                <button type="button" class="btn btn-sm btn-link text-danger p-0" id="swarmClearFiles"><i class="bi bi-trash"></i></button>
+                            </div>
+                            <div id="swarmFileItems"></div>
+                        </div>
+
+                        <input type="file" class="d-none" id="swarmFileInput" multiple>
+
                         <textarea class="work-textarea swarm-brief-auto" id="swarmBrief" rows="2"
                             placeholder="Describe your topic, audience, tone, length, and any specific requirements..."></textarea>
                         <div class="work-input-toolbar">

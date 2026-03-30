@@ -100,7 +100,10 @@
     document.getElementById('swarmTemplates').style.display = 'none';
     document.getElementById('swarmBriefSection').style.display = '';
     document.getElementById('swarmStepper').style.display = 'none';
-    document.getElementById('swarmStatusBar').style.display = 'none';
+    document.getElementById('swarmOutputs').innerHTML = '';
+    document.getElementById('swarmDonePanel').style.display = 'none';
+    document.getElementById('swarmBriefDisplay').style.display = 'none';
+    clearStatus();
     document.getElementById('swarmTemplateName').textContent = activeTemplate.name;
   }
 
