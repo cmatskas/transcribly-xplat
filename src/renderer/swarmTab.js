@@ -7,6 +7,7 @@
   let activeTemplate = null;
   let agentOutputs = {};
   let pendingInputRequest = null;
+  let swarmFiles = [];  // { name, path, size }
 
   function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
@@ -36,6 +37,25 @@
     document.getElementById('swarmCancelBtn').addEventListener('click', cancelPipeline);
     document.getElementById('swarmInputAnswerBtn').addEventListener('click', answerInput);
     document.getElementById('swarmInputDefaultBtn').addEventListener('click', answerInputDefault);
+
+    // File attachments
+    document.getElementById('swarmAttachBtn').addEventListener('click', () => document.getElementById('swarmFileInput').click());
+    document.getElementById('swarmFileInput').addEventListener('change', (e) => {
+      for (const f of e.target.files) {
+        if (!swarmFiles.find(sf => sf.path === f.path)) {
+          swarmFiles.push({ name: f.name, path: f.path, size: f.size });
+        }
+      }
+      e.target.value = '';
+      renderSwarmFiles();
+    });
+    document.getElementById('swarmWorkspaceBtn').addEventListener('click', async () => {
+      const dir = await window.electronAPI.invoke('select-directory');
+      if (dir) {
+        swarmFiles.push({ name: `📁 ${dir.split('/').pop()}`, path: dir, size: 0, isDir: true });
+        renderSwarmFiles();
+      }
+    });
     document.getElementById('swarmNewRunBtn').addEventListener('click', resetToTemplates);
 
     // Auto-expand textarea
@@ -67,6 +87,23 @@
     document.getElementById('swarmTemplateName').textContent = activeTemplate.name;
   }
 
+  function renderSwarmFiles() {
+    const list = document.getElementById('swarmFileList');
+    const items = document.getElementById('swarmFileItems');
+    if (!swarmFiles.length) { list.style.display = 'none'; return; }
+    list.style.display = '';
+    items.innerHTML = swarmFiles.map((f, i) =>
+      `<span class="badge bg-secondary bg-opacity-25 text-muted d-flex align-items-center gap-1">
+        <i class="bi ${f.isDir ? 'bi-folder' : 'bi-file-earmark'}"></i>
+        <span class="small">${esc(f.name)}</span>
+        <button class="btn-close btn-close-sm ms-1" style="font-size:0.5rem" data-idx="${i}"></button>
+      </span>`
+    ).join('');
+    items.querySelectorAll('.btn-close').forEach(btn => {
+      btn.addEventListener('click', () => { swarmFiles.splice(parseInt(btn.dataset.idx), 1); renderSwarmFiles(); });
+    });
+  }
+
   function resetToTemplates() {
     activeSwarmId = null;
     activeTemplate = null;
@@ -81,6 +118,8 @@
     document.getElementById('swarmBriefDisplay').style.display = 'none';
     document.getElementById('swarmBrief').value = '';
     document.getElementById('swarmBrief').style.height = 'auto';
+    swarmFiles = [];
+    renderSwarmFiles();
     clearStatus();
   }
 
@@ -94,6 +133,7 @@
     try {
       const { swarmId } = await window.electronAPI.invoke('swarm-run-pipeline', {
         templateId: activeTemplate.id, brief, autonomyMode,
+        files: swarmFiles.map(f => ({ name: f.name, path: f.path, isDir: f.isDir || false })),
       });
       activeSwarmId = swarmId;
       agentOutputs = {};

@@ -46,7 +46,14 @@ class SwarmOrchestrator {
       const historicalFeedback = await this._getHistoricalFeedback(template.id);
       const adaptedRubric = template.rubric ? await this._adaptRubric(template.rubric, brief) : null;
 
-      let previousOutput = brief;
+      // Upload attached files to sandbox
+      let fileContext = '';
+      if (files && files.length > 0) {
+        await this._uploadFilesToSandbox(files, swarmId);
+        fileContext = `\n\nAttached files available in the sandbox at /tmp/:\n${files.map(f => `- /tmp/${f.name}${f.isDir ? ' (workspace directory)' : ''}`).join('\n')}`;
+      }
+
+      let previousOutput = brief + fileContext;
 
       for (let i = 0; i < template.agents.length; i++) {
         if (this.runs.get(swarmId)?.aborted) { state.status = 'cancelled'; break; }
@@ -332,6 +339,35 @@ class SwarmOrchestrator {
   }
 
   // ── Adaptive Learning ─────────────────────────────────
+
+  async _uploadFilesToSandbox(files, swarmId) {
+    if (!this.codeInterpreter.sessionId) {
+      this.onEvent('swarm-agent-chunk', { swarmId, agentIndex: 0, chunk: '\n🔧 Starting sandbox for file uploads...\n' });
+      await this.codeInterpreter.startSession(7200);
+    }
+    const fsLocal = require('fs').promises;
+    const pathMod = require('path');
+    for (const f of files) {
+      try {
+        if (f.isDir) {
+          // For directories, list files and upload key ones
+          const entries = await fsLocal.readdir(f.path, { withFileTypes: true });
+          const toUpload = entries.filter(e => e.isFile()).slice(0, 20); // max 20 files
+          for (const entry of toUpload) {
+            const content = await fsLocal.readFile(pathMod.join(f.path, entry.name));
+            await this.codeInterpreter.uploadFile(`/tmp/${entry.name}`, content);
+          }
+          this.onEvent('swarm-agent-chunk', { swarmId, agentIndex: 0, chunk: `\n📁 Uploaded ${toUpload.length} files from workspace\n` });
+        } else {
+          const content = await fsLocal.readFile(f.path);
+          await this.codeInterpreter.uploadFile(`/tmp/${f.name}`, content);
+          this.onEvent('swarm-agent-chunk', { swarmId, agentIndex: 0, chunk: `\n📎 Uploaded ${f.name}\n` });
+        }
+      } catch (err) {
+        this.onEvent('swarm-agent-chunk', { swarmId, agentIndex: 0, chunk: `\n⚠️ Failed to upload ${f.name}: ${err.message}\n` });
+      }
+    }
+  }
 
   async _getHistoricalFeedback(templateId) {
     try {
