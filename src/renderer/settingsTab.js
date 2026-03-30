@@ -16,6 +16,7 @@
         if (target === 'configuration') loadConfig();
         if (target === 'about') loadAbout();
         if (target === 'skills') loadSkills();
+        if (target === 'models') loadModels();
       });
     });
 
@@ -408,6 +409,73 @@
       document.getElementById('appVersionText').textContent = 'Version unknown';
     }
   }
+
+  // ── Models Tab ──────────────────────────────────────────
+
+  async function loadModels() {
+    const settings = await window.electronAPI.invoke('load-settings');
+    const models = settings.bedrockModels || [];
+    renderModelsTable(models);
+
+    document.getElementById('addModelBtn').onclick = async () => {
+      const name = document.getElementById('newModelName').value.trim();
+      const profileId = document.getElementById('newModelId').value.trim();
+      const role = document.getElementById('newModelRole').value;
+      if (!name || !profileId) { window.electronAPI.showToast('Name and Profile ID are required', 'error'); return; }
+
+      // If assigning a role, clear it from any other model
+      if (role) models.forEach(m => { if (m.role === role) m.role = ''; });
+      models.push({ id: name, inferenceProfileId: profileId, role });
+      await saveModels(models);
+    };
+  }
+
+  function renderModelsTable(models) {
+    const tbody = document.getElementById('modelsTableBody');
+    tbody.innerHTML = models.map((m, i) => `
+      <tr>
+        <td>${esc(m.id)}</td>
+        <td><code class="small">${esc(m.inferenceProfileId)}</code></td>
+        <td>
+          <select class="form-select form-select-sm model-role-select" data-index="${i}">
+            <option value=""${m.role ? '' : ' selected'}>None</option>
+            <option value="creator"${m.role === 'creator' ? ' selected' : ''}>Creator</option>
+            <option value="worker"${m.role === 'worker' ? ' selected' : ''}>Worker</option>
+            <option value="formatter"${m.role === 'formatter' ? ' selected' : ''}>Formatter</option>
+          </select>
+        </td>
+        <td><button class="btn btn-sm btn-outline-danger model-delete-btn" data-index="${i}"><i class="bi bi-trash"></i></button></td>
+      </tr>`).join('');
+
+    tbody.querySelectorAll('.model-role-select').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        const idx = parseInt(sel.dataset.index);
+        const newRole = sel.value;
+        // Clear role from others if assigning
+        if (newRole) models.forEach((m, j) => { if (j !== idx && m.role === newRole) m.role = ''; });
+        models[idx].role = newRole;
+        await saveModels(models);
+      });
+    });
+
+    tbody.querySelectorAll('.model-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        models.splice(parseInt(btn.dataset.index), 1);
+        await saveModels(models);
+      });
+    });
+  }
+
+  async function saveModels(models) {
+    await window.electronAPI.invoke('save-settings', { bedrockModels: models });
+    renderModelsTable(models);
+    document.getElementById('newModelName').value = '';
+    document.getElementById('newModelId').value = '';
+    document.getElementById('newModelRole').value = '';
+    window.electronAPI.showToast('Models updated', 'success');
+  }
+
+  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
   if (typeof window !== 'undefined') {
     window.SettingsTab = { init };
