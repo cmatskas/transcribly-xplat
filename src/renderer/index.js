@@ -122,7 +122,7 @@ if (typeof window !== 'undefined') {
     });
 }
 
-const ALL_PAGES = ['transcribe', 'analyze', 'work', 'swarm', 'settings'];
+const ALL_PAGES = ['work', 'swarm', 'transcribe', 'analyze', 'settings'];
 
 function showPage(name) {
     ALL_PAGES.forEach(p => {
@@ -571,7 +571,6 @@ async function loadPromptTemplates() {
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', async () => {
-    showInfoToast('Welcome to Transcribely! Upload a video or audio file to get started.');
     loadPromptTemplates();
     loadBedrockModels();
     setupFileUpload();
