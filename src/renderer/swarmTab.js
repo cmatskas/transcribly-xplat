@@ -53,12 +53,17 @@
     window.electronAPI.receive('swarm-input-request', onInputRequest);
     window.electronAPI.receive('swarm-pipeline-done', onPipelineDone);
     window.electronAPI.receive('swarm-error', onError);
+
+    // Ensure clean state on page load
+    resetToTemplates();
   }
 
   function selectTemplate(id, templates) {
     activeTemplate = templates.find(t => t.id === id);
     document.getElementById('swarmTemplates').style.display = 'none';
     document.getElementById('swarmBriefSection').style.display = '';
+    document.getElementById('swarmStepper').style.display = 'none';
+    document.getElementById('swarmStatusBar').style.display = 'none';
     document.getElementById('swarmTemplateName').textContent = activeTemplate.name;
   }
 
@@ -73,8 +78,10 @@
     document.getElementById('swarmReviewPanel').style.display = 'none';
     document.getElementById('swarmInputPanel').style.display = 'none';
     document.getElementById('swarmDonePanel').style.display = 'none';
+    document.getElementById('swarmBriefDisplay').style.display = 'none';
     document.getElementById('swarmBrief').value = '';
     document.getElementById('swarmBrief').style.height = 'auto';
+    clearStatus();
   }
 
   async function startPipeline() {
@@ -91,6 +98,10 @@
       activeSwarmId = swarmId;
       agentOutputs = {};
       document.getElementById('swarmBriefSection').style.display = 'none';
+      // Show brief display
+      document.getElementById('swarmBriefDisplay').style.display = '';
+      document.getElementById('swarmBriefTemplate').textContent = activeTemplate.name;
+      document.getElementById('swarmBriefText').textContent = brief;
     } catch (err) {
       window.electronAPI.showToast(`Failed: ${err.message}`, 'error');
     } finally {
@@ -100,9 +111,40 @@
 
   // ── IPC Event Handlers ────────────────────────────────
 
+  const STATUS_MESSAGES = {
+    researcher: ['Searching the web for sources...', 'Gathering data and statistics...', 'Compiling research brief...'],
+    planner: ['Analyzing research findings...', 'Structuring the outline...', 'Defining section flow...'],
+    'quality-gate-1': ['Evaluating outline against rubric...', 'Checking structure and completeness...'],
+    writer: ['Drafting content...', 'Developing key sections...', 'Refining prose...'],
+    editor: ['Applying Eight Sweeps framework...', 'Checking for AI patterns...', 'Polishing language and flow...'],
+    'quality-gate-2': ['Running final quality evaluation...', 'Scoring against rubric criteria...'],
+    formatter: ['Generating document...', 'Applying formatting and styles...', 'Saving file...'],
+  };
+
+  function setStatus(label, agentId) {
+    const bar = document.getElementById('swarmStatusBar');
+    const text = document.getElementById('swarmStatusText');
+    const msgs = STATUS_MESSAGES[agentId] || [`${label} is working...`];
+    bar.style.setProperty('display', 'flex', 'important');
+    text.textContent = `${label} — ${msgs[0]}`;
+    if (bar._interval) clearInterval(bar._interval);
+    let i = 0;
+    bar._interval = setInterval(() => {
+      i = (i + 1) % msgs.length;
+      text.textContent = `${label} — ${msgs[i]}`;
+    }, 8000);
+  }
+
+  function clearStatus() {
+    const bar = document.getElementById('swarmStatusBar');
+    bar.style.setProperty('display', 'none', 'important');
+    if (bar._interval) clearInterval(bar._interval);
+  }
+
   function onAgentStarted({ swarmId, agentIndex, role, label }) {
     if (swarmId !== activeSwarmId) return;
     agentOutputs[agentIndex] = { label, text: '', status: 'running' };
+    setStatus(label, role);
     renderStepper();
     renderOutputs();
   }
@@ -121,6 +163,7 @@
       agentOutputs[agentIndex].text = output;
       agentOutputs[agentIndex].status = 'done';
     }
+    clearStatus();
     renderStepper();
     renderOutputs();
   }
@@ -153,15 +196,22 @@
 
   function onPipelineDone({ swarmId, finalOutput }) {
     if (swarmId !== activeSwarmId) return;
+    clearStatus();
     document.getElementById('swarmDonePanel').style.display = '';
-    document.getElementById('swarmDoneMessage').textContent = 'All agents completed successfully.';
+    // Extract file paths from final output (save_file_locally mentions them)
+    const filePaths = (finalOutput || '').match(/\/Users\/[^\s"'<>]+\.\w{2,5}/g) || [];
+    const fileLinks = filePaths.length
+      ? `<div class="mt-2"><strong>Generated files:</strong><ul class="mb-0">${filePaths.map(f => `<li><code>${esc(f)}</code></li>`).join('')}</ul></div>`
+      : '';
+    document.getElementById('swarmDoneMessage').innerHTML =
+      `All agents completed successfully.${fileLinks}`;
     renderStepper();
   }
 
   function onError({ swarmId, error, agentIndex }) {
     if (swarmId !== activeSwarmId) return;
+    clearStatus();
     if (agentOutputs[agentIndex]) agentOutputs[agentIndex].status = 'error';
-    // Stop any still-running agents
     Object.values(agentOutputs).forEach(a => { if (a.status === 'running') a.status = 'error'; });
     renderStepper();
     document.getElementById('swarmDonePanel').style.display = '';
@@ -202,14 +252,19 @@
 
   function renderStepper() {
     const stepper = document.getElementById('swarmStepper');
-    stepper.style.display = 'flex';
+    stepper.style.display = '';
     const entries = Object.entries(agentOutputs).sort((a, b) => a[0] - b[0]);
-    stepper.innerHTML = entries.map(([idx, a]) => {
-      const icon = a.status === 'done' ? 'bi-check-lg' : a.status === 'running' ? 'bi-three-dots' : a.status === 'error' ? 'bi-x-lg' : 'bi-circle';
+    stepper.innerHTML = entries.map(([idx, a], i) => {
+      const num = i + 1;
+      const isLast = i === entries.length - 1;
+      const lineClass = a.status === 'done' ? 'done' : '';
+      const content = a.status === 'done' ? '<i class="bi bi-check-lg"></i>'
+        : a.status === 'error' ? '<i class="bi bi-x-lg"></i>'
+        : num;
       return `<div class="swarm-step ${a.status}">
-        <div class="swarm-step-indicator"><i class="bi ${icon}"></i></div>
-        <div class="swarm-step-label small mt-1">${esc(a.label)}</div>
-      </div>`;
+        <div class="swarm-step-node">${content}</div>
+        <div class="swarm-step-label">${esc(a.label)}</div>
+      </div>${!isLast ? `<div class="swarm-step-line ${lineClass}"><div class="swarm-step-line-fill"></div></div>` : ''}`;
     }).join('');
   }
 
@@ -239,10 +294,19 @@
         : a.status === 'error' ? '<i class="bi bi-x-circle text-danger ms-1"></i>' : '';
       const header = document.getElementById(`swarmCardHeader${idx}`);
       if (header) header.innerHTML = `<strong>${esc(a.label)}</strong> ${statusIcon}`;
-      // Update body only if not actively streaming (chunks handled by updateActiveOutput)
+      // Update body for completed agents
       if (a.status !== 'running') {
         const body = document.getElementById(`swarmOutputBody${idx}`);
-        if (body) body.textContent = a.text.length > 300 ? a.text.slice(0, 300) + '...' : a.text;
+        if (body) {
+          const rubricHtml = tryRenderRubricCard(a.text);
+          if (rubricHtml) {
+            body.style.fontFamily = '';
+            body.style.whiteSpace = '';
+            body.innerHTML = rubricHtml;
+          } else {
+            body.textContent = a.text || '(no output)';
+          }
+        }
       }
     }
   }
@@ -253,6 +317,76 @@
       el.textContent = agentOutputs[agentIndex].text;
       el.scrollTop = el.scrollHeight;
     }
+  }
+
+  function tryRenderRubricCard(text) {
+    if (!text) return null;
+    // Extract JSON from the output
+    const start = text.indexOf('{"scores"');
+    if (start === -1) return null;
+    const end = text.lastIndexOf('}');
+    if (end === -1) return null;
+    let parsed;
+    try { parsed = JSON.parse(text.slice(start, end + 1)); } catch { return null; }
+    if (!parsed.scores || !Array.isArray(parsed.scores)) return null;
+
+    const scores = parsed.scores;
+    const positive = scores.filter(s => s.score >= 0); // includes 0 (failed) and 1 (passed)
+    const passed = positive.filter(s => s.score === 1);
+    const failed = positive.filter(s => s.score === 0);
+    const total = positive.length;
+    const passCount = passed.length;
+    const pct = total > 0 ? Math.round((passCount / total) * 100) : 0;
+
+    const verdict = pct >= 90 ? 'Strong pass' : pct >= 75 ? 'Pass' : pct >= 60 ? 'Needs work' : 'Fail';
+    const verdictClass = pct >= 75 ? 'rubric-verdict-pass' : pct >= 60 ? 'rubric-verdict-warn' : 'rubric-verdict-fail';
+
+    // Segmented progress bar
+    const segments = scores.map(s =>
+      `<div class="rubric-seg ${s.score === 1 ? 'rubric-seg-pass' : s.score === 0 ? 'rubric-seg-fail' : 'rubric-seg-na'}"></div>`
+    ).join('');
+
+    // Short labels from reason (first few words) or criterion index
+    const shortLabel = (s) => {
+      if (s.reason) {
+        const words = s.reason.split(/\s+/).slice(0, 4).join(' ');
+        return words.length > 30 ? words.slice(0, 30) + '…' : words;
+      }
+      return `Criterion ${s.criterion_index + 1}`;
+    };
+
+    const passedRows = passed.map(s =>
+      `<div class="rubric-row">
+        <span class="rubric-icon rubric-icon-pass"><i class="bi bi-check-circle-fill"></i></span>
+        <span class="rubric-label" title="${esc(s.reason || '')}">${esc(shortLabel(s))}</span>
+        <span class="rubric-score rubric-score-pass">1/1</span>
+      </div>`
+    ).join('');
+
+    const failedRows = failed.map(s =>
+      `<div class="rubric-row">
+        <span class="rubric-icon rubric-icon-fail"><i class="bi bi-x-circle-fill"></i></span>
+        <span class="rubric-label" title="${esc(s.reason || '')}">${esc(shortLabel(s))}</span>
+        <span class="rubric-score rubric-score-fail">0/1</span>
+      </div>`
+    ).join('');
+
+    return `
+      <div class="rubric-card">
+        <div class="rubric-header">
+          <div class="rubric-big-score">
+            <span class="rubric-num">${passCount}</span>
+            <span class="rubric-denom">out of ${total}</span>
+          </div>
+          <div class="rubric-bar-wrap">
+            <div class="rubric-bar">${segments}</div>
+            <div class="rubric-bar-label">${pct}%${failed.length ? ` — ${failed.length} criteria need attention` : ''}</div>
+          </div>
+          <div class="rubric-verdict ${verdictClass}">${verdict}</div>
+        </div>
+        ${passedRows ? `<div class="rubric-section-label">PASSED</div>${passedRows}` : ''}
+        ${failedRows ? `<div class="rubric-section-label rubric-section-warn">NEEDS ATTENTION</div>${failedRows}` : ''}
+      </div>`;
   }
 
   if (typeof window !== 'undefined') {

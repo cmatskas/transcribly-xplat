@@ -799,10 +799,11 @@ body {
 #analyze-page {
     height: calc(100vh - 56px); /* full height minus navbar */
     padding: 0 !important;
+    margin: 0;
     overflow: hidden;
 }
 
-.analyze-layout {
+#analyze-page .analyze-layout {
     display: flex;
     height: 100%;
 }
@@ -940,6 +941,8 @@ body {
     flex-direction: column;
     overflow: hidden;
     background: var(--bg-primary);
+    padding-bottom: 8px;
+    min-width: 0;
 }
 
 .chat-history {
@@ -1392,6 +1395,7 @@ body {
 #work-page {
     height: calc(100vh - 56px); /* full viewport minus navbar */
     overflow: hidden;
+    padding-bottom: 8px;
 }
 
 .work-layout {
@@ -1406,6 +1410,7 @@ body {
     flex: 1;
     overflow: hidden;
     background: var(--bg-secondary);
+    padding-bottom: 12px;
 }
 
 .work-topbar {
@@ -1483,7 +1488,7 @@ body {
     border-radius: 16px;
     background: var(--bg-secondary);
     padding: 12px 16px;
-    margin: 0 auto 20px;
+    margin: 0 auto 24px;
     flex-shrink: 0;
 }
 
@@ -1675,8 +1680,10 @@ body {
 
 .analyze-input-card {
     border-radius: 12px;
-    margin: 0 16px 12px;
-    max-width: none;
+    margin: 0 20px 16px 20px;
+    max-width: calc(100% - 40px) !important;
+    width: calc(100% - 40px) !important;
+    box-sizing: border-box;
 }
 
 /* Agent status messages */
@@ -1896,20 +1903,68 @@ body {
 }
 
 /* ── Swarm Tab ──────────────────────────────────────── */
-.swarm-stepper { display: flex; align-items: flex-start; justify-content: center; gap: 0; padding: 1rem 0; flex-wrap: wrap; }
-.swarm-step { display: flex; flex-direction: column; align-items: center; position: relative; min-width: 90px; padding: 0 8px; }
-.swarm-step + .swarm-step::before { content: ''; position: absolute; left: -50%; top: 18px; width: 100%; height: 2px; background: var(--bs-border-color); z-index: 0; }
-.swarm-step-indicator { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 1; font-size: 0.9rem; }
-.swarm-step.pending .swarm-step-indicator { background: var(--bs-secondary-bg); color: var(--bs-secondary); }
-.swarm-step.running .swarm-step-indicator { background: #2563eb; color: white; animation: swarm-pulse 1.5s ease-in-out infinite; }
-.swarm-step.done .swarm-step-indicator { background: #16a34a; color: white; }
-.swarm-step.done + .swarm-step::before { background: #16a34a; }
-.swarm-step.paused .swarm-step-indicator { background: #d97706; color: white; }
-.swarm-step.error .swarm-step-indicator { background: #dc2626; color: white; }
+/* ── Swarm Stepper ── */
+.swarm-stepper { display: flex; align-items: flex-start; justify-content: center; padding: 1.5rem 1rem; gap: 0; }
+.swarm-step { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.swarm-step-node {
+  width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.95rem; z-index: 1; transition: all 0.3s ease;
+  border: 3px solid var(--bs-border-color); background: var(--bs-body-bg); color: var(--bs-secondary);
+}
+.swarm-step.done .swarm-step-node { border-color: #16a34a; background: #16a34a; color: white; }
+.swarm-step.running .swarm-step-node {
+  border-color: #16a34a; background: var(--bs-body-bg); color: #16a34a; font-weight: 800;
+  animation: swarm-glow 2s ease-in-out infinite;
+}
+.swarm-step.error .swarm-step-node { border-color: #dc2626; background: #dc2626; color: white; }
+.swarm-step.paused .swarm-step-node { border-color: #d97706; background: #d97706; color: white; }
+.swarm-step-label {
+  text-align: center; max-width: 80px; font-size: 0.72rem; margin-top: 6px;
+  color: var(--bs-secondary); line-height: 1.2; word-wrap: break-word;
+}
+.swarm-step.running .swarm-step-label { color: #16a34a; font-weight: 600; }
+.swarm-step.done .swarm-step-label { color: #16a34a; }
+.swarm-step-line {
+  flex: 1; min-width: 30px; max-width: 60px; height: 3px; align-self: center;
+  margin-top: -16px; background: var(--bs-border-color); border-radius: 2px; overflow: hidden;
+}
+.swarm-step-line .swarm-step-line-fill { height: 100%; width: 0; background: #16a34a; border-radius: 2px; transition: width 0.5s ease; }
+.swarm-step-line.done .swarm-step-line-fill { width: 100%; }
+@keyframes swarm-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(22,163,74,0.5); }
+  50% { box-shadow: 0 0 0 10px rgba(22,163,74,0); }
+}
 .swarm-brief-auto { min-height: 4.5rem; max-height: 300px; overflow-y: auto; resize: none; transition: height 0.1s ease; }
-.swarm-step-label { text-align: center; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@keyframes swarm-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.4); } 50% { box-shadow: 0 0 0 8px rgba(37,99,235,0); } }
 
 .swarm-template-card { cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; }
 .swarm-template-card:hover { border-color: #2563eb; }
 .swarm-template-card.selected { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.25); }
+
+/* ── Rubric Score Card ── */
+.rubric-card { padding: 0.5rem 0; }
+.rubric-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--bs-border-color); }
+.rubric-big-score { flex-shrink: 0; }
+.rubric-num { font-size: 2rem; font-weight: 800; line-height: 1; }
+.rubric-denom { display: block; font-size: 0.7rem; color: var(--bs-secondary); }
+.rubric-bar-wrap { flex: 1; min-width: 0; }
+.rubric-bar { display: flex; gap: 3px; height: 10px; border-radius: 5px; overflow: hidden; }
+.rubric-seg { flex: 1; border-radius: 3px; }
+.rubric-seg-pass { background: #16a34a; }
+.rubric-seg-fail { background: var(--bs-secondary-bg); }
+.rubric-seg-na { background: var(--bs-secondary-bg); opacity: 0.4; }
+.rubric-bar-label { font-size: 0.72rem; color: var(--bs-secondary); margin-top: 4px; }
+.rubric-verdict { flex-shrink: 0; padding: 4px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; border: 1px solid; }
+.rubric-verdict-pass { color: #16a34a; border-color: #16a34a; }
+.rubric-verdict-warn { color: #d97706; border-color: #d97706; }
+.rubric-verdict-fail { color: #dc2626; border-color: #dc2626; }
+.rubric-section-label { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em; color: var(--bs-secondary); margin: 0.75rem 0 0.4rem; }
+.rubric-section-warn { color: var(--bs-secondary); }
+.rubric-row { display: flex; align-items: center; padding: 0.45rem 0; border-bottom: 1px solid var(--bs-border-color-translucent); }
+.rubric-row:last-child { border-bottom: none; }
+.rubric-icon { flex-shrink: 0; width: 28px; font-size: 1.1rem; }
+.rubric-icon-pass { color: #16a34a; }
+.rubric-icon-fail { color: #dc2626; }
+.rubric-label { flex: 1; font-size: 0.82rem; }
+.rubric-score { flex-shrink: 0; font-size: 0.78rem; font-weight: 600; margin-left: 0.5rem; }
+.rubric-score-pass { color: #16a34a; }
+.rubric-score-fail { color: #dc2626; }
