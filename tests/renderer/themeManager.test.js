@@ -1,169 +1,128 @@
 /**
- * Tests for ThemeManager
+ * Tests for ThemeManager — matches actual API:
+ * applyTheme(), getEffectiveTheme(), getUserPreference(), getSystemTheme()
  */
 
 describe('ThemeManager', () => {
-    let ThemeManager;
-    let themeManager;
-    let mockElectronAPI;
+    let ThemeManager, themeManager;
 
     beforeEach(() => {
-        // Reset DOM
-        document.body.innerHTML = '';
         document.documentElement.removeAttribute('data-theme');
-        
-        // Mock localStorage
-        Storage.prototype.getItem = jest.fn();
-        Storage.prototype.setItem = jest.fn();
-        
-        // Mock electron API
-        mockElectronAPI = {
-            getTheme: jest.fn().mockResolvedValue('light'),
-            setTheme: jest.fn().mockResolvedValue(true)
-        };
-        window.electronAPI = mockElectronAPI;
+        document.documentElement.removeAttribute('data-bs-theme');
+        document.body.className = '';
+        localStorage.clear();
 
-        // Clear module cache and require fresh
+        window.matchMedia = jest.fn().mockReturnValue({
+            matches: false, // light system theme
+            addEventListener: jest.fn(),
+        });
+
         jest.resetModules();
         ThemeManager = require('../../src/renderer/themeManager');
     });
 
     describe('Constructor', () => {
-        test('should initialize with default theme', () => {
+        test('should initialize with auto theme', () => {
             themeManager = new ThemeManager();
-            expect(themeManager.currentTheme).toBe('light');
+            expect(themeManager.currentTheme).toBe('auto');
         });
 
-        test('should load theme from localStorage if available', () => {
-            Storage.prototype.getItem.mockReturnValue('dark');
+        test('should detect system theme', () => {
+            themeManager = new ThemeManager();
+            expect(themeManager.systemTheme).toBe('light');
+        });
+
+        test('should load cached theme from localStorage', () => {
+            localStorage.setItem('app-theme-preference', 'dark');
             themeManager = new ThemeManager();
             expect(themeManager.currentTheme).toBe('dark');
         });
 
-        test('should apply theme to document', () => {
+        test('should apply theme to document on init', () => {
             themeManager = new ThemeManager();
             expect(document.documentElement.getAttribute('data-theme')).toBe('light');
         });
     });
 
-    describe('setTheme()', () => {
-        beforeEach(() => {
-            themeManager = new ThemeManager();
-        });
-
-        test('should change theme to dark', async () => {
-            await themeManager.setTheme('dark');
-            expect(themeManager.currentTheme).toBe('dark');
-            expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-        });
-
-        test('should save theme to localStorage', async () => {
-            await themeManager.setTheme('dark');
-            expect(Storage.prototype.setItem).toHaveBeenCalledWith('theme', 'dark');
-        });
-
-        test('should save theme via electron API', async () => {
-            await themeManager.setTheme('dark');
-            expect(mockElectronAPI.setTheme).toHaveBeenCalledWith('dark');
-        });
-
-        test('should handle invalid theme gracefully', async () => {
-            await themeManager.setTheme('invalid');
-            expect(themeManager.currentTheme).toBe('light');
-        });
-    });
-
-    describe('toggleTheme()', () => {
-        beforeEach(() => {
-            themeManager = new ThemeManager();
-        });
-
-        test('should toggle from light to dark', async () => {
-            await themeManager.toggleTheme();
-            expect(themeManager.currentTheme).toBe('dark');
-        });
-
-        test('should toggle from dark to light', async () => {
-            await themeManager.setTheme('dark');
-            await themeManager.toggleTheme();
-            expect(themeManager.currentTheme).toBe('light');
-        });
-    });
-
-    describe('getTheme()', () => {
-        test('should return current theme', () => {
-            themeManager = new ThemeManager();
-            expect(themeManager.getTheme()).toBe('light');
-        });
-    });
-
     describe('applyTheme()', () => {
-        beforeEach(() => {
-            themeManager = new ThemeManager();
+        beforeEach(() => { themeManager = new ThemeManager(); });
+
+        test('should apply light theme', () => {
+            themeManager.applyTheme('light');
+            expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+            expect(document.documentElement.getAttribute('data-bs-theme')).toBe('light');
         });
 
-        test('should apply theme to document element', () => {
+        test('should apply dark theme', () => {
             themeManager.applyTheme('dark');
             expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
         });
 
-        test('should update CSS variables for dark theme', () => {
+        test('should resolve auto to system theme', () => {
+            themeManager.systemTheme = 'dark';
+            themeManager.applyTheme('auto');
+            expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+        });
+
+        test('should update currentTheme', () => {
             themeManager.applyTheme('dark');
-            const style = document.documentElement.style;
-            expect(style.getPropertyValue('--bg-color')).toBeTruthy();
-        });
-
-        test('should update CSS variables for light theme', () => {
-            themeManager.applyTheme('light');
-            const style = document.documentElement.style;
-            expect(style.getPropertyValue('--bg-color')).toBeTruthy();
-        });
-    });
-
-    describe('System Theme Detection', () => {
-        test('should detect system dark mode preference', () => {
-            window.matchMedia = jest.fn().mockImplementation(query => ({
-                matches: query === '(prefers-color-scheme: dark)',
-                media: query,
-                addEventListener: jest.fn(),
-                removeEventListener: jest.fn()
-            }));
-
-            themeManager = new ThemeManager();
-            const systemTheme = themeManager.getSystemTheme();
-            expect(systemTheme).toBe('dark');
-        });
-
-        test('should detect system light mode preference', () => {
-            window.matchMedia = jest.fn().mockImplementation(query => ({
-                matches: false,
-                media: query,
-                addEventListener: jest.fn(),
-                removeEventListener: jest.fn()
-            }));
-
-            themeManager = new ThemeManager();
-            const systemTheme = themeManager.getSystemTheme();
-            expect(systemTheme).toBe('light');
-        });
-    });
-
-    describe('Error Handling', () => {
-        test('should handle electron API errors gracefully', async () => {
-            mockElectronAPI.setTheme.mockRejectedValue(new Error('API error'));
-            themeManager = new ThemeManager();
-            
-            await expect(themeManager.setTheme('dark')).resolves.not.toThrow();
             expect(themeManager.currentTheme).toBe('dark');
         });
 
-        test('should handle localStorage errors gracefully', async () => {
-            Storage.prototype.setItem.mockImplementation(() => {
-                throw new Error('Storage error');
-            });
+        test('should add body class', () => {
+            themeManager.applyTheme('dark');
+            expect(document.body.classList.contains('theme-dark')).toBe(true);
+        });
+
+        test('should remove previous body class', () => {
+            themeManager.applyTheme('dark');
+            themeManager.applyTheme('light');
+            expect(document.body.classList.contains('theme-dark')).toBe(false);
+            expect(document.body.classList.contains('theme-light')).toBe(true);
+        });
+
+        test('should dispatch themeChanged event', () => {
+            const handler = jest.fn();
+            window.addEventListener('themeChanged', handler);
+            themeManager.applyTheme('dark');
+            expect(handler).toHaveBeenCalled();
+            expect(handler.mock.calls[0][0].detail).toEqual({ theme: 'dark', userPreference: 'dark' });
+            window.removeEventListener('themeChanged', handler);
+        });
+    });
+
+    describe('getEffectiveTheme()', () => {
+        beforeEach(() => { themeManager = new ThemeManager(); });
+
+        test('should return light when auto and system is light', () => {
+            themeManager.applyTheme('auto');
+            themeManager.systemTheme = 'light';
+            expect(themeManager.getEffectiveTheme()).toBe('light');
+        });
+
+        test('should return dark when explicitly set', () => {
+            themeManager.applyTheme('dark');
+            expect(themeManager.getEffectiveTheme()).toBe('dark');
+        });
+    });
+
+    describe('getUserPreference()', () => {
+        test('should return auto by default', () => {
             themeManager = new ThemeManager();
-            
-            await expect(themeManager.setTheme('dark')).resolves.not.toThrow();
+            expect(themeManager.getUserPreference()).toBe('auto');
+        });
+
+        test('should return set preference', () => {
+            themeManager = new ThemeManager();
+            themeManager.applyTheme('dark');
+            expect(themeManager.getUserPreference()).toBe('dark');
+        });
+    });
+
+    describe('getSystemTheme()', () => {
+        test('should return system theme', () => {
+            themeManager = new ThemeManager();
+            expect(themeManager.getSystemTheme()).toBe('light');
         });
     });
 });
