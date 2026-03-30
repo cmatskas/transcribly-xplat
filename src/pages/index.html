@@ -266,33 +266,53 @@
                 <div id="swarmTemplates" class="row g-3 mb-4"></div>
 
                 <!-- Brief Input -->
-                <div id="swarmBriefSection" class="card mb-4" style="display:none;">
-                    <div class="card-body">
-                        <h6 class="mb-3" id="swarmTemplateName"></h6>
-                        <div class="mb-3">
-                            <label class="form-label">What do you want to create?</label>
-                            <textarea id="swarmBrief" class="form-control swarm-brief-auto" rows="3" placeholder="Describe your topic, audience, tone, length, and any specific requirements..."></textarea>
-                        </div>
-                        <!-- File attachments -->
-                        <div id="swarmFileList" class="mb-2" style="display:none;">
-                            <div class="d-flex flex-wrap gap-1" id="swarmFileItems"></div>
-                        </div>
-                        <input type="file" class="d-none" id="swarmFileInput" multiple>
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="d-flex align-items-center gap-2">
-                                <button class="btn btn-outline-secondary btn-sm" id="swarmAttachBtn" title="Attach files"><i class="bi bi-paperclip me-1"></i>Attach</button>
-                                <button class="btn btn-outline-secondary btn-sm" id="swarmWorkspaceBtn" title="Select workspace folder"><i class="bi bi-folder2-open me-1"></i>Workspace</button>
+                <div id="swarmBriefSection" style="display:none;">
+                    <button class="btn btn-link text-muted p-0 mb-2 small" id="swarmBackBtn"><i class="bi bi-arrow-left me-1"></i>Back to templates</button>
+                    <h6 class="mb-3" id="swarmTemplateName"></h6>
+
+                    <!-- File list -->
+                    <div id="swarmFileList" class="work-file-list mb-2" style="display:none;">
+                        <div class="card card-sm">
+                            <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center">
+                                <span class="small"><i class="bi bi-files me-1"></i>Files (<span id="swarmFileCount">0</span>)</span>
+                                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" id="swarmClearFiles"><i class="bi bi-trash"></i></button>
                             </div>
-                                <label class="form-label small mb-1">Supervision</label>
-                                <select id="swarmAutonomy" class="form-select form-select-sm" style="width:160px;">
+                            <div class="card-body p-2">
+                                <div id="swarmFileItems"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <input type="file" class="d-none" id="swarmFileInput" multiple>
+
+                    <div class="work-input-card">
+                        <textarea class="work-textarea swarm-brief-auto" id="swarmBrief" rows="2"
+                            placeholder="Describe your topic, audience, tone, length, and any specific requirements..."></textarea>
+                        <div class="work-input-toolbar">
+                            <div class="d-flex align-items-center gap-1">
+                                <div class="attach-menu-wrap">
+                                    <button id="swarmAttachBtn" class="work-tool-btn" title="Attach files or select workspace">
+                                        <i class="bi bi-plus-lg"></i>
+                                    </button>
+                                    <div class="attach-menu" id="swarmAttachMenu">
+                                        <button class="attach-menu-item" id="swarmAttachFiles">
+                                            <i class="bi bi-paperclip me-2"></i>Attach files
+                                        </button>
+                                        <button class="attach-menu-item" id="swarmWorkspaceBtn">
+                                            <i class="bi bi-folder2-open me-2"></i>Select workspace
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="work-toolbar-right">
+                                <select class="work-model-pill" id="swarmAutonomy">
                                     <option value="supervised">Supervised</option>
                                     <option value="guided" selected>Guided</option>
                                     <option value="autonomous">Autonomous</option>
                                 </select>
-                            </div>
-                            <div class="ms-auto d-flex gap-2">
-                                <button class="btn btn-outline-secondary btn-sm" id="swarmBackBtn">Back</button>
-                                <button class="btn btn-primary" id="swarmStartBtn"><i class="bi bi-play-fill me-1"></i>Start Swarm</button>
+                                <button id="swarmStartBtn" class="work-send-btn" title="Start Swarm">
+                                    <i class="bi bi-play-fill"></i>
+                                </button>
                             </div>
                         </div>
                     </div>

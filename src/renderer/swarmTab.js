@@ -39,7 +39,14 @@
     document.getElementById('swarmInputDefaultBtn').addEventListener('click', answerInputDefault);
 
     // File attachments
-    document.getElementById('swarmAttachBtn').addEventListener('click', () => document.getElementById('swarmFileInput').click());
+    document.getElementById('swarmAttachBtn').addEventListener('click', () => {
+      const menu = document.getElementById('swarmAttachMenu');
+      menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+    });
+    document.getElementById('swarmAttachFiles').addEventListener('click', () => {
+      document.getElementById('swarmAttachMenu').style.display = 'none';
+      document.getElementById('swarmFileInput').click();
+    });
     document.getElementById('swarmFileInput').addEventListener('change', (e) => {
       for (const f of e.target.files) {
         if (!swarmFiles.find(sf => sf.path === f.path)) {
@@ -50,11 +57,21 @@
       renderSwarmFiles();
     });
     document.getElementById('swarmWorkspaceBtn').addEventListener('click', async () => {
+      document.getElementById('swarmAttachMenu').style.display = 'none';
       const dir = await window.electronAPI.invoke('select-directory');
       if (dir) {
         swarmFiles.push({ name: `📁 ${dir.split('/').pop()}`, path: dir, size: 0, isDir: true });
         renderSwarmFiles();
       }
+    });
+    document.getElementById('swarmClearFiles').addEventListener('click', () => {
+      swarmFiles = [];
+      renderSwarmFiles();
+    });
+    // Close attach menu on outside click
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('swarmAttachMenu');
+      if (menu && !e.target.closest('.attach-menu-wrap')) menu.style.display = 'none';
     });
     document.getElementById('swarmNewRunBtn').addEventListener('click', resetToTemplates);
 
@@ -90,16 +107,17 @@
   function renderSwarmFiles() {
     const list = document.getElementById('swarmFileList');
     const items = document.getElementById('swarmFileItems');
+    const count = document.getElementById('swarmFileCount');
     if (!swarmFiles.length) { list.style.display = 'none'; return; }
     list.style.display = '';
+    count.textContent = swarmFiles.length;
     items.innerHTML = swarmFiles.map((f, i) =>
-      `<span class="badge bg-secondary bg-opacity-25 text-muted d-flex align-items-center gap-1">
-        <i class="bi ${f.isDir ? 'bi-folder' : 'bi-file-earmark'}"></i>
-        <span class="small">${esc(f.name)}</span>
-        <button class="btn-close btn-close-sm ms-1" style="font-size:0.5rem" data-idx="${i}"></button>
-      </span>`
+      `<div class="d-flex align-items-center justify-content-between small py-1">
+        <span><i class="bi ${f.isDir ? 'bi-folder' : 'bi-file-earmark'} me-1"></i>${esc(f.name)}</span>
+        <button class="btn btn-sm btn-link text-danger p-0 swarm-file-remove" data-idx="${i}"><i class="bi bi-x"></i></button>
+      </div>`
     ).join('');
-    items.querySelectorAll('.btn-close').forEach(btn => {
+    items.querySelectorAll('.swarm-file-remove').forEach(btn => {
       btn.addEventListener('click', () => { swarmFiles.splice(parseInt(btn.dataset.idx), 1); renderSwarmFiles(); });
     });
   }
