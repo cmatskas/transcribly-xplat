@@ -358,8 +358,10 @@
     if (currentSession.messages.length > 0) {
       window.electronAPI.invoke('memory-extract', { sessionId: activeSessionId }).catch(() => {});
     }
-    // Clean up sandbox for the old conversation
-    window.electronAPI.invoke('work-cleanup-session', { sessionId: activeSessionId }).catch(() => {});
+    // Clean up sandbox only if the old conversation is idle
+    if (!currentSession.processing) {
+      window.electronAPI.invoke('work-cleanup-session', { sessionId: activeSessionId }).catch(() => {});
+    }
 
     const newId = generateSessionId();
     const session = getOrCreateSession(newId);
