@@ -1,5 +1,81 @@
 # Release Notes
 
+## v2.5.0
+
+### Swarm — Multi-Agent Content Pipelines
+- **4 pipeline templates**: Article/Blog Post, Keynote/Presentation, Speech/Talk, Demo/Storyboard
+- **Sequential agent execution** with Strands SDK: research → plan → quality gate → write → edit → quality gate → format
+- **Per-agent model selection** via capability roles (creator/worker/formatter)
+- **Checkpoint persistence** to disk — pipeline state survives interruptions
+- **Autonomy modes**: Supervised (review at checkpoints), Guided (review + auto-resolve low-risk), Autonomous (fully hands-off)
+- **Tool integration**: web browsing, code execution, file I/O via AgentCore Browser and Code Interpreter
+
+### Quality Rubric System
+- **Rubric-based quality gates** replacing free-text PASS/REVISE with structured JSON evaluation
+- **Weighted binary criteria** with penalty support (negative weights subtract when triggered)
+- **Per-template rubrics**: 12-15 criteria each covering scope, fidelity, authenticity, and craft
+- **Three-tier decisions**: PASS (≥0.75), REVISE (with targeted feedback), FAIL (below floor)
+- **CANNOT_ASSESS/SKIP** for criteria that don't apply to a specific brief
+- **Rubric score card UI** — visual pass/fail breakdown in quality gate output cards
+- **Brief-specific rubric adaptation** — one LLM call specializes generic criteria to the specific brief
+- **Historical feedback injection** — past failure patterns injected into writer/editor prompts
+- **Competitor reference penalty** (-3 weight) across all templates
+
+### AWS Content Guidelines
+- Embedded in `research-first`, `copy-editing`, and `copywriting` skills
+- Prioritize AWS/Amazon customer references from public sources
+- Sweep 9 (Reference & Attribution Audit) in copy-editing
+- Placeholder format for missing references: `[CUSTOMER REFERENCE NEEDED: description]`
+
+### Settings — Models Tab
+- Add, remove, and manage Bedrock models from the UI
+- Assign swarm pipeline roles (creator/worker/formatter) per model
+- One model per role enforced — reassigning auto-clears duplicates
+- Updated defaults: Claude Opus 4.6, Sonnet 4.6, Haiku 4.5, DeepSeek V3.2, Mistral Large 3, Llama 4 Maverick 17B
+
+### Settings — Quality Analytics Dashboard
+- Summary cards: total runs, pass rate, avg score, errors
+- Per-template breakdown with score bars
+- Criteria heatmap: color-coded pass/fail rates sorted by worst performers
+- Actionable insights: heuristic-based tips for rubric and prompt tuning
+
+### New Skills (17 total)
+- `demo-storyboard` — scene card format, narrative arc, AWS demo guidelines
+- `algorithmic-art` — p5.js generative art with interactive viewer
+- `pdf` — read, create, merge, split, extract tables, watermark, encrypt
+
+### UI/UX
+- **Nav reorder**: Work → Swarm → Transcribe → Chat
+- **Work tab as default** on app launch
+- **Sticky navbar** — stays visible on scroll
+- **Stepper redesign**: numbered nodes, green glow pulse, connecting progress lines
+- **Status bar**: per-agent activity messages during pipeline execution
+- **Brief persistence**: collapsible card preserves original prompt during pipeline
+- **Auto-expanding textarea** for swarm brief input
+- **Renamed**: Analyze → Chat
+- **Skills subtitle**: "Awesome skills for your agents"
+- Removed startup "Upload a file" toast
+
+### Infrastructure
+- **CI**: GitHub Actions upgraded to checkout@v6 + setup-node@v6 (Node 24 runtime), `lts/*`
+- **All test suites fixed**: 8/8 passing, 124 tests, 5 skipped
+- **Settings-driven model registry** with runtime resolution via `resolveModels()`
+- **Auto-cleanup**: agent output files deleted after successful pipeline completion
+- **Fresh orchestrator per pipeline run** — ensures current AWS credentials
+
+### Bug Fixes
+- Fixed streaming event path (`modelContentBlockDeltaEvent` + `inner.delta.text`)
+- Fixed web tool (use `navigate()` + `getPageContent()` instead of nonexistent `browse()`)
+- Fixed handoff echo (brief in system prompt only, not repeated in every user message)
+- Fixed empty output fallback (don't silently replace with brief)
+- Fixed orchestrator lifecycle (fresh per run, reuse for continue/cancel)
+- Fixed guided mode review pause (continue signal reaches correct orchestrator instance)
+- Added try/catch to all swarm tools — surfaces real errors instead of silent failures
+- Added tilde expansion for `save_file_locally` paths
+- Fixed Sonnet 4.6 inference profile ID
+- Fixed double `>` in work-page HTML
+- Null-safe nav event bindings (recovers 25 pre-existing test failures)
+
 ## v2.4.0
 - **Skills Management UI**: New "Skills" tab in Settings for reviewing, editing, deleting, and creating agent skills
   - Inline SKILL.md editor with monospace textarea
