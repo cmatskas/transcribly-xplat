@@ -625,9 +625,29 @@ function createSwarmOrchestrator() {
     codeInterpreterManager: new (require('./src/main/models/codeInterpreterManager'))(awsClients.agentCoreConfig),
     browserManager: new (require('./src/main/models/browserManager'))(awsClients.agentCoreConfig),
     settings: currentSettings || {},
-    onEvent: (channel, data) => { if (mainWindow) mainWindow.webContents.send(channel, data); },
+    onEvent: (channel, data) => {
+      if (mainWindow) mainWindow.webContents.send(channel, data);
+      // System notifications for events needing user attention
+      if (channel === 'swarm-review-pause') {
+        swarmNotify('Review Required', `${data.agentIndex !== undefined ? 'Agent' : 'Pipeline'} output ready for your review.`);
+      } else if (channel === 'swarm-input-request') {
+        swarmNotify('Input Needed', data.question ? data.question.slice(0, 100) : 'An agent needs your input.');
+      } else if (channel === 'swarm-pipeline-done') {
+        swarmNotify('Pipeline Complete', 'All agents finished successfully.');
+      } else if (channel === 'swarm-error') {
+        swarmNotify('Pipeline Error', data.error ? data.error.slice(0, 100) : 'An error occurred.');
+      }
+    },
   });
   return swarmOrchestrator;
+}
+
+function swarmNotify(title, body) {
+  if (Notification.isSupported()) {
+    const n = new Notification({ title: `Transcribely — ${title}`, body, silent: false });
+    n.on('click', () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } });
+    n.show();
+  }
 }
 
 ipcMain.handle('swarm-get-templates', async () => getAllTemplates());
