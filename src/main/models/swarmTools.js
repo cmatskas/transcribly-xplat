@@ -37,7 +37,8 @@ function createSwarmTools({ codeInterpreterManager, browserManager, settings, on
       callback: async (input) => {
         try {
           if (!codeInterpreterManager.sessionId) throw new Error('No sandbox session — run execute_code first');
-          const content = await codeInterpreterManager.downloadFile(input.sandbox_path);
+          const base64 = await codeInterpreterManager.readFileBase64(input.sandbox_path);
+          const content = Buffer.from(base64, 'base64');
           const fs = require('fs').promises;
           const path = require('path');
           const os = require('os');
