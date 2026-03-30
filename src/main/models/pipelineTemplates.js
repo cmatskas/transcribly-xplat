@@ -199,7 +199,7 @@ STEP 1: Call execute_code with a SINGLE Python script that:
 - Uses blank slide layouts and positions shapes manually for a clean modern look
 - Dark background (RGB 20, 24, 34), white text, accent colors for emphasis
 - Each slide has: title, content area, speaker notes (from the notes in the input)
-- Every slide footer: "Amazon Confidential" left-aligned, slide number right-aligned
+
 - Saves to /tmp/output.pptx
 - Prints "SAVED: /tmp/output.pptx" at the end
 
@@ -264,7 +264,7 @@ STEP 1: Call execute_code with a SINGLE Python script that:
 - Dark background (RGB 20, 24, 34), white text, orange accents
 - One slide per scene card: scene number + title as heading, visual description, narration text, callout notes, duration + transition in footer area
 - If frame image paths are referenced (e.g. /tmp/frames/frame_0005_0010.jpg), check if the file exists with os.path.exists() before embedding with add_picture(). Skip missing images gracefully.
-- Every slide footer: "Amazon Confidential" left-aligned, slide number right-aligned
+
 - Saves to /tmp/output.pptx
 - Prints "SAVED: /tmp/output.pptx" at the end
 
