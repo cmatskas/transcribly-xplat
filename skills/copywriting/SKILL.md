@@ -87,6 +87,17 @@ Generate sequentially, not all at once:
 - "Never {unpleasant event} again"
 - "{Question highlighting main pain point}"
 
+## AWS Content Sourcing Rules
+
+When writing content for AWS audiences (keynotes, presentations, articles):
+
+- Use **Amazon/AWS customer stories** as primary proof points
+- Draw examples from: AWS case studies, re:Invent sessions, AWS blog posts, Amazon shareholder letters
+- If no suitable AWS customer reference exists for a key point, insert: `[CUSTOMER REFERENCE NEEDED: type of customer/industry needed]`
+- **Avoid all competitor mentions** — focus on the customer outcome, not competitive positioning
+- Market data from neutral analysts (Gartner, Forrester, IDC) is acceptable
+- When telling customer stories, focus on the **transformation and outcome**, not just the technology
+
 ## Output Format
 
 Provide:

@@ -177,6 +177,16 @@ Have we removed every barrier to action?
 | Generic claims | Specify who, how, and by how much |
 | Mixed audiences | Pick one audience and write directly to them |
 
+## Sweep 9: Reference & Attribution Audit
+
+This sweep is **mandatory** for all AWS-related content.
+
+1. **Flag competitor mentions**: Scan for any reference to competitor products or services (Azure, Google Cloud, GCP, OpenAI, Databricks, Snowflake, Vercel, Heroku, DigitalOcean, etc.). Remove or replace with AWS-equivalent framing focused on customer outcomes.
+2. **Verify customer references**: Every customer name, quote, or case study must trace to a public AWS source (aws.amazon.com/solutions/case-studies, AWS blog, re:Invent recordings, press releases).
+3. **Insert placeholders**: Where a customer proof point strengthens the argument but no verifiable reference exists, replace with: `[CUSTOMER REFERENCE NEEDED: industry/use-case description]`
+4. **Check statistics**: Ensure market data cites neutral analyst firms (Gartner, Forrester, IDC), not competitor marketing materials.
+5. **AWS naming**: Verify AWS service names use correct capitalization and current naming (e.g., "Amazon Bedrock" not "AWS Bedrock", "Amazon S3" not "S3 service").
+
 ## Output Format
 
 Present edits as:
