@@ -347,20 +347,51 @@ class SwarmOrchestrator {
     }
     const fsLocal = require('fs').promises;
     const pathMod = require('path');
+
+    const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'out', '.cache', 'target', '__pycache__', '.next', '.venv', 'env', '.env', '.tox', 'coverage', '.nyc_output']);
+    const ALLOWED_EXT = new Set([
+      // text & docs
+      '.txt', '.md', '.csv', '.json', '.yaml', '.yml', '.xml', '.html', '.htm', '.pdf', '.docx', '.pptx', '.xlsx', '.rtf',
+      // code
+      '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.go', '.rs', '.rb', '.php', '.c', '.cpp', '.h', '.cs', '.swift', '.kt', '.sh', '.bash', '.sql', '.r',
+      // config
+      '.toml', '.ini', '.cfg', '.env', '.properties', '.tf', '.hcl',
+      // image
+      '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico',
+      // video & audio
+      '.mp4', '.mov', '.avi', '.webm', '.mkv', '.mp3', '.wav', '.m4a',
+    ]);
+    const MAX_FILES = 50;
+
+    let uploaded = 0;
     for (const f of files) {
       try {
         if (f.isDir) {
-          // For directories, list files and upload key ones
-          const entries = await fsLocal.readdir(f.path, { withFileTypes: true });
-          const toUpload = entries.filter(e => e.isFile()).slice(0, 20); // max 20 files
-          for (const entry of toUpload) {
-            const content = await fsLocal.readFile(pathMod.join(f.path, entry.name));
-            await this.codeInterpreter.uploadFile(`/tmp/${entry.name}`, content);
+          const collected = [];
+          const scan = async (dir) => {
+            if (collected.length >= MAX_FILES) return;
+            const entries = await fsLocal.readdir(dir, { withFileTypes: true });
+            for (const e of entries) {
+              if (collected.length >= MAX_FILES) break;
+              if (e.isDirectory() && !SKIP_DIRS.has(e.name)) {
+                await scan(pathMod.join(dir, e.name));
+              } else if (e.isFile() && ALLOWED_EXT.has(pathMod.extname(e.name).toLowerCase())) {
+                collected.push(pathMod.join(dir, e.name));
+              }
+            }
+          };
+          await scan(f.path);
+          for (const filePath of collected) {
+            const relPath = pathMod.relative(f.path, filePath);
+            const content = await fsLocal.readFile(filePath);
+            await this.codeInterpreter.uploadFile(`/tmp/${relPath}`, content);
+            uploaded++;
           }
-          this.onEvent('swarm-agent-chunk', { swarmId, agentIndex: 0, chunk: `\n📁 Uploaded ${toUpload.length} files from workspace\n` });
+          this.onEvent('swarm-agent-chunk', { swarmId, agentIndex: 0, chunk: `\n📁 Uploaded ${collected.length} files from workspace\n` });
         } else {
           const content = await fsLocal.readFile(f.path);
           await this.codeInterpreter.uploadFile(`/tmp/${f.name}`, content);
+          uploaded++;
           this.onEvent('swarm-agent-chunk', { swarmId, agentIndex: 0, chunk: `\n📎 Uploaded ${f.name}\n` });
         }
       } catch (err) {
