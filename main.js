@@ -624,7 +624,7 @@ function createSwarmOrchestrator() {
     skillsManager,
     codeInterpreterManager: new (require('./src/main/models/codeInterpreterManager'))(awsClients.agentCoreConfig),
     browserManager: new (require('./src/main/models/browserManager'))(awsClients.agentCoreConfig),
-    settings: {},
+    settings: currentSettings || {},
     onEvent: (channel, data) => { if (mainWindow) mainWindow.webContents.send(channel, data); },
   });
   return swarmOrchestrator;
