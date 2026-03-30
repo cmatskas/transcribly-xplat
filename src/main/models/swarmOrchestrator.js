@@ -42,6 +42,10 @@ class SwarmOrchestrator {
         state.retries = persisted.retries || {};
       } catch { /* fresh run */ }
 
+      // Adaptive learning: gather historical feedback + adapt rubric to brief
+      const historicalFeedback = await this._getHistoricalFeedback(template.id);
+      const adaptedRubric = template.rubric ? await this._adaptRubric(template.rubric, brief) : null;
+
       let previousOutput = brief;
 
       for (let i = 0; i < template.agents.length; i++) {
@@ -64,7 +68,7 @@ class SwarmOrchestrator {
         } catch { /* no checkpoint, run agent */ }
 
         try {
-          const output = await this._runAgent(swarmId, agentConfig, previousOutput, brief, i, template.rubric);
+          const output = await this._runAgent(swarmId, agentConfig, previousOutput, brief, i, adaptedRubric || template.rubric, historicalFeedback);
 
           // Quality gate loop
           if (agentConfig.isQualityGate) {
@@ -185,7 +189,7 @@ class SwarmOrchestrator {
     }
   }
 
-  async _runAgent(swarmId, agentConfig, input, brief, agentIndex, rubric) {
+  async _runAgent(swarmId, agentConfig, input, brief, agentIndex, rubric, historicalFeedback) {
     // Load skill bodies for this agent
     const skillBodies = [];
     for (const skillName of (agentConfig.skills || [])) {
@@ -197,12 +201,17 @@ class SwarmOrchestrator {
       ? `\n\n<active_skills>\n${skillBodies.map(s => `<skill name="${s.name}">\n${s.body}\n</skill>`).join('\n')}\n</active_skills>`
       : '';
 
+    // Inject historical feedback for writer/editor agents (not quality gates, not researcher/planner/formatter)
+    const feedbackBlock = (historicalFeedback && ['writer', 'editor'].includes(agentConfig.id))
+      ? `\n\n${historicalFeedback}`
+      : '';
+
     // For rubric-based quality gates, use the structured rubric prompt
     const basePrompt = (agentConfig.isQualityGate && rubric)
       ? buildRubricPrompt(rubric.criteria, brief)
       : agentConfig.prompt;
 
-    const systemPrompt = `${basePrompt}\n\n<user_brief>\n${brief}\n</user_brief>${skillBlock}`;
+    const systemPrompt = `${basePrompt}\n\n<user_brief>\n${brief}\n</user_brief>${skillBlock}${feedbackBlock}`;
 
     // User message is just the previous agent's output — brief is in system prompt
     const handoff = input === brief
@@ -319,6 +328,88 @@ class SwarmOrchestrator {
     const files = await fs.readdir(dir);
     for (const f of files) {
       if (f.endsWith('-output.md')) await fs.unlink(path.join(dir, f)).catch(() => {});
+    }
+  }
+
+  // ── Adaptive Learning ─────────────────────────────────
+
+  async _getHistoricalFeedback(templateId) {
+    try {
+      const dirs = await fs.readdir(this.runsDir);
+      const failures = {};
+
+      for (const dir of dirs.slice(-20)) { // last 20 runs max
+        try {
+          const raw = await fs.readFile(path.join(this.runsDir, dir, 'state.json'), 'utf8');
+          const state = JSON.parse(raw);
+          if (state.templateId !== templateId || !state.rubric_scores) continue;
+
+          for (const attempts of Object.values(state.rubric_scores)) {
+            for (const attempt of attempts) {
+              if (attempt.decision === 'REVISE' || attempt.decision === 'FAIL') {
+                // Track axis-level failures
+                for (const [axis, score] of Object.entries(attempt.axis_scores || {})) {
+                  if (score < 0.75) {
+                    if (!failures[axis]) failures[axis] = 0;
+                    failures[axis]++;
+                  }
+                }
+              }
+            }
+          }
+        } catch { /* skip */ }
+      }
+
+      const sorted = Object.entries(failures).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      if (!sorted.length) return null;
+
+      return `<historical_feedback>\nIn previous ${templateId} runs, the quality gate frequently flagged these issues:\n${sorted.map(([axis, count]) => `- "${axis}" failed ${count} time${count > 1 ? 's' : ''}`).join('\n')}\nAvoid these patterns proactively.\n</historical_feedback>`;
+    } catch { return null; }
+  }
+
+  async _adaptRubric(rubric, brief) {
+    try {
+      const model = new BedrockModel({
+        modelId: require('./pipelineTemplates').DEFAULT_MODELS.worker,
+        clientConfig: { region: this.awsConfig.region, credentials: this.awsConfig.credentials },
+      });
+
+      const criteriaList = rubric.criteria.map((c, i) =>
+        `${i}: [weight ${c.weight}] "${c.text}"${c.canBeNA ? ' (can be N/A)' : ''}`
+      ).join('\n');
+
+      const agent = new Agent({
+        model,
+        systemPrompt: `You specialize in making evaluation criteria specific and concrete. Given generic rubric criteria and a user brief, rewrite each criterion to reference the specific content of the brief. Keep the same number of criteria, same weights, same meaning — just make the text specific. Output ONLY a JSON array of objects: [{"index": 0, "text": "specific criterion text"}, ...]`,
+        tools: [],
+        id: 'rubric-adapter',
+      });
+
+      let result = '';
+      for await (const event of agent.stream(`Brief: ${brief}\n\nCriteria:\n${criteriaList}`)) {
+        if (event.type === 'modelStreamUpdateEvent') {
+          const inner = event.event;
+          if (inner.type === 'modelContentBlockDeltaEvent' && inner.delta?.type === 'textDelta') {
+            result += inner.delta.text;
+          }
+        }
+      }
+
+      // Parse the adapted criteria
+      const start = result.indexOf('[');
+      const end = result.lastIndexOf(']');
+      if (start === -1 || end === -1) return null;
+
+      const adapted = JSON.parse(result.slice(start, end + 1));
+      const newCriteria = rubric.criteria.map((c, i) => {
+        const match = adapted.find(a => a.index === i);
+        return match ? { ...c, text: match.text } : c;
+      });
+
+      return { ...rubric, criteria: newCriteria };
+    } catch (err) {
+      // If adaptation fails, fall back to original rubric silently
+      return null;
     }
   }
 }
