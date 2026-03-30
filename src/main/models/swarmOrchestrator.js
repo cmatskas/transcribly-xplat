@@ -370,7 +370,7 @@ class SwarmOrchestrator {
   async _adaptRubric(rubric, brief) {
     try {
       const model = new BedrockModel({
-        modelId: require('./pipelineTemplates').DEFAULT_MODELS.worker,
+        modelId: require('./pipelineTemplates').DEFAULT_MODELS.formatter,
         clientConfig: { region: this.awsConfig.region, credentials: this.awsConfig.credentials },
       });
 
