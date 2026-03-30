@@ -1942,6 +1942,7 @@ body {
   font-size: 0.78rem; font-weight: 500; cursor: pointer; transition: all 0.15s ease;
 }
 .swarm-back-btn:hover { background: var(--bs-tertiary-bg); color: var(--bs-body-color); border-color: var(--bs-secondary); }
+#swarmBriefSection .work-input-card { max-width: none; margin: 0; }
 
 .swarm-template-card { cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; }
 .swarm-template-card:hover { border-color: #2563eb; }
