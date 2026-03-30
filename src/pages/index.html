@@ -54,7 +54,7 @@
       <button onclick="document.getElementById('updateBanner').style.display='none'" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:#fff; cursor:pointer; font-size:1rem;">×</button>
     </div>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
         <div class="container-fluid">
             <a class="navbar-brand" href="#">
                 <img src="../assets/favicon.svg" alt="Transcribely" width="24" height="24" class="me-2"> Transcribely
@@ -65,16 +65,16 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a id="nav-transcribe" class="nav-link active" href="#">Transcribe</a>
-                    </li>
-                    <li class="nav-item">
-                        <a id="nav-analyze" class="nav-link" href="#">Analyze</a>
-                    </li>
-                    <li class="nav-item">
-                        <a id="nav-work" class="nav-link" href="#">Work</a>
+                        <a id="nav-work" class="nav-link active" href="#">Work</a>
                     </li>
                     <li class="nav-item">
                         <a id="nav-swarm" class="nav-link" href="#">Swarm</a>
+                    </li>
+                    <li class="nav-item">
+                        <a id="nav-transcribe" class="nav-link" href="#">Transcribe</a>
+                    </li>
+                    <li class="nav-item">
+                        <a id="nav-analyze" class="nav-link" href="#">Chat</a>
                     </li>
                 </ul>
                 <ul class="navbar-nav ms-auto">
@@ -91,7 +91,7 @@
         </div>
     </nav>
 
-    <div id="transcribe-page" class="container-fluid py-4">
+    <div id="transcribe-page" class="container-fluid py-4" style="display:none;">
         <div class="row g-12">
             <!-- Left Column -->
             <div class="col-md-6">
@@ -290,8 +290,25 @@
                     </div>
                 </div>
 
+                <!-- Brief Display (visible during pipeline) -->
+                <div id="swarmBriefDisplay" class="card mb-3" style="display:none;">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" data-bs-target="#swarmBriefBody" style="cursor:pointer;">
+                        <span class="small"><i class="bi bi-file-text me-2"></i><strong id="swarmBriefTemplate"></strong></span>
+                        <i class="bi bi-chevron-down small"></i>
+                    </div>
+                    <div id="swarmBriefBody" class="collapse">
+                        <div class="card-body small" style="white-space:pre-wrap;" id="swarmBriefText"></div>
+                    </div>
+                </div>
+
                 <!-- Pipeline Stepper -->
                 <div id="swarmStepper" class="swarm-stepper mb-4" style="display:none;"></div>
+
+                <!-- Status Bar -->
+                <div id="swarmStatusBar" class="alert alert-light py-2 px-3 mb-3 d-flex align-items-center" style="display:none !important;">
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                    <span id="swarmStatusText" class="small"></span>
+                </div>
 
                 <!-- Agent Output Accordion -->
                 <div id="swarmOutputs" class="mb-4"></div>
@@ -347,6 +364,9 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#" data-settings-tab="configuration">Configuration</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-settings-tab="models">Models</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#" data-settings-tab="skills">Skills</a>
@@ -508,12 +528,57 @@
                     </div>
                 </div>
 
+                <!-- Models Tab -->
+                <div id="settings-models" class="settings-tab-content" style="display:none;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h6 class="mb-0"><i class="bi bi-cpu me-2"></i>Bedrock Models</h6>
+                            <small class="text-muted">Manage available models and assign swarm pipeline roles</small>
+                        </div>
+                    </div>
+                    <table class="table table-sm align-middle" id="modelsTable">
+                        <thead>
+                            <tr>
+                                <th>Display Name</th>
+                                <th>Inference Profile ID</th>
+                                <th style="width:140px">Swarm Role</th>
+                                <th style="width:50px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="modelsTableBody"></tbody>
+                    </table>
+                    <div class="border rounded p-3 mt-2">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-3">
+                                <label class="form-label small mb-1">Display Name</label>
+                                <input type="text" class="form-control form-control-sm" id="newModelName" placeholder="e.g. Claude Sonnet 5">
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label small mb-1">Inference Profile ID</label>
+                                <input type="text" class="form-control form-control-sm" id="newModelId" placeholder="e.g. us.anthropic.claude-sonnet-5-v1">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small mb-1">Swarm Role</label>
+                                <select class="form-select form-select-sm" id="newModelRole">
+                                    <option value="">None</option>
+                                    <option value="creator">Creator</option>
+                                    <option value="worker">Worker</option>
+                                    <option value="formatter">Formatter</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-primary btn-sm w-100" id="addModelBtn"><i class="bi bi-plus-lg me-1"></i>Add</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Skills Tab -->
                 <div id="settings-skills" class="settings-tab-content" style="display:none;">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div>
                             <h6 class="mb-0"><i class="bi bi-lightning me-2"></i>Agent Skills</h6>
-                            <small class="text-muted">Manage skills that enhance the Work tab agent</small>
+                            <small class="text-muted">Awesome skills for your agents</small>
                         </div>
                         <div class="d-flex gap-2">
                             <button class="btn btn-sm btn-outline-secondary" id="openSkillsFolderBtn" title="Open skills folder">
@@ -646,7 +711,7 @@ Instructions for the agent go here.
     </div>
 
     <!-- Work Page (Agent) -->
-    <div id="work-page" class="container-fluid py-0" style="display:none;">
+    <div id="work-page" class="container-fluid py-0">
         <div class="work-layout">
             <!-- History Sidebar -->
             <div id="workSidebar" class="work-sidebar collapsed">

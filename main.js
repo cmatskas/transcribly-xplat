@@ -26,7 +26,7 @@ const BrowserManager = require('./src/main/models/browserManager');
 const MemoryManager = require('./src/main/models/memoryManager');
 const WorkHistoryManager = require('./src/main/models/workHistoryManager');
 const SwarmOrchestrator = require('./src/main/models/swarmOrchestrator');
-const { getTemplate, getAllTemplates } = require('./src/main/models/pipelineTemplates');
+const { getTemplate, getAllTemplates, resolveModels } = require('./src/main/models/pipelineTemplates');
 
 let conversationManager;
 let customPromptsManager;
@@ -618,17 +618,15 @@ ipcMain.handle('create-skill', async (event, { name, content }) => {
 });
 
 // Swarm handlers
-function ensureSwarmOrchestrator() {
-  if (!swarmOrchestrator) {
-    swarmOrchestrator = new SwarmOrchestrator({
-      awsConfig: awsClients.agentCoreConfig,
-      skillsManager,
-      codeInterpreterManager: new (require('./src/main/models/codeInterpreterManager'))(awsClients.agentCoreConfig),
-      browserManager: new (require('./src/main/models/browserManager'))(awsClients.agentCoreConfig),
-      settings: {},
-      onEvent: (channel, data) => { if (mainWindow) mainWindow.webContents.send(channel, data); },
-    });
-  }
+function createSwarmOrchestrator() {
+  swarmOrchestrator = new SwarmOrchestrator({
+    awsConfig: awsClients.agentCoreConfig,
+    skillsManager,
+    codeInterpreterManager: new (require('./src/main/models/codeInterpreterManager'))(awsClients.agentCoreConfig),
+    browserManager: new (require('./src/main/models/browserManager'))(awsClients.agentCoreConfig),
+    settings: {},
+    onEvent: (channel, data) => { if (mainWindow) mainWindow.webContents.send(channel, data); },
+  });
   return swarmOrchestrator;
 }
 
@@ -636,7 +634,14 @@ ipcMain.handle('swarm-get-templates', async () => getAllTemplates());
 
 ipcMain.handle('swarm-run-pipeline', async (event, { templateId, brief, autonomyMode, files }) => {
   if (!awsClients.bedrock) throw new Error('AWS credentials not configured');
-  const orch = ensureSwarmOrchestrator();
+  // Resolve model roles from settings before fetching template
+  const settings = currentSettings || await settingsManager.loadSettings();
+  const models = (settings.bedrockModels || []);
+  const overrides = {};
+  for (const m of models) { if (m.role) overrides[m.role] = m.inferenceProfileId; }
+  resolveModels(overrides);
+
+  const orch = createSwarmOrchestrator();
   const template = getTemplate(templateId);
   if (!template) throw new Error(`Unknown template: ${templateId}`);
   const swarmId = `swarm-${Date.now()}`;
@@ -645,15 +650,15 @@ ipcMain.handle('swarm-run-pipeline', async (event, { templateId, brief, autonomy
 });
 
 ipcMain.handle('swarm-continue', async (event, { swarmId, editedOutput }) => {
-  ensureSwarmOrchestrator().continueAfterReview(swarmId, editedOutput);
+  if (swarmOrchestrator) swarmOrchestrator.continueAfterReview(swarmId, editedOutput);
 });
 
 ipcMain.handle('swarm-answer-input', async (event, { swarmId, answer }) => {
-  ensureSwarmOrchestrator().answerInput(swarmId, answer);
+  if (swarmOrchestrator) swarmOrchestrator.answerInput(swarmId, answer);
 });
 
 ipcMain.handle('swarm-cancel', async (event, { swarmId }) => {
-  ensureSwarmOrchestrator().cancel(swarmId);
+  if (swarmOrchestrator) swarmOrchestrator.cancel(swarmId);
 });
 
 // Directory picker
@@ -708,9 +713,10 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
   }
 });
 
-// Add handler to get Bedrock models from config
-ipcMain.handle('get-bedrock-models', () => {
-  return config.bedrockModels;
+// Add handler to get Bedrock models from settings (falls back to config)
+ipcMain.handle('get-bedrock-models', async () => {
+  const settings = currentSettings || await settingsManager.loadSettings();
+  return settings.bedrockModels || config.bedrockModels;
 });
 
 ipcMain.handle('get-app-version', () => {

@@ -59,3 +59,15 @@ Now execute with the knowledge gathered.
 - Prefer official documentation over third-party blogs
 - If research reveals the user's approach won't work, say so before implementing
 - Don't over-research simple tasks — if you already know the answer, just do it
+
+## AWS Content Guidelines
+
+When researching for content creation (keynotes, articles, presentations):
+
+- **PRIORITIZE** Amazon and AWS customer references, case studies, and public announcements
+- **DO NOT** cite competitor products, services, or customer stories (no Google Cloud, Azure, OpenAI, Databricks, Snowflake, etc.)
+- All customer references must come from **publicly available sources**: AWS blog, re:Invent talks, press releases, customer testimonials on aws.amazon.com
+- When a customer proof point is needed but no public reference exists, insert: `[CUSTOMER REFERENCE NEEDED: brief description of what's needed]`
+- Statistics about market trends are acceptable from **neutral sources** (Gartner, Forrester, IDC, Stack Overflow surveys)
+- **Never fabricate** customer quotes or attribute statements without a verifiable public source
+- Draw examples from: AWS case studies, re:Invent sessions, AWS blog posts, Amazon shareholder letters, This is My Architecture videos
