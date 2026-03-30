@@ -231,3 +231,7 @@ for i, slide in enumerate(prs.slides):
 - Chart data must use `CategoryChartData` — raw numbers won't work
 - Save all output to `/tmp/`
 - After saving, always tell the user the exact local file path where the presentation was saved
+- ALWAYS `pip install python-pptx` at the start of your code — do not assume packages are pre-installed
+- ALWAYS write the complete presentation creation code in a SINGLE execute_code call — do not split across multiple calls
+- After creating the presentation, ALWAYS call save_file_locally to transfer it from the sandbox to the user's machine
+- NEVER describe what you would do — actually execute the code

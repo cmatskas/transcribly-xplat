@@ -128,27 +128,87 @@ doc.add_page_break()
 
 ### Headers and Footers
 
-```python
-from docx.shared import Pt
-section = doc.sections[0]
-header = section.header
-header.paragraphs[0].text = 'Document Title'
-header.paragraphs[0].style.font.size = Pt(9)
+Every document MUST include:
+- **Header**: Document title, right-aligned, 9pt grey
+- **Footer**: "Amazon Confidential" left-aligned, page number right-aligned
 
-footer = section.footer
-footer.paragraphs[0].text = 'Page '
-# Page numbers require XML manipulation
+```python
+from docx.shared import Pt, RGBColor
 from docx.oxml.ns import qn
-run = footer.paragraphs[0].add_run()
-fldChar = run._element.makeelement(qn('w:fldChar'), {qn('w:fldCharType'): 'begin'})
-run._element.append(fldChar)
-run2 = footer.paragraphs[0].add_run()
-instrText = run2._element.makeelement(qn('w:instrText'), {})
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+section = doc.sections[0]
+
+# Header — document title
+header = section.header
+header.is_linked_to_previous = False
+hp = header.paragraphs[0]
+hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+hr = hp.add_run('Document Title Here')
+hr.font.size = Pt(9)
+hr.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
+
+# Footer — "Amazon Confidential" on left, page number on right
+footer = section.footer
+footer.is_linked_to_previous = False
+fp = footer.paragraphs[0]
+fp.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+# Add tab stop at right margin for page number alignment
+from docx.oxml import OxmlElement
+pPr = fp._element.get_or_add_pPr()
+tabs = OxmlElement('w:tabs')
+tab = OxmlElement('w:tab')
+tab.set(qn('w:val'), 'right')
+tab.set(qn('w:pos'), str(int(section.page_width - section.right_margin - section.left_margin)))
+tabs.append(tab)
+pPr.append(tabs)
+
+# Left side: Amazon Confidential
+conf_run = fp.add_run('Amazon Confidential')
+conf_run.font.size = Pt(8)
+conf_run.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
+
+# Tab to right side
+tab_run = fp.add_run('\t')
+
+# Right side: page number field
+page_run = fp.add_run('Page ')
+page_run.font.size = Pt(8)
+page_run.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
+fldChar1 = OxmlElement('w:fldChar')
+fldChar1.set(qn('w:fldCharType'), 'begin')
+r1 = OxmlElement('w:r')
+r1.append(fldChar1)
+fp._element.append(r1)
+instrText = OxmlElement('w:instrText')
+instrText.set(qn('xml:space'), 'preserve')
 instrText.text = ' PAGE '
-run2._element.append(instrText)
-run3 = footer.paragraphs[0].add_run()
-fldChar2 = run3._element.makeelement(qn('w:fldChar'), {qn('w:fldCharType'): 'end'})
-run3._element.append(fldChar2)
+r2 = OxmlElement('w:r')
+r2.append(instrText)
+fp._element.append(r2)
+fldChar2 = OxmlElement('w:fldChar')
+fldChar2.set(qn('w:fldCharType'), 'end')
+r3 = OxmlElement('w:r')
+r3.append(fldChar2)
+fp._element.append(r3)
+```
+
+### Line Numbers
+
+Add line numbers to all sections for review and reference:
+
+```python
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
+
+for section in doc.sections:
+    sectPr = section._sectPr
+    lnNumType = OxmlElement('w:lnNumType')
+    lnNumType.set(qn('w:countBy'), '1')       # number every line
+    lnNumType.set(qn('w:restart'), 'newPage')  # restart per page
+    lnNumType.set(qn('w:distance'), '360')     # 0.25 inch from text
+    sectPr.append(lnNumType)
 ```
 
 ### Saving
@@ -203,3 +263,8 @@ with zipfile.ZipFile('/tmp/output.docx', 'w', zipfile.ZIP_DEFLATED) as z:
 - For images, always specify width to prevent oversized renders
 - Save all output to `/tmp/` — the system transfers files to the user's local filesystem
 - After saving, always tell the user the exact local file path where the document was saved
+- ALWAYS include line numbers, a header with the document title, and a footer with "Amazon Confidential" (left) and page number (right)
+- ALWAYS `pip install python-docx lxml` at the start of your code — do not assume packages are pre-installed
+- ALWAYS write the complete document creation code in a SINGLE execute_code call — do not split across multiple calls
+- After creating the document, ALWAYS call save_file_locally to transfer it from the sandbox to the user's machine
+- NEVER describe what you would do — actually execute the code

@@ -30,8 +30,8 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
     'save-settings', 'save-skill-content', 'select-directory', 'send-to-bedrock', 'toggle-skill',
     'create-skill', 'delete-skill', 'transcribe-media',
     'update-custom-prompt', 'validate-credentials', 'work-history-delete', 'work-history-list',
-    'work-history-load', 'work-history-rename', 'work-history-save', 'work-history-star',
-    'swarm-run-pipeline', 'swarm-continue', 'swarm-cancel', 'swarm-answer-input', 'swarm-get-templates', 'swarm-get-analytics',
+    'work-history-load', 'work-history-rename', 'work-history-save', 'work-history-star', 'work-cleanup-session',
+    'swarm-run-pipeline', 'swarm-continue', 'swarm-cancel', 'swarm-answer-input', 'swarm-get-templates', 'swarm-get-analytics', 'select-files',
 ]);
 
 const ALLOWED_RECEIVE_CHANNELS = new Set([

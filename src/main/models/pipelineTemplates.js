@@ -19,10 +19,14 @@
 //               mostly code execution with minimal reasoning, so the cheapest capable
 //               model is fine. Used by: Formatter agents.
 //
+//   vision    — Multimodal model for video/image analysis. Must support video content
+//               blocks in the Converse API. Used by: Demo Analyst when video is attached.
+//
 const DEFAULT_MODELS = {
   creator: 'us.anthropic.claude-opus-4-6-v1',
   worker: 'us.anthropic.claude-sonnet-4-6',
   formatter: 'anthropic.claude-haiku-4-5-20251001-v1:0',
+  vision: 'us.amazon.nova-premier-v1:0',
 };
 
 let MODELS = { ...DEFAULT_MODELS };
@@ -141,7 +145,26 @@ const TEMPLATES = {
       { id: 'quality-gate-2', label: 'Final Check', model: "creator", tools: [], isQualityGate: true, maxRetries: 2, skills: ['copy-editing'],
         prompt: 'Evaluate the edited article using the de-slop checklist from your copy-editing skill. Check: (1) addresses the brief, (2) free of all 22 AI slop patterns, (3) specific not generic, (4) right length/depth. If ALL pass: respond with "PASS" then the article unchanged. If ANY fail: respond with "REVISE:" then specific feedback referencing which patterns were found.' },
       { id: 'formatter', label: 'Formatter', model: "formatter", skills: ['docx'], tools: ['execute_code', 'save_file_locally'],
-        prompt: 'Format the final article as a professional Word document (.docx) with: title, heading hierarchy, styled paragraphs, and page numbers. Use execute_code to run python-docx code and save to /tmp/output.docx in the sandbox. Then call save_file_locally with sandbox_path=/tmp/output.docx and a local_path under the user\'s home ~/Documents/Transcribely/ with a descriptive filename. Tell the user the exact local path where the file was saved.' },
+        prompt: `You are a document formatter. Your ONLY job is to convert the final article into a .docx file and save it locally.
+
+You MUST follow these steps exactly:
+
+STEP 1: Call execute_code with a SINGLE Python script that:
+- Starts with: subprocess.check_call(['pip', 'install', '-q', 'python-docx', 'lxml'])
+- Creates the document using python-docx
+- Includes a header with the document title (right-aligned, 9pt, grey)
+- Includes a footer with "Amazon Confidential" on the left and page number on the right
+- Adds line numbers to all sections
+- Formats the content with proper heading hierarchy (Heading 1, Heading 2, etc.)
+- Uses styled paragraphs, bullet lists (style='List Bullet'), and tables where appropriate
+- Saves to /tmp/output.docx
+- Prints "SAVED: /tmp/output.docx" at the end
+
+STEP 2: Call save_file_locally with:
+- sandbox_path: /tmp/output.docx
+- local_path: ~/Documents/Transcribely/<descriptive_filename>.docx
+
+CRITICAL: Do NOT describe what you would do. Do NOT skip the execute_code call. Do NOT hallucinate file paths. Execute the code, then save the file. These are the only two actions you take.` },
     ],
     edges: [['researcher','planner'],['planner','quality-gate-1'],['quality-gate-1','writer'],['writer','editor'],['editor','quality-gate-2'],['quality-gate-2','formatter']],
   },
@@ -166,7 +189,25 @@ const TEMPLATES = {
       { id: 'quality-gate-2', label: 'Final Check', model: "creator", tools: [], isQualityGate: true, maxRetries: 2, skills: ['copy-editing'],
         prompt: 'Evaluate using the de-slop checklist at creative/inspirational register. Check: (1) addresses brief, (2) no Tier 1 AI vocabulary, (3) slides scannable, (4) speaker notes conversational. Preserve intentional rhetorical devices. If ALL pass: "PASS" then content unchanged. If ANY fail: "REVISE:" then feedback referencing specific patterns.' },
       { id: 'formatter', label: 'Slide Creator', model: "formatter", skills: ['pptx'], tools: ['execute_code', 'save_file_locally'],
-        prompt: 'Create a professional PowerPoint (.pptx) from the final slides and notes. Use execute_code to run python-pptx code with clean modern layout, consistent fonts, proper slide masters, speaker notes. Save to /tmp/output.pptx in the sandbox. Then call save_file_locally with sandbox_path=/tmp/output.pptx and a local_path under the user\'s home ~/Documents/Transcribely/ with a descriptive filename. Tell the user the exact local path where the file was saved.' },
+        prompt: `You are a presentation formatter. Your ONLY job is to convert the final slides into a .pptx file and save it locally.
+
+You MUST follow these steps exactly:
+
+STEP 1: Call execute_code with a SINGLE Python script that:
+- Starts with: subprocess.check_call(['pip', 'install', '-q', 'python-pptx'])
+- Creates a 16:9 widescreen presentation using python-pptx
+- Uses blank slide layouts and positions shapes manually for a clean modern look
+- Dark background (RGB 20, 24, 34), white text, accent colors for emphasis
+- Each slide has: title, content area, speaker notes (from the notes in the input)
+
+- Saves to /tmp/output.pptx
+- Prints "SAVED: /tmp/output.pptx" at the end
+
+STEP 2: Call save_file_locally with:
+- sandbox_path: /tmp/output.pptx
+- local_path: ~/Documents/Transcribely/<descriptive_filename>.pptx
+
+CRITICAL: Do NOT describe what you would do. Do NOT skip the execute_code call. Do NOT hallucinate file paths. Execute the code, then save the file. These are the only two actions you take.` },
     ],
     edges: [['researcher','planner'],['planner','quality-gate-1'],['quality-gate-1','writer'],['writer','editor'],['editor','quality-gate-2'],['quality-gate-2','formatter']],
   },
@@ -201,18 +242,37 @@ const TEMPLATES = {
     icon: 'bi-camera-reels',
     rubric: RUBRICS.demo,
     agents: [
-      { id: 'analyst', label: 'Analyst', model: "worker", skills: ['analysis-framework', 'research-first'], tools: ['web', 'execute_code'],
-        prompt: 'You are a product analyst. Read the provided inputs (product brief, feature specs, screenshots, transcripts). Extract: key features to demo, user pain points addressed, "wow moments" worth highlighting, target audience, and any technical details needed for screen recordings. If files are attached, use execute_code to read and analyze them. Use web to research the product/feature for additional context. Output a structured analysis brief.' },
+      { id: 'analyst', label: 'Analyst', model: "vision", skills: ['analysis-framework', 'research-first'], tools: ['web', 'execute_code'], supportsVideo: true,
+        prompt: 'You are a product analyst with video analysis capabilities. If a video is provided, analyze it scene by scene: describe what is shown on screen, identify UI elements, click paths, transitions, key moments, and any text/data visible. Include timestamps. If no video, read the provided inputs (product brief, feature specs, screenshots, transcripts). Extract: key features to demo, user pain points addressed, "wow moments" worth highlighting, target audience, and any technical details needed for screen recordings. Use web to research the product/feature for additional context. Output a structured analysis brief.' },
       { id: 'planner', label: 'Story Architect', model: "worker", skills: ['task-planner', 'demo-storyboard', 'marketing-psychology'], tools: [], reviewPoint: true,
         prompt: 'You are a demo narrative designer. Using the analysis brief, create the scene-by-scene storyboard structure following the Demo Narrative Arc from your demo-storyboard skill (Hook → Context → Solution Reveal → Proof → CTA). For each scene, define: title, duration, what\'s on screen, and the key message. Include transition notes between scenes. Output the complete scene breakdown with timing.' },
       { id: 'quality-gate-1', label: 'Quality Check', model: "creator", tools: [], isQualityGate: true, maxRetries: 2, skills: ['copy-editing', 'demo-storyboard'],
         prompt: 'Evaluate the storyboard structure. Check: (1) opens with problem not feature, (2) every scene has one clear focus, (3) scenes are under 30 seconds, (4) logical flow from problem to proof, (5) ends with specific CTA. If ALL pass: "PASS" then storyboard unchanged. If ANY fail: "REVISE:" then feedback.' },
       { id: 'writer', label: 'Scene Writer', model: "creator", skills: ['demo-storyboard', 'copywriting', 'marketing-psychology'], tools: [],
-        prompt: 'You are a demo script writer. For each scene in the storyboard, write the complete scene card using the exact format from your demo-storyboard skill. Include: specific visual descriptions, exact callout annotations (arrows, zoom levels, blur regions), word-for-word narration in conversational tone, on-screen text overlays, transitions, and emotional beats. Mark pauses with [PAUSE Xs]. Insert [CUSTOMER REFERENCE NEEDED: description] where proof points are missing.' },
+        prompt: 'You are a demo script writer. For each scene in the storyboard, write the complete scene card using the exact format from your demo-storyboard skill. Include: specific visual descriptions, exact callout annotations (arrows, zoom levels, blur regions), word-for-word narration in conversational tone, on-screen text overlays, transitions, and emotional beats. Mark pauses with [PAUSE Xs]. Insert [CUSTOMER REFERENCE NEEDED: description] where proof points are missing. IMPORTANT: If extracted video frames are listed in the analysis, reference the specific frame paths (e.g. /tmp/frames/frame_0005_0010.jpg) in each scene\'s Visual field. Choose the frame that best represents what should be on screen for that scene.' },
       { id: 'editor', label: 'Editor', model: "worker", skills: ['copy-editing', 'demo-storyboard', 'analysis-framework'], tools: [],
-        prompt: 'Apply the Eight Sweeps framework plus Sweep 9 (AWS Reference Audit). For demo storyboards specifically: verify all callouts are specific (not vague), narration sounds natural when spoken aloud, scene durations are realistic, click paths are explicit, and data shown is realistic. Check that no scene exceeds 30 seconds. Strip AI vocabulary. Output the complete polished storyboard.' },
+        prompt: 'Apply the Eight Sweeps framework plus Sweep 9 (AWS Reference Audit). For demo storyboards specifically: verify all callouts are specific (not vague), narration sounds natural when spoken aloud, scene durations are realistic, click paths are explicit, and data shown is realistic. Check that no scene exceeds 30 seconds. Verify that frame references (if present) point to actual /tmp/frames/ paths from the analysis. Strip AI vocabulary. Output the complete polished storyboard.' },
       { id: 'formatter', label: 'Deck Creator', model: "formatter", skills: ['pptx'], tools: ['execute_code', 'save_file_locally'],
-        prompt: 'Create a professional storyboard deck (.pptx) from the final scene cards. Each slide = one scene card with: scene number and title as heading, visual description in a bordered box, narration text below, callout notes in a sidebar, duration and transition in the footer. Use a clean dark layout. Save to /tmp/output.pptx in the sandbox. Then call save_file_locally with sandbox_path=/tmp/output.pptx and a local_path under the user\'s home ~/Documents/Transcribely/ with a descriptive filename. Tell the user the exact local path where the file was saved.' },
+        prompt: `You are a storyboard deck formatter. Your ONLY job is to convert the final scene cards into a .pptx file and save it locally.
+
+You MUST follow these steps exactly:
+
+STEP 1: Call execute_code with a SINGLE Python script that:
+- Starts with: subprocess.check_call(['pip', 'install', '-q', 'python-pptx'])
+- Creates a 16:9 widescreen presentation using python-pptx
+- Uses blank slide layouts and positions shapes manually
+- Dark background (RGB 20, 24, 34), white text, orange accents
+- One slide per scene card: scene number + title as heading, visual description, narration text, callout notes, duration + transition in footer area
+- If frame image paths are referenced (e.g. /tmp/frames/frame_0005_0010.jpg), check if the file exists with os.path.exists() before embedding with add_picture(). Skip missing images gracefully.
+
+- Saves to /tmp/output.pptx
+- Prints "SAVED: /tmp/output.pptx" at the end
+
+STEP 2: Call save_file_locally with:
+- sandbox_path: /tmp/output.pptx
+- local_path: ~/Documents/Transcribely/<descriptive_filename>.pptx
+
+CRITICAL: Do NOT describe what you would do. Do NOT skip the execute_code call. Do NOT hallucinate file paths. Execute the code, then save the file. These are the only two actions you take.` },
     ],
     edges: [['analyst','planner'],['planner','quality-gate-1'],['quality-gate-1','writer'],['writer','editor'],['editor','formatter']],
   },

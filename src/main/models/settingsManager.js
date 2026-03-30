@@ -24,6 +24,7 @@ class SettingsManager {
         { id: 'DeepSeek V3.2', inferenceProfileId: 'deepseek.v3.2', role: '' },
         { id: 'Mistral Large 3', inferenceProfileId: 'mistral.mistral-large-3-675b-instruct', role: '' },
         { id: 'Llama 4 Maverick 17B', inferenceProfileId: 'us.meta.llama4-maverick-17b-instruct-v1:0', role: '' },
+        { id: 'Nova Premier', inferenceProfileId: 'us.amazon.nova-premier-v1:0', role: 'vision' },
       ],
     };
   }

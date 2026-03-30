@@ -323,10 +323,6 @@
         session.messages.push({ role: 'assistant', content: session.streamingText, timestamp: new Date().toISOString() });
       }
 
-      if (files.length > 0) {
-        workFiles.clearFiles();
-      }
-
       saveSession(sid, session.messages);
       refreshSidebar();
 
@@ -352,14 +348,21 @@
   }
 
   function startNewChat() {
-    // Stash draft prompt from current session
+    // Stash draft prompt + files from current session
     const promptInput = document.getElementById('workPromptEditor');
-    getActiveSession().draftPrompt = promptInput.value;
+    const currentSession = getActiveSession();
+    currentSession.draftPrompt = promptInput.value;
+    currentSession.files = workFiles.getFiles();
 
-    saveSession(activeSessionId, getActiveSession().messages);
-    if (getActiveSession().messages.length > 0) {
+    saveSession(activeSessionId, currentSession.messages);
+    if (currentSession.messages.length > 0) {
       window.electronAPI.invoke('memory-extract', { sessionId: activeSessionId }).catch(() => {});
     }
+    // Clean up sandbox only if the old conversation is idle
+    if (!currentSession.processing) {
+      window.electronAPI.invoke('work-cleanup-session', { sessionId: activeSessionId }).catch(() => {});
+    }
+
     const newId = generateSessionId();
     const session = getOrCreateSession(newId);
     session.container.innerHTML = `
@@ -368,6 +371,7 @@
         <div class="work-greeting-text">What can I help you build today?</div>
       </div>`;
     showSession(newId);
+    workFiles.clearFiles();
     promptInput.value = '';
     promptInput.style.height = 'auto';
     refreshSidebar();
@@ -440,21 +444,26 @@
   async function switchToSession(id) {
     if (id === activeSessionId) return;
 
-    // Save current session + stash draft prompt
+    // Save current session + stash draft prompt and files
     const promptInput = document.getElementById('workPromptEditor');
-    getActiveSession().draftPrompt = promptInput.value;
-    saveSession(activeSessionId, getActiveSession().messages);
+    const currentSession = getActiveSession();
+    currentSession.draftPrompt = promptInput.value;
+    currentSession.files = workFiles.getFiles();
+    saveSession(activeSessionId, currentSession.messages);
 
     // If target session is already in memory (live DOM), just swap
     if (sessions.has(id)) {
       showSession(id);
-      promptInput.value = sessions.get(id).draftPrompt || '';
+      const target = sessions.get(id);
+      promptInput.value = target.draftPrompt || '';
       promptInput.style.height = 'auto';
+      workFiles.setFiles(target.files || []);
       refreshSidebar();
       return;
     }
 
-    // Otherwise load from disk
+    // Otherwise load from disk — no files to restore (they were in-memory only)
+    workFiles.clearFiles();
     try {
       const data = await window.electronAPI.invoke('work-history-load', { id });
       const session = getOrCreateSession(id);

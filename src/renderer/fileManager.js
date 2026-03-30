@@ -121,7 +121,12 @@ function createFileManager({ fileInputId, attachBtnId, clearBtnId, listSectionId
     });
   }
 
-  return { setup, getFiles, clearFiles, updateFileList };
+  function setFiles(files) {
+    selectedFiles = files || [];
+    updateFileList();
+  }
+
+  return { setup, getFiles, clearFiles, setFiles, updateFileList };
 }
 
 function readFileAsArrayBuffer(file) {

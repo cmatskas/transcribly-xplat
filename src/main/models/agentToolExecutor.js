@@ -43,6 +43,7 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
 
 <instructions>
 - When a task matches a skill's description, call activate_skill to load its full instructions before proceeding.
+- For document creation tasks (Word, PowerPoint, Excel, PDF), you MUST call activate_skill for the matching skill (docx, pptx, xlsx, pdf) FIRST, then follow its instructions exactly.
 - You can execute arbitrary Python code via execute_code for any task — not just skills. Write code to solve problems even when no skill covers the task.
 - When the user mentions a local file path in their prompt, use read_local_file to load it into the sandbox before processing.
 - When the user provides a working directory, use list_directory to discover files, then read_local_file to load the ones you need.
@@ -51,6 +52,8 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
 - Break complex tasks into steps. Execute code, inspect results, and iterate until the task is complete.
 - You can browse the web using the web tool. Pass a URL to read a page, or a query to search Google. For research: search first, then browse specific result URLs for deeper content.
 - If a library is missing in the sandbox, install it with pip via execute_code before using it.
+- If execute_code returns an error, fix the code and retry. Do NOT give up or describe what you would have done.
+- Write ALL document generation code in a SINGLE execute_code call. Do not split across multiple calls unless debugging an error.
 </instructions>
 
 <completion_checklist>
@@ -58,6 +61,7 @@ Before giving your FINAL response, verify ALL of the following — if any is NO,
 1. Did you generate any file in the sandbox (/tmp/)? If yes, have you called save_file_locally for EACH one?
 2. Have you told the user the exact local path of every saved file?
 3. If the task was to create a document/report, does it now exist on the user's local filesystem?
+4. If execute_code returned an error, did you fix and retry? Never end with a failed code execution.
 </completion_checklist>${autoBlock}`;
 
     return memoryContext
@@ -244,7 +248,7 @@ print("\\n\\n".join(slides))
     // Store the system prompt with memory context for this run
     this._memoryContext = memoryContext;
 
-    let sessionStarted = false;
+    let sessionStarted = !!this.codeInterpreter.sessionId; // may already be started for file extraction
     const maxIterations = 15;
     let finalText = '';
     let accumulatedText = ''; // track streamed text for abort case
@@ -342,10 +346,7 @@ print("\\n\\n".join(slides))
         }
       }
 
-      if (sessionStarted) {
-        this.onStatus({ tool: 'cleanup', detail: 'Closing sandbox', state: 'running' });
-        await this.codeInterpreter.stopSession().catch(() => {});
-      }
+      // Browser cleanup (sandbox is managed externally per conversation)
       if (this.browser.sessionId) {
         this.onStatus({ tool: 'cleanup', detail: 'Closing browser', state: 'running' });
         await this.browser.stopSession().catch(() => {});
@@ -422,7 +423,7 @@ print("\\n\\n".join(slides))
       case 'execute_code':
         if (!this.codeInterpreter.sessionId) {
           this.onStatus({ tool: 'sandbox', detail: 'Starting sandbox...', state: 'running' });
-          await this.codeInterpreter.startSession();
+          await this.codeInterpreter.startSession(7200);
           this.onStatus({ tool: 'sandbox', detail: 'Sandbox ready', state: 'done' });
         }
         const result = await this.codeInterpreter.executeCode(input.code);
@@ -477,9 +478,12 @@ print("\\n\\n".join(slides))
     const driveMatch = localPath.match(/^[A-Za-z]:\\.*?([A-Za-z]:\\.*)/);
     if (driveMatch) localPath = driveMatch[1];
 
+    // Expand tilde
+    const home = require('os').homedir();
+    if (localPath.startsWith('~')) localPath = localPath.replace('~', home);
+
     // Block writes outside user home directory
     const resolved = path.resolve(localPath);
-    const home = require('os').homedir();
     if (!resolved.startsWith(home) && !resolved.startsWith('/tmp')) {
       return { error: `Blocked: save path must be within user home directory (${home})` };
     }

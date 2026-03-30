@@ -213,6 +213,11 @@ app.on('before-quit', () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('app-before-quit');
   }
+  // Clean up all persistent sandboxes
+  for (const [id, ci] of workSandboxes) {
+    if (ci?.sessionId) ci.stopSession().catch(() => {});
+  }
+  workSandboxes.clear();
 });
 
 // Credential management IPC handlers
@@ -624,10 +629,30 @@ function createSwarmOrchestrator() {
     skillsManager,
     codeInterpreterManager: new (require('./src/main/models/codeInterpreterManager'))(awsClients.agentCoreConfig),
     browserManager: new (require('./src/main/models/browserManager'))(awsClients.agentCoreConfig),
-    settings: {},
-    onEvent: (channel, data) => { if (mainWindow) mainWindow.webContents.send(channel, data); },
+    settings: currentSettings || {},
+    onEvent: (channel, data) => {
+      if (mainWindow) mainWindow.webContents.send(channel, data);
+      // System notifications for events needing user attention
+      if (channel === 'swarm-review-pause') {
+        swarmNotify('Review Required', `${data.agentIndex !== undefined ? 'Agent' : 'Pipeline'} output ready for your review.`);
+      } else if (channel === 'swarm-input-request') {
+        swarmNotify('Input Needed', data.question ? data.question.slice(0, 100) : 'An agent needs your input.');
+      } else if (channel === 'swarm-pipeline-done') {
+        swarmNotify('Pipeline Complete', 'All agents finished successfully.');
+      } else if (channel === 'swarm-error') {
+        swarmNotify('Pipeline Error', data.error ? data.error.slice(0, 100) : 'An error occurred.');
+      }
+    },
   });
   return swarmOrchestrator;
+}
+
+function swarmNotify(title, body) {
+  if (Notification.isSupported()) {
+    const n = new Notification({ title: `Transcribely — ${title}`, body, silent: false });
+    n.on('click', () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } });
+    n.show();
+  }
 }
 
 ipcMain.handle('swarm-get-templates', async () => getAllTemplates());
@@ -746,6 +771,37 @@ ipcMain.handle('select-directory', async () => {
   return result.filePaths[0];
 });
 
+ipcMain.handle('select-files', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile', 'multiSelections'],
+    title: 'Select files to attach',
+  });
+  if (result.canceled || !result.filePaths.length) return [];
+  const path = require('path');
+  const fs = require('fs');
+  return result.filePaths.map(fp => ({
+    name: path.basename(fp),
+    path: fp,
+    size: fs.statSync(fp).size,
+  }));
+});
+
+// Persistent sandbox sessions per work conversation
+const workSandboxes = new Map(); // sessionId → CodeInterpreterManager
+
+function getOrCreateSandbox(sessionId) {
+  if (!workSandboxes.has(sessionId)) {
+    workSandboxes.set(sessionId, new CodeInterpreterManager(awsClients.agentCoreConfig));
+  }
+  return workSandboxes.get(sessionId);
+}
+
+async function cleanupSandbox(sessionId) {
+  const ci = workSandboxes.get(sessionId);
+  if (ci?.sessionId) await ci.stopSession().catch(() => {});
+  workSandboxes.delete(sessionId);
+}
+
 // Agent handler — runs the agentic tool-use loop
 ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistory, files = [], sessionId }) => {
   if (!awsClients.bedrock) {
@@ -765,7 +821,7 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
     memManager._ensureStrategies().catch(err => console.warn('Strategy check failed:', err.message));
   }
 
-  const ciManager = new CodeInterpreterManager(awsClients.agentCoreConfig);
+  const ciManager = getOrCreateSandbox(sessionId);
   const brManager = new BrowserManager(awsClients.agentCoreConfig);
   const executor = new AgentToolExecutor({
     bedrockClient: awsClients.bedrock,
@@ -786,6 +842,12 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
   } finally {
     agentAbortControllers.delete(sessionId);
   }
+});
+
+// Clean up sandbox when conversation ends
+ipcMain.handle('work-cleanup-session', async (_event, { sessionId }) => {
+  await cleanupSandbox(sessionId);
+  return { success: true };
 });
 
 // Add handler to get Bedrock models from settings (falls back to config)

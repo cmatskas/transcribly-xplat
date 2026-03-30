@@ -43,17 +43,14 @@
       const menu = document.getElementById('swarmAttachMenu');
       menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
     });
-    document.getElementById('swarmAttachFiles').addEventListener('click', () => {
+    document.getElementById('swarmAttachFiles').addEventListener('click', async () => {
       document.getElementById('swarmAttachMenu').style.display = 'none';
-      document.getElementById('swarmFileInput').click();
-    });
-    document.getElementById('swarmFileInput').addEventListener('change', (e) => {
-      for (const f of e.target.files) {
+      const selected = await window.electronAPI.invoke('select-files');
+      for (const f of selected) {
         if (!swarmFiles.find(sf => sf.path === f.path)) {
-          swarmFiles.push({ name: f.name, path: f.path, size: f.size });
+          swarmFiles.push(f);
         }
       }
-      e.target.value = '';
       renderSwarmFiles();
     });
     document.getElementById('swarmWorkspaceBtn').addEventListener('click', async () => {

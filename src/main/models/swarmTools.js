@@ -4,8 +4,48 @@
  */
 const { tool } = require('@strands-agents/sdk');
 const { z } = require('zod');
+const path = require('path');
+const os = require('os');
+const fsPromises = require('fs').promises;
 
 function createSwarmTools({ codeInterpreterManager, browserManager, settings, onStatus }, toolNames) {
+  const home = os.homedir();
+
+  /** Resolve path: expand ~, resolve to absolute, block outside home */
+  function resolveLocalPath(p) {
+    let resolved = p.startsWith('~') ? p.replace('~', home) : p;
+    // Fix double-path bug on Windows: agent may concatenate working dir with absolute path
+    const driveMatch = resolved.match(/^[A-Za-z]:\\.*?([A-Za-z]:\\.*)/);
+    if (driveMatch) resolved = driveMatch[1];
+    resolved = path.resolve(resolved);
+    if (!resolved.startsWith(home) && !resolved.startsWith('/tmp')) {
+      throw new Error(`Blocked: path must be within user home directory (${home})`);
+    }
+    return resolved;
+  }
+
+  /** Upload a local buffer to the sandbox via base64+executeCode (proven pattern from Work tab) */
+  async function uploadToSandbox(sandboxPath, buffer) {
+    if (!codeInterpreterManager.sessionId) await codeInterpreterManager.startSession(7200);
+    const b64 = buffer.toString('base64');
+    // Split into chunks to avoid command-line length limits for large files
+    const chunkSize = 500000;
+    if (b64.length <= chunkSize) {
+      const code = `import base64\ndata = base64.b64decode("${b64}")\nwith open("${sandboxPath}", "wb") as f:\n    f.write(data)\nprint(f"Wrote {len(data)} bytes to ${sandboxPath}")`;
+      return codeInterpreterManager.executeCode(code);
+    }
+    // Large file: write chunks
+    const chunks = [];
+    for (let i = 0; i < b64.length; i += chunkSize) chunks.push(b64.slice(i, i + chunkSize));
+    const code = `import base64
+chunks = ${JSON.stringify(chunks)}
+data = base64.b64decode("".join(chunks))
+with open("${sandboxPath}", "wb") as f:
+    f.write(data)
+print(f"Wrote {len(data)} bytes to ${sandboxPath}")`;
+    return codeInterpreterManager.executeCode(code);
+  }
+
   const registry = {
     execute_code: () => tool({
       name: 'execute_code',
@@ -37,14 +77,12 @@ function createSwarmTools({ codeInterpreterManager, browserManager, settings, on
       callback: async (input) => {
         try {
           if (!codeInterpreterManager.sessionId) throw new Error('No sandbox session — run execute_code first');
-          const content = await codeInterpreterManager.downloadFile(input.sandbox_path);
-          const fs = require('fs').promises;
-          const path = require('path');
-          const os = require('os');
-          const localPath = input.local_path.startsWith('~') ? input.local_path.replace('~', os.homedir()) : input.local_path;
-          await fs.mkdir(path.dirname(localPath), { recursive: true });
-          await fs.writeFile(localPath, content);
-          return `Saved to ${localPath}`;
+          const localPath = resolveLocalPath(input.local_path);
+          const base64 = await codeInterpreterManager.readFileBase64(input.sandbox_path);
+          const buffer = Buffer.from(base64, 'base64');
+          await fsPromises.mkdir(path.dirname(localPath), { recursive: true });
+          await fsPromises.writeFile(localPath, buffer);
+          return JSON.stringify({ success: true, path: localPath, size: buffer.length });
         } catch (err) {
           onStatus?.(`Save error: ${err.message}`);
           return JSON.stringify({ error: err.message });
@@ -60,11 +98,15 @@ function createSwarmTools({ codeInterpreterManager, browserManager, settings, on
         sandbox_path: z.string().describe('Path in sandbox to write (e.g. /tmp/input.docx)'),
       }),
       callback: async (input) => {
-        const fs = require('fs').promises;
-        const content = await fs.readFile(input.local_path);
-        if (!codeInterpreterManager.sessionId) await codeInterpreterManager.startSession(7200);
-        await codeInterpreterManager.uploadFile(input.sandbox_path, content);
-        return `Uploaded ${input.local_path} to sandbox at ${input.sandbox_path}`;
+        try {
+          const localPath = resolveLocalPath(input.local_path);
+          const buffer = await fsPromises.readFile(localPath);
+          await uploadToSandbox(input.sandbox_path, buffer);
+          return JSON.stringify({ success: true, local: localPath, sandbox: input.sandbox_path, size: buffer.length });
+        } catch (err) {
+          onStatus?.(`Read error: ${err.message}`);
+          return JSON.stringify({ error: err.message });
+        }
       },
     }),
 
@@ -102,13 +144,88 @@ function createSwarmTools({ codeInterpreterManager, browserManager, settings, on
       description: 'Generate an image using AI. Returns the sandbox path of the generated image.',
       inputSchema: z.object({
         prompt: z.string().describe('Detailed description of the image'),
+        negative_prompt: z.string().optional().describe('What to avoid in the image'),
         width: z.number().optional().describe('Width in pixels (default 1024)'),
         height: z.number().optional().describe('Height in pixels (default 1024)'),
       }),
       callback: async (input) => {
-        // Delegate to the same image generation logic as AgentToolExecutor
-        // This is a simplified version — full implementation would need SageMaker/Nova Canvas client
-        return JSON.stringify({ error: 'Image generation not yet available in swarm pipelines' });
+        try {
+          const w = input.width || 1024;
+          const h = input.height || 1024;
+          onStatus?.(`Generating image: ${input.prompt?.slice(0, 40)}...`);
+
+          let base64Image;
+          let modelUsed;
+          const smEndpoint = settings?.sagemakerImageEndpoint;
+
+          if (smEndpoint) {
+            try {
+              const { SageMakerRuntimeClient, InvokeEndpointCommand } = require('@aws-sdk/client-sagemaker-runtime');
+              const smClient = new SageMakerRuntimeClient({ region: settings.region || 'us-east-1' });
+              const payload = JSON.stringify({
+                text_prompts: [
+                  { text: input.prompt },
+                  ...(input.negative_prompt ? [{ text: input.negative_prompt, weight: -1 }] : []),
+                ],
+                width: w, height: h, samples: 1, steps: 30, cfg_scale: 7.5,
+              });
+              const params = {
+                EndpointName: smEndpoint, ContentType: 'application/json', Accept: 'application/json', Body: Buffer.from(payload),
+              };
+              if (settings.sagemakerImageComponent) params.InferenceComponentName = settings.sagemakerImageComponent;
+              const response = await smClient.send(new InvokeEndpointCommand(params));
+              base64Image = JSON.parse(Buffer.from(response.Body).toString()).generated_image;
+              modelUsed = 'sdxl-1.0-sagemaker';
+            } catch (err) {
+              console.warn('SageMaker image gen failed, falling back to Nova Canvas:', err.message);
+            }
+          }
+
+          if (!base64Image) {
+            const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
+            const client = new BedrockRuntimeClient({ region: settings?.region || 'us-east-1', credentials: settings?.credentials });
+            const body = JSON.stringify({
+              taskType: 'TEXT_IMAGE',
+              textToImageParams: {
+                text: input.prompt,
+                ...(input.negative_prompt && { negativeText: input.negative_prompt }),
+              },
+              imageGenerationConfig: { numberOfImages: 1, width: w, height: h, cfgScale: 8.0 },
+            });
+            const response = await client.send(new InvokeModelCommand({
+              modelId: 'amazon.nova-canvas-v1:0', body, accept: 'application/json', contentType: 'application/json',
+            }));
+            base64Image = JSON.parse(new TextDecoder().decode(response.body)).images[0];
+            modelUsed = 'amazon.nova-canvas-v1:0';
+          }
+
+          // Write to sandbox for document embedding
+          if (!codeInterpreterManager.sessionId) await codeInterpreterManager.startSession(7200);
+          const sandboxPath = `/tmp/generated_${Date.now()}.png`;
+          const code = `import base64\ndata = base64.b64decode("""${base64Image}""")\nwith open("${sandboxPath}", "wb") as f:\n    f.write(data)\nprint(f"Image saved: ${sandboxPath} ({len(data)} bytes)")`;
+          await codeInterpreterManager.executeCode(code);
+
+          return JSON.stringify({ success: true, model: modelUsed, sandbox_path: sandboxPath, width: w, height: h });
+        } catch (err) {
+          onStatus?.(`Image generation error: ${err.message}`);
+          return JSON.stringify({ error: err.message });
+        }
+      },
+    }),
+
+    list_directory: () => tool({
+      name: 'list_directory',
+      description: 'List files and folders in a local directory.',
+      inputSchema: z.object({ dir_path: z.string().describe('Absolute path to directory') }),
+      callback: async (input) => {
+        try {
+          const dirPath = resolveLocalPath(input.dir_path);
+          const entries = await fsPromises.readdir(dirPath, { withFileTypes: true });
+          const items = entries.map(e => ({ name: e.name, type: e.isDirectory() ? 'directory' : 'file' }));
+          return JSON.stringify({ path: dirPath, count: items.length, entries: items });
+        } catch (err) {
+          return JSON.stringify({ error: err.message });
+        }
       },
     }),
   };

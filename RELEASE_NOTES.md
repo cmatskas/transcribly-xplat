@@ -1,5 +1,39 @@
 # Release Notes
 
+## v2.6.0
+
+### Video Analysis & Storyboard Assets
+- **Nova Premier video analysis** — Demo Analyst agent sends video to `us.amazon.nova-premier-v1:0` via Converse API for multimodal analysis. Videos ≤25MB sent as bytes, >25MB uploaded to S3.
+- **Keyframe extraction** — OpenCV extracts 1 frame per 2 seconds (max 60) in the sandbox. Frame manifest with paths and timestamps flows through the pipeline.
+- **Frame-embedded storyboard decks** — Scene Writer references specific frames, Formatter embeds actual screenshots in PPTX slides via `add_picture()`.
+
+### System Notifications
+- Native OS notifications (macOS Notification Center / Windows toast) for: review pause, input request, pipeline complete, pipeline error.
+- Clicking a notification brings Transcribely to focus.
+
+### Work Tab Reliability
+- **Per-conversation sandbox persistence** — Sandbox lives across all messages in the same conversation. Files from message 1 are available in message 5. No more re-uploading.
+- **Per-conversation file isolation** — Attached files stored per-session. Switching conversations swaps file state. No cross-conversation bleed.
+- **Document generation reliability** — System prompt requires skill activation before doc creation, retries on code errors, single code call for documents. Sandbox timeout increased to 2 hours.
+- **Tilde expansion** — `~/Documents/Transcribely/file.docx` now resolves correctly in `save_file_locally`.
+
+### Swarm Tools Audit (6 fixes)
+- **File uploads fixed** — `uploadFile()` (nonexistent) replaced with proven base64+executeCode pattern. File attachments now actually reach the sandbox.
+- **`save_file_locally` fixed** — Was calling nonexistent `downloadFile()`. Now uses `readFileBase64` + Buffer. Added path security checks and Windows double-path fix.
+- **`generate_image` wired** — SageMaker SDXL primary, Nova Canvas fallback. Images saved to sandbox for document embedding.
+- **`list_directory` added** — Agents can browse local directories.
+- **Formatter verification** — `_verifyLocalSave()` checks if the file actually exists on disk after formatter agents run.
+
+### Skill Updates
+- **docx**: Line numbers, header with document title, footer with "Amazon Confidential" + page number. Must pip install first, single code call, never describe.
+- **pptx**: Must pip install first, single code call, never describe.
+
+### Bug Fixes
+- IPC file dialog for swarm attachments — fixes empty `File.path` with `contextIsolation: true`
+- `@opentelemetry/api` added as direct dependency — fixes Windows launch crash (was peer dep of Strands SDK, missing from asar)
+- Sandbox not torn down for conversations with agents mid-task
+- `sessionStarted` now tracks sessions started for file extraction (cleanup leak fix)
+
 ## v2.5.0
 
 ### Swarm — Multi-Agent Content Pipelines
