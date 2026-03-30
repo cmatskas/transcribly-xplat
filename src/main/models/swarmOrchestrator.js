@@ -80,9 +80,15 @@ class SwarmOrchestrator {
           const videoFiles = (files || []).filter(f => /\.(mp4|mov|mkv|webm|avi|flv|mpeg|mpg|wmv|3gp)$/i.test(f.name || f.path));
           const useVideoPath = agentConfig.supportsVideo && videoFiles.length > 0;
 
-          const output = useVideoPath
+          let output = useVideoPath
             ? await this._runVideoAnalysisAgent(swarmId, agentConfig, previousOutput, brief, i, videoFiles)
             : await this._runAgent(swarmId, agentConfig, previousOutput, brief, i, adaptedRubric || template.rubric, historicalFeedback);
+
+          // Extract keyframes after video analysis
+          if (useVideoPath && output) {
+            const frameManifest = await this._extractVideoFrames(swarmId, i, videoFiles);
+            if (frameManifest) output += '\n\n' + frameManifest;
+          }
 
           // Quality gate loop
           if (agentConfig.isQualityGate) {
@@ -441,6 +447,85 @@ class SwarmOrchestrator {
       return `s3://${bucket}/${key}`;
     } catch (err) {
       this.onEvent('swarm-agent-chunk', { swarmId, agentIndex: 0, chunk: `\n⚠️ S3 upload failed: ${err.message}\n` });
+      return null;
+    }
+  }
+
+  async _extractVideoFrames(swarmId, agentIndex, videoFiles) {
+    try {
+      if (!this.codeInterpreter.sessionId) {
+        await this.codeInterpreter.startSession(7200);
+      }
+      this.onEvent('swarm-agent-chunk', { swarmId, agentIndex, chunk: '\n🎞️ Extracting keyframes from video...\n' });
+
+      const videoName = videoFiles[0].name;
+      const code = `
+import subprocess, os, json
+
+os.makedirs('/tmp/frames', exist_ok=True)
+
+# Install opencv if needed
+try:
+    import cv2
+except ImportError:
+    subprocess.check_call(['pip', 'install', '-q', 'opencv-python-headless'])
+    import cv2
+
+video_path = '/tmp/${videoName}'
+cap = cv2.VideoCapture(video_path)
+fps = cap.get(cv2.CAP_PROP_FPS) or 30
+total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+duration = total_frames / fps if fps > 0 else 0
+
+# Extract 1 frame every 2 seconds (balance between coverage and count)
+interval = max(int(fps * 2), 1)
+frames = []
+frame_idx = 0
+saved = 0
+
+while cap.isOpened() and saved < 60:  # cap at 60 frames
+    ret, frame = cap.read()
+    if not ret:
+        break
+    if frame_idx % interval == 0:
+        timestamp = frame_idx / fps
+        ts_str = f"{int(timestamp//60):02d}:{int(timestamp%60):02d}"
+        filename = f"/tmp/frames/frame_{saved:04d}_{ts_str.replace(':','')}.jpg"
+        cv2.imwrite(filename, frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        frames.append({"path": filename, "timestamp": ts_str, "index": saved})
+        saved += 1
+    frame_idx += 1
+
+cap.release()
+print(json.dumps({"duration": f"{int(duration//60)}:{int(duration%60):02d}", "fps": round(fps,1), "total_frames": saved, "frames": frames}))
+`;
+
+      const result = await this.codeInterpreter.executeCode(code);
+      if (!result.success) {
+        this.onEvent('swarm-agent-chunk', { swarmId, agentIndex, chunk: `\n⚠️ Frame extraction failed: ${(result.errors || []).join(', ')}\n` });
+        return null;
+      }
+
+      // Parse the JSON output
+      try {
+        const data = JSON.parse(result.text.trim());
+        const manifest = [
+          `## Extracted Video Frames`,
+          `Duration: ${data.duration} | FPS: ${data.fps} | Frames extracted: ${data.total_frames}`,
+          ``,
+          `Available frames in sandbox (use these paths in scene cards):`,
+          ...data.frames.map(f => `- \`${f.path}\` — timestamp ${f.timestamp}`),
+          ``,
+          `**Scene Writer**: Reference these frame paths in your scene cards under "Visual:".`,
+          `**Formatter**: Embed these images in the PPTX slides using python-pptx add_picture().`,
+        ];
+        this.onEvent('swarm-agent-chunk', { swarmId, agentIndex, chunk: `\n🎞️ Extracted ${data.total_frames} keyframes\n` });
+        return manifest.join('\n');
+      } catch {
+        return null;
+      }
+    } catch (err) {
+      this.onEvent('swarm-agent-chunk', { swarmId, agentIndex, chunk: `\n⚠️ Frame extraction error: ${err.message}\n` });
       return null;
     }
   }
