@@ -176,6 +176,8 @@ class SwarmOrchestrator {
       if (state.status !== 'cancelled') state.status = 'completed';
       state.completedAt = new Date().toISOString();
       await this._saveState(swarmId, state);
+      // Clean up checkpoint files — state.json has all we need for analytics
+      this._cleanupOutputFiles(swarmId).catch(() => {});
       this.onEvent('swarm-pipeline-done', { swarmId, finalOutput: previousOutput });
     } catch (err) {
       state.status = 'error';
@@ -310,6 +312,14 @@ class SwarmOrchestrator {
 
   async _ensureDir(dir) {
     await fs.mkdir(dir, { recursive: true }).catch(() => {});
+  }
+
+  async _cleanupOutputFiles(swarmId) {
+    const dir = path.join(this.runsDir, swarmId);
+    const files = await fs.readdir(dir);
+    for (const f of files) {
+      if (f.endsWith('-output.md')) await fs.unlink(path.join(dir, f)).catch(() => {});
+    }
   }
 }
 
