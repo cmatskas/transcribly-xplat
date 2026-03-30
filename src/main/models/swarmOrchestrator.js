@@ -143,7 +143,7 @@ class SwarmOrchestrator {
               }
             }
           } else {
-            previousOutput = output || previousOutput;
+            if (output) previousOutput = output;
           }
 
           state.agents[i].status = 'done';
@@ -197,9 +197,12 @@ class SwarmOrchestrator {
       ? buildRubricPrompt(rubric.criteria, brief)
       : agentConfig.prompt;
 
-    const systemPrompt = `${basePrompt}${skillBlock}`;
+    const systemPrompt = `${basePrompt}\n\n<user_brief>\n${brief}\n</user_brief>${skillBlock}`;
 
-    const handoff = `<user_brief>\n${brief}\n</user_brief>\n\n<previous_output>\n${input}\n</previous_output>\n\nProceed with your task based on the above context.`;
+    // User message is just the previous agent's output — brief is in system prompt
+    const handoff = input === brief
+      ? 'Begin your task based on the user brief in your system prompt.'
+      : `<previous_agent_output>\n${input}\n</previous_agent_output>\n\nBuild on the above output. The original user brief is in your system prompt.`;
 
     // Build tools — platform tools from template config + request_input for non-quality-gate agents
     const tools = createSwarmTools(
@@ -248,9 +251,9 @@ class SwarmOrchestrator {
       if (this.runs.get(swarmId)?.aborted) throw new Error('Pipeline cancelled');
       if (event.type === 'modelStreamUpdateEvent') {
         const inner = event.event;
-        if (inner.type === 'contentBlockDelta' && inner.data?.delta?.type === 'textDelta') {
-          fullText += inner.data.delta.text;
-          this.onEvent('swarm-agent-chunk', { swarmId, agentIndex, chunk: inner.data.delta.text });
+        if (inner.type === 'modelContentBlockDeltaEvent' && inner.delta?.type === 'textDelta') {
+          fullText += inner.delta.text;
+          this.onEvent('swarm-agent-chunk', { swarmId, agentIndex, chunk: inner.delta.text });
         }
       }
     }

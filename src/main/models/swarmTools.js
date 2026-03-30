@@ -12,13 +12,18 @@ function createSwarmTools({ codeInterpreterManager, browserManager, settings, on
       description: 'Execute Python code in a secure sandbox. Use for computations, file generation, data processing.',
       inputSchema: z.object({ code: z.string().describe('Python code to execute') }),
       callback: async (input) => {
-        if (!codeInterpreterManager.sessionId) {
-          onStatus?.('Starting sandbox...');
-          await codeInterpreterManager.startSession();
+        try {
+          if (!codeInterpreterManager.sessionId) {
+            onStatus?.('Starting sandbox...');
+            await codeInterpreterManager.startSession();
+          }
+          const result = await codeInterpreterManager.executeCode(input.code);
+          if (!result.success) return JSON.stringify({ error: result.errors.join('\n'), output: result.text });
+          return result.text || 'Code executed successfully (no output).';
+        } catch (err) {
+          onStatus?.(`Code execution error: ${err.message}`);
+          return JSON.stringify({ error: err.message });
         }
-        const result = await codeInterpreterManager.executeCode(input.code);
-        if (!result.success) return JSON.stringify({ error: result.errors.join('\n'), output: result.text });
-        return result.text || 'Code executed successfully (no output).';
       },
     }),
 
@@ -30,13 +35,20 @@ function createSwarmTools({ codeInterpreterManager, browserManager, settings, on
         local_path: z.string().describe('Absolute path on user filesystem'),
       }),
       callback: async (input) => {
-        if (!codeInterpreterManager.sessionId) throw new Error('No sandbox session');
-        const content = await codeInterpreterManager.downloadFile(input.sandbox_path);
-        const fs = require('fs').promises;
-        const path = require('path');
-        await fs.mkdir(path.dirname(input.local_path), { recursive: true });
-        await fs.writeFile(input.local_path, content);
-        return `Saved to ${input.local_path}`;
+        try {
+          if (!codeInterpreterManager.sessionId) throw new Error('No sandbox session — run execute_code first');
+          const content = await codeInterpreterManager.downloadFile(input.sandbox_path);
+          const fs = require('fs').promises;
+          const path = require('path');
+          const os = require('os');
+          const localPath = input.local_path.startsWith('~') ? input.local_path.replace('~', os.homedir()) : input.local_path;
+          await fs.mkdir(path.dirname(localPath), { recursive: true });
+          await fs.writeFile(localPath, content);
+          return `Saved to ${localPath}`;
+        } catch (err) {
+          onStatus?.(`Save error: ${err.message}`);
+          return JSON.stringify({ error: err.message });
+        }
       },
     }),
 
@@ -64,8 +76,24 @@ function createSwarmTools({ codeInterpreterManager, browserManager, settings, on
         query: z.string().optional().describe('Search query for Google'),
       }),
       callback: async (input) => {
-        if (!browserManager) throw new Error('Browser not available');
-        return await browserManager.browse(input);
+        try {
+          if (!browserManager) throw new Error('Browser not available');
+          if (!browserManager.sessionId) {
+            onStatus?.('Starting browser session...');
+            await browserManager.startSession();
+          }
+          const targetUrl = input.url || `https://www.google.com/search?q=${encodeURIComponent(input.query)}`;
+          onStatus?.(input.url ? `Navigating to ${input.url}...` : `Searching: ${input.query}...`);
+          const nav = await browserManager.navigate(targetUrl);
+          onStatus?.('Extracting page content...');
+          const content = await browserManager.getPageContent();
+          const maxLen = input.url ? 15000 : 10000;
+          const truncated = content.length > maxLen ? content.substring(0, maxLen) + '\n\n[Content truncated]' : content;
+          return JSON.stringify({ url: targetUrl, title: nav.title, content: truncated });
+        } catch (err) {
+          onStatus?.(`Web error: ${err.message}`);
+          return JSON.stringify({ error: err.message });
+        }
       },
     }),
 

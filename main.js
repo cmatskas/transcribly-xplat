@@ -618,17 +618,15 @@ ipcMain.handle('create-skill', async (event, { name, content }) => {
 });
 
 // Swarm handlers
-function ensureSwarmOrchestrator() {
-  if (!swarmOrchestrator) {
-    swarmOrchestrator = new SwarmOrchestrator({
-      awsConfig: awsClients.agentCoreConfig,
-      skillsManager,
-      codeInterpreterManager: new (require('./src/main/models/codeInterpreterManager'))(awsClients.agentCoreConfig),
-      browserManager: new (require('./src/main/models/browserManager'))(awsClients.agentCoreConfig),
-      settings: {},
-      onEvent: (channel, data) => { if (mainWindow) mainWindow.webContents.send(channel, data); },
-    });
-  }
+function createSwarmOrchestrator() {
+  swarmOrchestrator = new SwarmOrchestrator({
+    awsConfig: awsClients.agentCoreConfig,
+    skillsManager,
+    codeInterpreterManager: new (require('./src/main/models/codeInterpreterManager'))(awsClients.agentCoreConfig),
+    browserManager: new (require('./src/main/models/browserManager'))(awsClients.agentCoreConfig),
+    settings: {},
+    onEvent: (channel, data) => { if (mainWindow) mainWindow.webContents.send(channel, data); },
+  });
   return swarmOrchestrator;
 }
 
@@ -643,7 +641,7 @@ ipcMain.handle('swarm-run-pipeline', async (event, { templateId, brief, autonomy
   for (const m of models) { if (m.role) overrides[m.role] = m.inferenceProfileId; }
   resolveModels(overrides);
 
-  const orch = ensureSwarmOrchestrator();
+  const orch = createSwarmOrchestrator();
   const template = getTemplate(templateId);
   if (!template) throw new Error(`Unknown template: ${templateId}`);
   const swarmId = `swarm-${Date.now()}`;
@@ -652,15 +650,15 @@ ipcMain.handle('swarm-run-pipeline', async (event, { templateId, brief, autonomy
 });
 
 ipcMain.handle('swarm-continue', async (event, { swarmId, editedOutput }) => {
-  ensureSwarmOrchestrator().continueAfterReview(swarmId, editedOutput);
+  if (swarmOrchestrator) swarmOrchestrator.continueAfterReview(swarmId, editedOutput);
 });
 
 ipcMain.handle('swarm-answer-input', async (event, { swarmId, answer }) => {
-  ensureSwarmOrchestrator().answerInput(swarmId, answer);
+  if (swarmOrchestrator) swarmOrchestrator.answerInput(swarmId, answer);
 });
 
 ipcMain.handle('swarm-cancel', async (event, { swarmId }) => {
-  ensureSwarmOrchestrator().cancel(swarmId);
+  if (swarmOrchestrator) swarmOrchestrator.cancel(swarmId);
 });
 
 // Directory picker
