@@ -6,6 +6,7 @@ const {
 const { SignatureV4 } = require('@smithy/signature-v4');
 const { Sha256 } = require('@aws-crypto/sha256-js');
 const { chromium } = require('playwright-core');
+const log = require('electron-log/main');
 
 /**
  * Manages AgentCore Browser sessions via Playwright CDP.
@@ -37,6 +38,7 @@ class BrowserManager {
     this.sessionId = response.sessionId;
     const wsEndpoint = response.streams?.automationStream?.streamEndpoint;
     if (!wsEndpoint) throw new Error('No automation stream endpoint returned');
+    log.info(`[browser] Session started: ${this.sessionId}`);
 
     // Generate SigV4-signed headers for WebSocket CDP connection
     const headers = await this._signWebSocketHeaders(wsEndpoint);
@@ -62,6 +64,7 @@ class BrowserManager {
   }
 
   async stopSession() {
+    const sid = this.sessionId;
     if (this.browser) {
       await this.browser.close().catch(() => {});
       this.browser = null;
@@ -79,6 +82,7 @@ class BrowserManager {
         this.sessionId = null;
       }
     }
+    log.info(`[browser] Session stopped: ${sid}`);
   }
 
   /**

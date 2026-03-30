@@ -7,6 +7,7 @@ const { z } = require('zod');
 const path = require('path');
 const os = require('os');
 const fsPromises = require('fs').promises;
+const log = require('electron-log/main');
 
 function createSwarmTools({ codeInterpreterManager, browserManager, settings, onStatus }, toolNames) {
   const home = os.homedir();
@@ -177,7 +178,7 @@ print(f"Wrote {len(data)} bytes to ${sandboxPath}")`;
               base64Image = JSON.parse(Buffer.from(response.Body).toString()).generated_image;
               modelUsed = 'sdxl-1.0-sagemaker';
             } catch (err) {
-              console.warn('SageMaker image gen failed, falling back to Nova Canvas:', err.message);
+              log.warn('[swarm] SageMaker image gen failed, falling back to Nova Canvas:', err.message);
             }
           }
 

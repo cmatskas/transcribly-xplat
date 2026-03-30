@@ -1,5 +1,19 @@
 # Release Notes
 
+## v2.7.0
+
+### Logging Overhaul
+- **Replaced custom logger with `electron-log`** — Zero-dependency, 95KB library with auto-rotation, standard log levels, and native `electron-updater` compatibility. Fixes `this._logger.info is not a function` crash.
+- **Structured logging across all backend models** — 27 log statements with consistent prefixes (`[swarm:id]`, `[work:id]`, `[browser]`, `[code-interpreter]`, `[skills]`, `[memory]`) for easy filtering.
+- **Swarm pipeline observability** — Pipeline start/complete, agent handoffs, quality gate decisions (PASS/REVISE/FAIL with scores), and agent errors now logged.
+- **Session lifecycle tracking** — Code Interpreter and Browser session start/stop events logged with session IDs.
+- **Tool execution errors** — Work tab tool failures logged with session context.
+- **Skills init summary** — Skill count and load failures logged at startup.
+- Logs written to `~/Library/Logs/Transcribely/main.log` (macOS) / `%USERPROFILE%\AppData\Roaming\Transcribely\logs\main.log` (Windows).
+
+### Bug Fixes
+- **Missing peer dependencies** — Added `@modelcontextprotocol/sdk` and `@popperjs/core` as explicit dependencies. Fixes `ERR_MODULE_NOT_FOUND` crash on launch and Bootstrap tooltip rendering in Settings.
+
 ## v2.6.0
 
 ### Video Analysis & Storyboard Assets

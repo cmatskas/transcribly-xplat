@@ -3,7 +3,7 @@ const path = require('path');
 const config = require('./config.js');
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { Upload } = require('@aws-sdk/lib-storage');
-const logger = require('./logger');
+const logger = require('electron-log/main');
 const { autoUpdater } = require('electron-updater');
 
 const { BedrockRuntimeClient, ConverseCommand, ConverseStreamCommand } = require('@aws-sdk/client-bedrock-runtime');
@@ -196,7 +196,7 @@ app.whenReady().then(async () => {
     });
 
     autoUpdater.on('error', (err) => {
-      logger.log('warn', `Auto-updater error: ${err.message}`);
+      logger.warn(`Auto-updater error: ${err.message}`);
     });
 
     // Check for updates 10 seconds after launch, then every 4 hours
@@ -1082,7 +1082,7 @@ async function invokeBedrockNoKB(model, prompt, conversationHistory, files = [],
 
     // Add documents if provided
     if (files && files.length > 0) {
-      logger.log('info', `Processing ${files.length} files for Bedrock analysis`);
+      logger.info(`Processing ${files.length} files for Bedrock analysis`);
 
       // Extract pptx/ppt files via code interpreter sandbox
       const pptxFiles = files.filter(f => ['pptx', 'ppt'].includes(f.name.toLowerCase().split('.').pop()));
@@ -1197,7 +1197,7 @@ print("\\n\\n".join(slides))
     
     return fullText;
   } catch (error) {
-    logger.log('error', `Bedrock query failed: ${error.message}`);
+    logger.error(`Bedrock query failed: ${error.message}`);
     throw new Error(`Bedrock query failed: ${error.message}`);
   }
 }
@@ -1228,7 +1228,7 @@ async function invokeBedrockWithKB(model, prompt, knowledgeBaseId) {
     const response = await awsClients.bedrockAgentRuntime.send(command);
     return response;
   } catch (error) {
-    logger.log('error', `Bedrock retrieve and generate call failed: ${error.message}`);
+    logger.error(`Bedrock retrieve and generate call failed: ${error.message}`);
     throw new Error(`Bedrock retrieve and generate call failed: ${error.message}`);
   }
 }

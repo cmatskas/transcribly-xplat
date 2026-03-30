@@ -10,6 +10,7 @@ const { BedrockRuntimeClient, ConverseStreamCommand } = require('@aws-sdk/client
 const fs = require('fs').promises;
 const path = require('path');
 const { app } = require('electron');
+const log = require('electron-log/main');
 
 class SwarmOrchestrator {
   constructor({ awsConfig, skillsManager, codeInterpreterManager, browserManager, settings, onEvent }) {
@@ -25,6 +26,7 @@ class SwarmOrchestrator {
   }
 
   async runPipeline(swarmId, template, brief, autonomyMode, files) {
+    log.info(`[swarm:${swarmId}] Starting pipeline "${template.name}" (${template.agents.length} agents, mode=${autonomyMode})`);
     const state = {
       swarmId, status: 'running', autonomyMode,
       templateId: template.id, templateName: template.name,
@@ -63,6 +65,7 @@ class SwarmOrchestrator {
         state.currentIndex = i;
         state.agents[i].status = 'running';
         this.onEvent('swarm-agent-started', { swarmId, agentIndex: i, role: agentConfig.id, label: agentConfig.label });
+        log.info(`[swarm:${swarmId}] Agent ${i}/${template.agents.length - 1} started: ${agentConfig.id} (${agentConfig.label})`);
 
         // Check for checkpoint resume
         const checkpointFile = path.join(this.runsDir, swarmId, `agent-${i}-output.md`);
@@ -111,6 +114,7 @@ class SwarmOrchestrator {
                 state.rubric_scores[retryKey].push({ attempt: attempts, score: result.score, axis_scores: result.axis_scores, decision });
 
                 if (decision === 'REVISE' && i >= 2) {
+                  log.info(`[swarm:${swarmId}] Quality gate REVISE (score=${result.score.toFixed(2)}, attempt=${attempts + 1}/${maxRetries})`);
                   state.retries[retryKey] = attempts + 1;
                   const feedback = result.failing.map(f =>
                     `${f.isPenalty ? 'PENALTY' : 'FAILED'}: "${f.text}" — ${f.reason}`
@@ -127,6 +131,7 @@ class SwarmOrchestrator {
                   i--;
                   continue;
                 } else if (decision === 'FAIL') {
+                  log.error(`[swarm:${swarmId}] Quality gate FAIL (score=${result.score.toFixed(2)}, threshold=${rubric.minPass})`);
                   state.agents[i].status = 'error';
                   state.status = 'error';
                   this.onEvent('swarm-error', { swarmId, error: `Quality gate failed (score: ${result.score.toFixed(2)}, threshold: ${rubric.minPass})`, agentIndex: i });
@@ -195,6 +200,7 @@ class SwarmOrchestrator {
             state.status = 'running';
           }
         } catch (err) {
+          log.error(`[swarm:${swarmId}] Agent ${i} (${agentConfig.id}) failed: ${err.message}`);
           state.agents[i].status = 'error';
           state.status = 'error';
           this.onEvent('swarm-error', { swarmId, error: err.message, agentIndex: i });
@@ -207,6 +213,7 @@ class SwarmOrchestrator {
 
       if (state.status !== 'cancelled') state.status = 'completed';
       state.completedAt = new Date().toISOString();
+      log.info(`[swarm:${swarmId}] Pipeline ${state.status} (${template.agents.length} agents, retries=${JSON.stringify(state.retries)})`);
       await this._saveState(swarmId, state);
       // Clean up checkpoint files — state.json has all we need for analytics
       this._cleanupOutputFiles(swarmId).catch(() => {});

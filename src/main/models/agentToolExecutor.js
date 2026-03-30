@@ -3,6 +3,7 @@ const { SageMakerRuntimeClient, InvokeEndpointCommand } = require('@aws-sdk/clie
 const { sanitizeFileName } = require('../utils');
 const fs = require('fs').promises;
 const path = require('path');
+const log = require('electron-log/main');
 
 /**
  * AgentToolExecutor — runs the agentic Converse loop with tool use.
@@ -209,7 +210,7 @@ Before giving your FINAL response, verify ALL of the following — if any is NO,
         memoryContext = await this.memory.buildContext(this.sessionId, prompt);
         this.onStatus({ tool: 'memory', detail: 'Context loaded', state: 'done' });
       } catch (err) {
-        console.warn('Memory load failed:', err.message);
+        log.warn('[work] Memory load failed:', err.message);
       }
     }
 
@@ -294,6 +295,7 @@ print("\\n\\n".join(slides))
             if (name === 'execute_code' && !sessionStarted) sessionStarted = true;
             this.onStatus({ tool: name, detail, state: 'done' });
           } catch (err) {
+            log.error(`[work:${this.sessionId}] Tool "${name}" failed: ${err.message}`);
             result = { error: err.message };
             this.onStatus({ tool: name, detail: err.message, state: 'done' });
           }
@@ -320,7 +322,7 @@ print("\\n\\n".join(slides))
             { role: 'assistant', content: finalText },
           ]);
         } catch (err) {
-          console.warn('Memory save failed:', err.message);
+          log.warn('[work] Memory save failed:', err.message);
         }
       }
 
@@ -560,7 +562,7 @@ print(f"Wrote {len(data)} bytes to ${sandboxPath}")
         base64Image = body.generated_image;
         modelUsed = 'sdxl-1.0-sagemaker';
       } catch (err) {
-        console.warn('SageMaker image gen failed, falling back to Nova Canvas:', err.message);
+        log.warn('[work] SageMaker image gen failed, falling back to Nova Canvas:', err.message);
       }
     }
 

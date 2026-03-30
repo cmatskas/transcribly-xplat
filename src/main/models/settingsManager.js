@@ -1,6 +1,7 @@
 const { app } = require('electron');
 const fs = require('fs').promises;
 const path = require('path');
+const log = require('electron-log/main');
 
 class SettingsManager {
   constructor() {
@@ -63,7 +64,7 @@ class SettingsManager {
       // Merge with defaults to ensure all required fields exist
       return { ...this.defaultSettings, ...settings };
     } catch (error) {
-      console.error('Error loading settings:', error);
+      log.error('Error loading settings:', error.message);
       return this.defaultSettings;
     }
   }
@@ -83,7 +84,7 @@ class SettingsManager {
       
       return true;
     } catch (error) {
-      console.error('Error saving settings:', error);
+      log.error('Error saving settings:', error.message);
       throw new Error(`Failed to save settings: ${error.message}`);
     }
   }
@@ -145,7 +146,7 @@ class SettingsManager {
       }
       return true;
     } catch (error) {
-      console.error('Error deleting settings:', error);
+      log.error('Error deleting settings:', error.message);
       throw new Error(`Failed to delete settings: ${error.message}`);
     }
   }

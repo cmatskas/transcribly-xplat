@@ -2,6 +2,7 @@ const { app, shell } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 const os = require('os');
+const log = require('electron-log/main');
 
 /**
  * SkillsManager — discovers, parses, and manages skills following the AgentSkills spec.
@@ -25,6 +26,7 @@ class SkillsManager {
     await this._ensureDir(this.userSkillsDir);
     await this._seedBundledSkills();
     this.cache = await this._discoverAll();
+    log.info(`[skills] Loaded ${this.cache.length} skills (${this.disabledSkills.size} disabled)`);
     return this.cache;
   }
 
@@ -171,8 +173,8 @@ class SkillsManager {
         const header = buf.toString('utf8', 0, bytesRead);
         const skill = this._parseSkillFile(header, skillFile);
         if (skill) skills.push(skill);
-      } catch {
-        // No SKILL.md in this directory — skip
+      } catch (err) {
+        if (err.code !== 'ENOENT') log.warn(`[skills] Failed to load ${entry.name}: ${err.message}`);
       }
     }
     return skills;

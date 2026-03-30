@@ -4,6 +4,7 @@ const {
   InvokeCodeInterpreterCommand,
   StopCodeInterpreterSessionCommand,
 } = require('@aws-sdk/client-bedrock-agentcore');
+const log = require('electron-log/main');
 
 /**
  * Manages AgentCore Code Interpreter sessions.
@@ -27,8 +28,7 @@ class CodeInterpreterManager {
       })
     );
     this.sessionId = response.sessionId;
-
-    // Install office document libraries
+    log.info(`[code-interpreter] Session started: ${this.sessionId}`);
     await this.executeCode(
       'import subprocess; subprocess.check_call(["pip", "install", "-q", "python-docx", "openpyxl", "python-pptx", "lxml"]); print("Libraries installed")'
     );
@@ -78,6 +78,7 @@ with open("${remotePath}", "rb") as f:
 
   async stopSession() {
     if (!this.sessionId) return;
+    const sid = this.sessionId;
 
     try {
       await this.client.send(
@@ -88,6 +89,7 @@ with open("${remotePath}", "rb") as f:
       );
     } finally {
       this.sessionId = null;
+      log.info(`[code-interpreter] Session stopped: ${sid}`);
     }
   }
 

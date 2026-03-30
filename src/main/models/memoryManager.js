@@ -15,6 +15,7 @@ const {
 } = require('@aws-sdk/client-bedrock-agentcore-control');
 
 const { BedrockAgentCoreClient } = require('@aws-sdk/client-bedrock-agentcore');
+const log = require('electron-log/main');
 
 const MEMORY_NAME = 'transcribely_memory';
 const ACTOR_ID = 'user';
@@ -78,7 +79,7 @@ class MemoryManager {
     try {
       const res = await this.controlClient.send(new GetMemoryCommand({ memoryId: this.memoryId }));
       if (!res.memory.strategies || res.memory.strategies.length === 0) {
-        console.log('Memory has no strategies — adding defaults via UpdateMemory');
+        log.info('[memory] Adding default strategies');
         await this.controlClient.send(new UpdateMemoryCommand({
           memoryId: this.memoryId,
           memoryStrategies: {
@@ -87,7 +88,7 @@ class MemoryManager {
         }));
       }
     } catch (err) {
-      console.warn('Failed to ensure memory strategies:', err.message);
+      log.warn('[memory] Failed to ensure strategies:', err.message);
     }
   }
 
@@ -202,7 +203,7 @@ class MemoryManager {
       }));
     } catch (err) {
       // Non-critical — log but don't throw
-      console.warn('Memory extraction failed:', err.message);
+      log.warn('[memory] Extraction failed:', err.message);
     }
   }
 
