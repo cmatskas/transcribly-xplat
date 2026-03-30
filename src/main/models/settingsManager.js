@@ -18,10 +18,12 @@ class SettingsManager {
       sagemakerImageEndpoint: '',
       sagemakerImageComponent: '',
       bedrockModels: [
-        { id: 'Nova Pro', inferenceProfileId: 'us.amazon.nova-pro-v1:0', role: 'nova' },
-        { id: 'Claude 4.6 Sonnet', inferenceProfileId: 'us.anthropic.claude-sonnet-4-6-v1', role: 'sonnet' },
-        { id: 'Claude 4.6 Opus', inferenceProfileId: 'us.anthropic.claude-opus-4-6-v1', role: 'opus' },
-        { id: 'DeepSeek R1', inferenceProfileId: 'us.deepseek.r1-v1:0', role: '' },
+        { id: 'Claude Opus 4.6', inferenceProfileId: 'us.anthropic.claude-opus-4-6-v1', role: 'creator' },
+        { id: 'Claude Sonnet 4.6', inferenceProfileId: 'us.anthropic.claude-sonnet-4-6', role: 'worker' },
+        { id: 'Claude Haiku 4.5', inferenceProfileId: 'us.anthropic.claude-haiku-4-5-20251001-v1:0', role: 'formatter' },
+        { id: 'DeepSeek V3.2', inferenceProfileId: 'deepseek.v3.2', role: '' },
+        { id: 'Mistral Large 3', inferenceProfileId: 'mistral.mistral-large-3-675b-instruct', role: '' },
+        { id: 'Llama 4 Maverick 17B', inferenceProfileId: 'us.meta.llama4-maverick-17b-instruct-v1:0', role: '' },
       ],
     };
   }
