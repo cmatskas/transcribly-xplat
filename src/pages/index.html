@@ -210,22 +210,11 @@
                        title="Select up to 5 documents">
 
                 <!-- File List Display -->
-                <div id="fileListSection" class="work-file-list mx-auto mb-2" style="display: none;">
-                    <div class="card card-sm">
-                        <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center">
-                            <span class="small"><i class="bi bi-files me-1"></i>Files (<span id="fileCount">0</span>)</span>
-                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" id="clearFiles">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </div>
-                        <div class="card-body p-2">
-                            <div id="fileList"></div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Unified input card -->
                 <div class="work-input-card analyze-input-card">
+                    <div id="fileListSection" class="file-chips" style="display: none;">
+                        <div id="fileList"></div>
+                    </div>
                     <textarea class="work-textarea" id="promptEditor" rows="2"
                         placeholder="Type your message... (Shift+Enter for new line, Enter to send)"></textarea>
                     <div class="work-input-toolbar">
@@ -271,12 +260,7 @@
                     <h6 class="mb-3" id="swarmTemplateName"></h6>
 
                     <div class="work-input-card">
-                        <!-- File list inside the card -->
-                        <div id="swarmFileList" style="display:none; border-bottom: 1px solid var(--border-primary); padding-bottom: 8px; margin-bottom: 8px;">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="small text-muted"><i class="bi bi-files me-1"></i>Files (<span id="swarmFileCount">0</span>)</span>
-                                <button type="button" class="btn btn-sm btn-link text-danger p-0" id="swarmClearFiles"><i class="bi bi-trash"></i></button>
-                            </div>
+                        <div id="swarmFileList" class="file-chips" style="display:none;">
                             <div id="swarmFileItems"></div>
                         </div>
 
@@ -807,21 +791,10 @@ Instructions for the agent go here.
                        accept=".pdf,.csv,.doc,.docx,.xls,.xlsx,.html,.txt,.md,.pptx,.ppt"
                        title="Select up to 5 documents">
 
-                <div id="workFileListSection" class="mb-2 mx-auto work-file-list" style="display:none;">
-                    <div class="card card-sm">
-                        <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center">
-                            <span class="small"><i class="bi bi-files me-1"></i>Files (<span id="workFileCount">0</span>)</span>
-                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" id="workClearFiles">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </div>
-                        <div class="card-body p-2">
-                            <div id="workFileList"></div>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="work-input-card">
+                    <div id="workFileListSection" class="file-chips" style="display:none;">
+                        <div id="workFileList"></div>
+                    </div>
                     <textarea class="work-textarea" id="workPromptEditor" rows="2"
                         placeholder="How can I help you today?"></textarea>
                     <div class="work-input-toolbar">

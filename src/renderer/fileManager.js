@@ -3,7 +3,7 @@
  * Parameterized by element IDs so both Analyze and Work tabs can use their own inputs.
  */
 
-function createFileManager({ fileInputId, attachBtnId, clearBtnId, listSectionId, listId, countId, maxFiles = 5 }) {
+function createFileManager({ fileInputId, attachBtnId, clearBtnId, listSectionId, listId, countId, toolBtnId, maxFiles = 5 }) {
   let selectedFiles = [];
 
   const validExtensions = ['.pdf', '.csv', '.doc', '.docx', '.xls', '.xlsx', '.html', '.txt', '.md', '.pptx', '.ppt'];
@@ -62,12 +62,14 @@ function createFileManager({ fileInputId, attachBtnId, clearBtnId, listSectionId
       }
     });
 
-    clearBtn.addEventListener('click', () => {
-      selectedFiles = [];
-      fileInput.value = '';
-      updateFileList();
-      showToast('All files cleared', 'info');
-    });
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        selectedFiles = [];
+        fileInput.value = '';
+        updateFileList();
+        showToast('All files cleared', 'info');
+      });
+    }
   }
 
   function getFiles() { return selectedFiles; }
@@ -82,34 +84,33 @@ function createFileManager({ fileInputId, attachBtnId, clearBtnId, listSectionId
   function updateFileList() {
     const section = document.getElementById(listSectionId);
     const list = document.getElementById(listId);
-    const count = document.getElementById(countId);
-    const attachBtn = document.getElementById(attachBtnId);
+    const badgeTarget = document.getElementById(toolBtnId || attachBtnId);
+
+    const oldBadge = badgeTarget ? badgeTarget.querySelector('.file-badge') : null;
+    if (oldBadge) oldBadge.remove();
 
     if (selectedFiles.length === 0) {
       section.style.display = 'none';
-      attachBtn.classList.remove('has-files');
+      if (badgeTarget) badgeTarget.classList.remove('has-files');
       return;
     }
 
-    section.style.display = 'block';
-    count.textContent = selectedFiles.length;
-    attachBtn.classList.add('has-files');
+    section.style.display = 'flex';
+    if (badgeTarget) {
+      badgeTarget.classList.add('has-files');
+      const badge = document.createElement('span');
+      badge.className = 'file-badge';
+      badge.textContent = selectedFiles.length;
+      badgeTarget.appendChild(badge);
+    }
 
     list.innerHTML = selectedFiles.map((file, index) => {
       const ext = file.name.toLowerCase().split('.').pop();
-      return `
-        <div class="d-flex justify-content-between align-items-center mb-1 p-1 border rounded">
-          <div class="d-flex align-items-center">
-            <i class="${getFileIcon(ext)} me-2 text-primary"></i>
-            <div>
-              <div class="small fw-medium">${file.name}</div>
-              <small class="text-muted">${formatFileSize(file.size)}</small>
-            </div>
-          </div>
-          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 file-remove-btn" data-index="${index}">
-            <i class="bi bi-x"></i>
-          </button>
-        </div>`;
+      return `<div class="file-chip">
+        <i class="${getFileIcon(ext)} chip-icon"></i>
+        <span class="chip-name">${file.name}</span>
+        <button class="chip-remove file-remove-btn" data-index="${index}"><i class="bi bi-x"></i></button>
+      </div>`;
     }).join('');
 
     list.querySelectorAll('.file-remove-btn').forEach(btn => {

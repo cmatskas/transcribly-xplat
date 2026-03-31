@@ -1,5 +1,14 @@
 # Release Notes
 
+## v2.7.1
+
+### UI Improvements
+- **Compact file attachment chips** — Replaced card-based file lists with inline pill/chip UI across Chat, Work, and Swarm tabs. Files now render as small 26px chips inside the input card with truncated names, reducing vertical space by ~75%.
+- **Attach button badge** — The `+` attach button now shows a count badge when files are attached for at-a-glance awareness.
+
+### Bug Fixes
+- **Notification errors** — Fixed notification-related errors in main process.
+
 ## v2.7.0
 
 ### Logging Overhaul

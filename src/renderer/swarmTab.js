@@ -61,10 +61,6 @@
         renderSwarmFiles();
       }
     });
-    document.getElementById('swarmClearFiles').addEventListener('click', () => {
-      swarmFiles = [];
-      renderSwarmFiles();
-    });
     // Close attach menu on outside click
     document.addEventListener('click', (e) => {
       const menu = document.getElementById('swarmAttachMenu');
@@ -107,14 +103,31 @@
   function renderSwarmFiles() {
     const list = document.getElementById('swarmFileList');
     const items = document.getElementById('swarmFileItems');
-    const count = document.getElementById('swarmFileCount');
-    if (!swarmFiles.length) { list.style.display = 'none'; return; }
-    list.style.display = '';
-    count.textContent = swarmFiles.length;
+    const attachBtn = document.getElementById('swarmAttachBtn');
+
+    // Remove old badge
+    const oldBadge = attachBtn.querySelector('.file-badge');
+    if (oldBadge) oldBadge.remove();
+
+    if (!swarmFiles.length) {
+      list.style.display = 'none';
+      attachBtn.classList.remove('has-files');
+      return;
+    }
+
+    list.style.display = 'flex';
+    attachBtn.classList.add('has-files');
+
+    const badge = document.createElement('span');
+    badge.className = 'file-badge';
+    badge.textContent = swarmFiles.length;
+    attachBtn.appendChild(badge);
+
     items.innerHTML = swarmFiles.map((f, i) =>
-      `<div class="d-flex align-items-center justify-content-between small py-1">
-        <span><i class="bi ${f.isDir ? 'bi-folder' : 'bi-file-earmark'} me-1"></i>${esc(f.name)}</span>
-        <button class="btn btn-sm btn-link text-danger p-0 swarm-file-remove" data-idx="${i}"><i class="bi bi-x"></i></button>
+      `<div class="file-chip">
+        <i class="bi ${f.isDir ? 'bi-folder' : 'bi-file-earmark'} chip-icon"></i>
+        <span class="chip-name">${esc(f.name)}</span>
+        <button class="chip-remove swarm-file-remove" data-idx="${i}"><i class="bi bi-x"></i></button>
       </div>`
     ).join('');
     items.querySelectorAll('.swarm-file-remove').forEach(btn => {

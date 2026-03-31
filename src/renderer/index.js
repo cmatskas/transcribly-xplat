@@ -1175,7 +1175,6 @@ function setupFileUpload() {
     const attachFileBtn = document.getElementById('attachFileBtn');
     const attachMenu = document.getElementById('analyzeAttachMenu');
     const attachFilesItem = document.getElementById('analyzeAttachFiles');
-    const clearFilesBtn = document.getElementById('clearFiles');
 
     // Popover menu toggle
     attachFileBtn.addEventListener('click', (e) => {
@@ -1243,13 +1242,6 @@ function setupFileUpload() {
             e.target.value = '';
         }
     });
-
-    clearFilesBtn.addEventListener('click', () => {
-        selectedFiles = [];
-        fileUpload.value = '';
-        updateFileList();
-        showInfoToast('All files cleared');
-    });
 }
 
 function readFileAsArrayBuffer(file) {
@@ -1296,8 +1288,11 @@ function getMimeType(filename) {
 function updateFileList() {
     const fileListSection = document.getElementById('fileListSection');
     const fileList = document.getElementById('fileList');
-    const fileCount = document.getElementById('fileCount');
     const attachFileBtn = document.getElementById('attachFileBtn');
+
+    // Remove old badge
+    const oldBadge = attachFileBtn.querySelector('.file-badge');
+    if (oldBadge) oldBadge.remove();
 
     if (selectedFiles.length === 0) {
         fileListSection.style.display = 'none';
@@ -1305,30 +1300,22 @@ function updateFileList() {
         return;
     }
 
-    fileListSection.style.display = 'block';
-    fileCount.textContent = selectedFiles.length;
-    
-    // Highlight + button when files are attached
+    fileListSection.style.display = 'flex';
     attachFileBtn.classList.add('has-files');
 
-    fileList.innerHTML = selectedFiles.map((file, index) => {
-        const extension = file.name.toLowerCase().split('.').pop();
-        const icon = getFileIcon(extension);
+    // Add count badge
+    const badge = document.createElement('span');
+    badge.className = 'file-badge';
+    badge.textContent = selectedFiles.length;
+    attachFileBtn.appendChild(badge);
 
-        return `
-            <div class="d-flex justify-content-between align-items-center mb-1 p-1 border rounded">
-                <div class="d-flex align-items-center">
-                    <i class="${icon} me-2 text-primary"></i>
-                    <div>
-                        <div class="small fw-medium">${file.name}</div>
-                        <small class="text-muted">${formatFileSize(file.size)}</small>
-                    </div>
-                </div>
-                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeFile(${index})">
-                    <i class="bi bi-x"></i>
-                </button>
-            </div>
-        `;
+    fileList.innerHTML = selectedFiles.map((file, index) => {
+        const ext = file.name.toLowerCase().split('.').pop();
+        return `<div class="file-chip">
+            <i class="${getFileIcon(ext)} chip-icon"></i>
+            <span class="chip-name">${file.name}</span>
+            <button class="chip-remove" onclick="removeFile(${index})"><i class="bi bi-x"></i></button>
+        </div>`;
     }).join('');
 }
 

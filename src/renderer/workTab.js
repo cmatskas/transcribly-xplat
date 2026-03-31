@@ -68,6 +68,7 @@
     listSectionId: 'workFileListSection',
     listId: 'workFileList',
     countId: 'workFileCount',
+    toolBtnId: 'workAttachFileBtn',
     maxFiles: 5,
   });
 
