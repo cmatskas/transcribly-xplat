@@ -90,7 +90,6 @@
   "build": {
     "appId": "com.transcribely.app",
     "productName": "Transcribely",
-    "afterPack": "./build-scripts/afterPack.js",
     "directories": {
       "output": "dist/temp"
     },
@@ -108,7 +107,10 @@
         "dmg"
       ],
       "artifactName": "${productName}-${version}-universal.${ext}",
-      "darkModeSupport": true
+      "darkModeSupport": true,
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "notarize": true
     },
     "win": {
       "icon": "src/assets/favicon-win.ico",
