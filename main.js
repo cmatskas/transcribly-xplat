@@ -163,6 +163,11 @@ app.whenReady().then(async () => {
     }
   }
 
+  // Load Jina API key if available
+  try {
+    currentJinaApiKey = await credentialsManager.loadJinaApiKey();
+  } catch { /* no key yet */ }
+
   // Always show main window — settings are in-page now
   createWindow();
   mainWindow.loadFile('src/pages/index.html');
@@ -253,6 +258,26 @@ ipcMain.handle('delete-credentials', async () => {
   } catch (error) {
     throw new Error(`Failed to delete credentials: ${error.message}`);
   }
+});
+
+// Jina API key IPC handlers
+let currentJinaApiKey = null;
+
+ipcMain.handle('save-jina-key', async (_event, key) => {
+  await credentialsManager.saveJinaApiKey(key);
+  currentJinaApiKey = key;
+  return true;
+});
+
+ipcMain.handle('load-jina-key', async () => {
+  if (!currentJinaApiKey) currentJinaApiKey = await credentialsManager.loadJinaApiKey();
+  return currentJinaApiKey ? '••••••••' : null; // never send raw key to renderer
+});
+
+ipcMain.handle('delete-jina-key', async () => {
+  await credentialsManager.deleteJinaApiKey();
+  currentJinaApiKey = null;
+  return true;
 });
 
 ipcMain.handle('validate-credentials', async () => {
@@ -629,7 +654,7 @@ function createSwarmOrchestrator() {
     skillsManager,
     codeInterpreterManager: new (require('./src/main/models/codeInterpreterManager'))(awsClients.agentCoreConfig),
     browserManager: new (require('./src/main/models/browserManager'))(awsClients.agentCoreConfig),
-    settings: currentSettings || {},
+    settings: { ...(currentSettings || {}), jinaApiKey: currentJinaApiKey },
     onEvent: (channel, data) => {
       if (mainWindow) mainWindow.webContents.send(channel, data);
       // System notifications for events needing user attention
@@ -813,6 +838,7 @@ ipcMain.handle('invoke-agent', async (event, { model, prompt, conversationHistor
 
   // Set up memory if configured
   const settings = await settingsManager.loadSettings();
+  settings.jinaApiKey = currentJinaApiKey;
   let memManager = null;
   if (settings.memoryId && settings.memoryEnabled && awsClients.agentCoreConfig) {
     memManager = new MemoryManager(awsClients.agentCoreConfig);
@@ -1091,7 +1117,7 @@ async function invokeBedrockNoKB(model, prompt, conversationHistory, files = [],
         const ci = new CodeInterpreterManager(clientConfig);
         try {
           await ci.startSession(300);
-          await ci.writeFiles(pptxFiles.map(f => ({ path: f.name, content: Array.isArray(f.content) ? f.content : Array.from(f.content) })));
+          await ci.writeFiles(pptxFiles.map(f => ({ path: f.name, blob: Buffer.from(Array.isArray(f.content) ? f.content : f.content) })));
           for (const file of pptxFiles) {
             const result = await ci.executeCode(`
 from pptx import Presentation
@@ -1115,7 +1141,7 @@ print("\\n\\n".join(slides))
         if (['pptx', 'ppt'].includes(fileExtension)) continue; // already handled above
 
         if (fileExtension === 'pdf') {
-          const bytes = Array.isArray(file.content) ? new Uint8Array(file.content) : file.content;
+          const bytes = Buffer.from(Array.isArray(file.content) ? file.content : file.content);
           messageContent.push({
             document: {
               name: sanitizeFileName(file.name),
@@ -1124,7 +1150,7 @@ print("\\n\\n".join(slides))
             }
           });
         } else if (['doc', 'docx'].includes(fileExtension)) {
-          const bytes = Array.isArray(file.content) ? new Uint8Array(file.content) : file.content;
+          const bytes = Buffer.from(Array.isArray(file.content) ? file.content : file.content);
           messageContent.push({
             document: {
               name: sanitizeFileName(file.name),
@@ -1133,7 +1159,7 @@ print("\\n\\n".join(slides))
             }
           });
         } else if (['xls', 'xlsx'].includes(fileExtension)) {
-          const bytes = Array.isArray(file.content) ? new Uint8Array(file.content) : file.content;
+          const bytes = Buffer.from(Array.isArray(file.content) ? file.content : file.content);
           messageContent.push({
             document: {
               name: sanitizeFileName(file.name),

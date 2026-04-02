@@ -265,6 +265,9 @@
     setSendBtnState(true);
     const container = session.container;
 
+    // Capture sessionId for this invocation (before any async work)
+    const sid = activeSessionId;
+
     // Remove placeholder/greeting
     const placeholder = container.querySelector('.work-greeting') || container.querySelector('.chat-placeholder');
     if (placeholder) placeholder.remove();
@@ -275,6 +278,10 @@
     CR.appendChatMessage(container, userMsg);
     promptInput.value = '';
     promptInput.style.height = 'auto';
+
+    // Save immediately so the conversation exists in history
+    await saveSession(sid, session.messages);
+    refreshSidebar();
 
     // Show thinking
     const thinkingEl = CR.appendThinking(container);
@@ -289,9 +296,6 @@
       role: m.role,
       content: [{ text: m.content }],
     }));
-
-    // Capture sessionId for this invocation
-    const sid = activeSessionId;
 
     // Update sidebar to show working state
     refreshSidebar();
@@ -331,8 +335,15 @@
       thinkingEl.remove();
       CR.finishActivityLog(session.activityLog);
       container.querySelectorAll('.chat-status-message').forEach(el => el.remove());
+
+      // Preserve any partial streaming content
+      if (session.streamingText) {
+        session.messages.push({ role: 'assistant', content: session.streamingText, timestamp: new Date().toISOString() });
+      }
+
       CR.appendChatError(container, error.message);
       showToast(`Agent error: ${error.message}`, 'error');
+      saveSession(sid, session.messages);
     } finally {
       session.processing = false;
       setSendBtnState(false);
@@ -354,6 +365,15 @@
     const currentSession = getActiveSession();
     currentSession.draftPrompt = promptInput.value;
     currentSession.files = workFiles.getFiles();
+
+    // If there's an in-progress streaming response, capture it before saving
+    if (currentSession.processing && currentSession.streamingText) {
+      const alreadyHasAssistant = currentSession.messages.length > 0 &&
+        currentSession.messages[currentSession.messages.length - 1].role === 'assistant';
+      if (!alreadyHasAssistant) {
+        currentSession.messages.push({ role: 'assistant', content: currentSession.streamingText, timestamp: new Date().toISOString() });
+      }
+    }
 
     saveSession(activeSessionId, currentSession.messages);
     if (currentSession.messages.length > 0) {
@@ -437,7 +457,7 @@
     return `<div class="sidebar-item${isActive ? ' active' : ''}" data-id="${s.id}">
       ${s.starred ? '<i class="bi bi-star-fill sidebar-item-star"></i>' : ''}
       <span class="sidebar-item-title">${escapeHtml(s.title || 'Untitled')}</span>
-      ${isWorking ? '<span class="sidebar-working-indicator" title="Agent working"><i class="bi bi-three-dots"></i></span>' : ''}
+      ${isWorking ? '<span class="sidebar-working-indicator" title="Agent working"></span>' : ''}
       <button class="sidebar-menu-btn" data-id="${s.id}" data-starred="${s.starred ? '1' : ''}" title="More"><i class="bi bi-three-dots"></i></button>
     </div>`;
   }

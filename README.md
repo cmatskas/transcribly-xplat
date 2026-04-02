@@ -21,7 +21,7 @@ Download: [Box folder](https://amazoncorporate.box.com/s/rwc0pbifx50uf7g2xi8mxan
 
 | Platform | File |
 |---|---|
-| macOS (Intel & Apple Silicon) | `Transcribely-2.7.0-universal.dmg` |
+| macOS (Intel & Apple Silicon) | `Transcribely-2.7.3-universal.dmg` |
 | Windows x64 | `Transcribely-Setup-x64.exe` |
 | Windows ARM64 | `Transcribely-Setup-arm64.exe` |
 
@@ -40,7 +40,8 @@ npm run build      # production (all platforms)
 1. Open Settings → Credentials
 2. Paste your AWS credentials (auto-detected from any format)
 3. Click "Save & Test Credentials"
-4. Start using the Work tab
+4. (Optional) Add a [Jina AI](https://jina.ai) API key for high-quality web search — agents fall back to DuckDuckGo without one
+5. Start using the Work tab
 
 ## AWS Permissions Required
 
@@ -56,6 +57,23 @@ Your IAM user/role needs access to:
 - **SageMaker**: `InvokeEndpoint` (for SDXL image generation)
 - **AgentCore**: Code Interpreter and Browser access (for Work/Swarm tools)
 </details>
+
+## Which Tab Should I Use?
+
+| | **Work** | **Swarm** | **Chat** |
+|---|---|---|---|
+| **Best for** | One-off tasks with back-and-forth iteration | Polished, publication-ready content | Quick questions and document analysis |
+| **Agent count** | 1 (you + the agent) | 6–7 specialized agents | 1 (single model call) |
+| **Tools** | Code execution, web browsing, file I/O, image generation | Code execution, web browsing, file I/O, image generation | None — text only |
+| **Output files** | `.docx`, `.pptx`, `.xlsx`, images | `.docx`, `.pptx` (formatted by dedicated agent) | None |
+| **Iteration** | Unlimited — keep refining across messages | Guided — review points between agents | Conversational |
+| **Memory** | Persistent across conversations (via AgentCore Memory) | Per-pipeline only | Per-conversation only |
+| **Cost** | Medium (one model, multiple tool calls) | Higher (multiple models, 6–7 agent turns) | Lowest (single model call) |
+
+**Rules of thumb:**
+- "Create me a document / analyze this file / build something" → **Work**
+- "Write a polished article / keynote / speech from this brief" → **Swarm**
+- "What does this document say? / Explain X / Summarize Y" → **Chat**
 
 ## Work Tab
 
@@ -200,4 +218,3 @@ MIT — see [LICENSE](LICENSE)
 
 ---
 
-Made with ❤️ and Kiro by the Keynote Team

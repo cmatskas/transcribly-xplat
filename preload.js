@@ -27,6 +27,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
     'load-conversation', 'load-credentials', 'load-settings', 'memory-delete', 'memory-disable',
     'memory-enable', 'memory-extract', 'memory-status', 'navigate-to-main', 'open-skills-folder',
     'quick-validate-credentials', 'refresh-skills', 'save-conversation', 'save-credentials',
+    'save-jina-key', 'load-jina-key', 'delete-jina-key',
     'save-settings', 'save-skill-content', 'select-directory', 'send-to-bedrock', 'toggle-skill',
     'create-skill', 'delete-skill', 'transcribe-media',
     'update-custom-prompt', 'validate-credentials', 'work-history-delete', 'work-history-list',

@@ -1,5 +1,21 @@
 # Release Notes
 
+## v2.7.3
+
+### Web Search Fix
+- **Replaced Google search with Jina + DuckDuckGo** — Google was blocking automated searches from AgentCore Browser. Web search now uses Jina Search API (when configured) for high-quality results with full article content, or DuckDuckGo as a zero-config fallback. Affects both Work and Swarm agents.
+- **Jina API Key support** — Optional encrypted API key field in Settings → Credentials. Autosaves on edit, encrypted at rest via OS keychain (safeStorage). Get a free key at [jina.ai](https://jina.ai).
+
+### Work Tab — Conversation Reliability
+- **Immediate save on first message** — Conversations are now saved to history as soon as the user sends a message, before the agent responds. Previously, conversations were only saved after the full response, causing data loss if the user started a new chat mid-response.
+- **Partial response preservation** — If the agent errors mid-stream or the user switches conversations while the agent is working, any partial streaming content is captured and saved.
+- **Animated working indicator** — In-progress conversations now show a pulsing blue dot in the sidebar instead of a static icon.
+
+### Bug Fixes
+- **Fixed file upload crash** — AgentCore Code Interpreter `writeFiles` API now uses the correct `blob` field (was `content`), fixing `ValidationException: path field and one of (text, blob) field is required` when uploading PPTX files.
+- **Fixed document byte serialization** — Replaced `Uint8Array` with `Buffer.from` for Bedrock Converse document blocks, preventing serialization issues with SDK v3.1001.0+ for PDF, DOCX, and XLSX uploads.
+- **Fixed proactive directory scanning** — Agent no longer scans `~/Documents/Transcribely/` unprompted when memory context is loaded. Added explicit instruction to wait for user direction before exploring the filesystem.
+
 ## v2.7.1
 
 ### UI Improvements

@@ -51,7 +51,8 @@ ${catalog.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.
 - After generating files in the sandbox (always save to /tmp/), you MUST call save_file_locally to deliver them to the user's local filesystem. Never leave generated files only in the sandbox.
 - After saving a file locally, you MUST tell the user the full local path where the file was saved. Example: "I've saved the document to /Users/name/Documents/report.docx"
 - Break complex tasks into steps. Execute code, inspect results, and iterate until the task is complete.
-- You can browse the web using the web tool. Pass a URL to read a page, or a query to search Google. For research: search first, then browse specific result URLs for deeper content.
+- Do NOT proactively scan or list local directories unless the user explicitly asks you to or provides a working directory. Wait for instructions before exploring the filesystem.
+- You can browse the web using the web tool. Pass a URL to read a page, or a query to search the web. For research: search first, then browse specific result URLs for deeper content.
 - If a library is missing in the sandbox, install it with pip via execute_code before using it.
 - If execute_code returns an error, fix the code and retry. Do NOT give up or describe what you would have done.
 - Write ALL document generation code in a SINGLE execute_code call. Do not split across multiple calls unless debugging an error.
@@ -159,7 +160,7 @@ Before giving your FINAL response, verify ALL of the following — if any is NO,
       {
         toolSpec: {
           name: 'web',
-          description: 'Browse the web. Provide a URL to navigate directly, or a search query to search Google first. For research tasks: search first, then browse specific result URLs for details.',
+          description: 'Browse the web. Provide a URL to navigate directly, or a search query to search the web. For research tasks: search first, then browse specific result URLs for details.',
           inputSchema: {
             json: {
               type: 'object',
@@ -223,7 +224,7 @@ Before giving your FINAL response, verify ALL of the following — if any is NO,
         if (!this.codeInterpreter.sessionId) {
           await this.codeInterpreter.startSession();
         }
-        await this.codeInterpreter.writeFiles([{ path: file.name, content: Array.isArray(file.content) ? file.content : Array.from(file.content) }]);
+        await this.codeInterpreter.writeFiles([{ path: file.name, blob: Buffer.from(Array.isArray(file.content) ? file.content : file.content) }]);
         const result = await this.codeInterpreter.executeCode(`
 from pptx import Presentation
 prs = Presentation("${file.name}")
@@ -236,7 +237,7 @@ print("\\n\\n".join(slides))
 `);
         userContent.push({ text: `\n--- Content from ${file.name} ---\n${result.text}\n--- End ---\n` });
       } else if (['pdf', 'doc', 'docx', 'xls', 'xlsx'].includes(ext)) {
-        const bytes = Array.isArray(file.content) ? new Uint8Array(file.content) : file.content;
+        const bytes = Array.isArray(file.content) ? Buffer.from(file.content) : Buffer.from(file.content);
         userContent.push({
           document: { name: sanitizeFileName(file.name), format: ext, source: { bytes } },
         });
@@ -250,7 +251,8 @@ print("\\n\\n".join(slides))
     this._memoryContext = memoryContext;
 
     let sessionStarted = !!this.codeInterpreter.sessionId; // may already be started for file extraction
-    const maxIterations = 15;
+    const maxIterations = 30;
+    const wrapUpAt = maxIterations - 2; // trigger wrap-up 2 iterations before hard limit
     let finalText = '';
     let accumulatedText = ''; // track streamed text for abort case
 
@@ -260,6 +262,11 @@ print("\\n\\n".join(slides))
         if (this.signal?.aborted) {
           finalText = accumulatedText || '';
           return finalText;
+        }
+
+        // Approaching limit — inject wrap-up nudge so the model finishes gracefully
+        if (i === wrapUpAt) {
+          messages.push({ role: 'user', content: [{ text: '[SYSTEM] You are running low on remaining steps. Save any generated files NOW using save_file_locally, then give the user a final summary of what was completed and what remains.' }] });
         }
 
         const response = await this._converse(model, messages);
@@ -311,7 +318,10 @@ print("\\n\\n".join(slides))
         messages.push({ role: 'user', content: toolResults });
       }
 
-      finalText = 'Agent reached maximum iterations without completing.';
+      const exhaustionMsg = '\n\n⚠️ I ran out of steps before finishing. Please send a follow-up message and I\'ll continue where I left off.';
+      this.onChunk(exhaustionMsg);
+      accumulatedText += exhaustionMsg;
+      finalText = accumulatedText;
       return finalText;
     } finally {
       // Save conversation to memory
@@ -602,23 +612,45 @@ print(f"Wrote {len(data)} bytes to ${sandboxPath}")
   }
 
   async _handleWeb({ url, query }) {
+    // Direct URL — always use browser
+    if (url) {
+      if (!this.browser.sessionId) {
+        this.onStatus('Starting browser session...');
+        await this.browser.startSession();
+      }
+      this.onStatus(`Navigating to ${url}...`);
+      const nav = await this.browser.navigate(url);
+      this.onStatus('Extracting page content...');
+      const content = await this.browser.getPageContent();
+      const truncated = content.length > 15000 ? content.substring(0, 15000) + '\n\n[Content truncated]' : content;
+      return { url, title: nav.title, content: truncated };
+    }
+
+    // Search query — use Jina if key available, else DuckDuckGo via browser
+    if (this.settings.jinaApiKey) {
+      this.onStatus(`Searching (Jina): ${query}...`);
+      const res = await fetch(`https://s.jina.ai/${encodeURIComponent(query)}`, {
+        headers: { 'Authorization': `Bearer ${this.settings.jinaApiKey}`, 'Accept': 'application/json' },
+      });
+      if (!res.ok) throw new Error(`Jina search failed: ${res.status}`);
+      const data = await res.json();
+      const results = (data.data || []).slice(0, 5).map(r => ({
+        title: r.title, url: r.url, content: (r.content || '').substring(0, 3000),
+      }));
+      return { query, source: 'jina', results };
+    }
+
+    // Fallback: DuckDuckGo via browser
     if (!this.browser.sessionId) {
       this.onStatus('Starting browser session...');
       await this.browser.startSession();
     }
-
-    const targetUrl = url || `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-    this.onStatus(url ? `Navigating to ${url}...` : `Searching: ${query}...`);
+    const targetUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    this.onStatus(`Searching: ${query}...`);
     const nav = await this.browser.navigate(targetUrl);
-
-    this.onStatus('Extracting page content...');
+    this.onStatus('Extracting search results...');
     const content = await this.browser.getPageContent();
-
-    const maxLen = url ? 15000 : 10000;
-    const truncated = content.length > maxLen
-      ? content.substring(0, maxLen) + '\n\n[Content truncated]'
-      : content;
-
+    const truncated = content.length > 10000 ? content.substring(0, 10000) + '\n\n[Content truncated]' : content;
     return { url: targetUrl, title: nav.title, content: truncated };
   }
 

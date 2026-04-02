@@ -113,25 +113,54 @@ print(f"Wrote {len(data)} bytes to ${sandboxPath}")`;
 
     web: () => tool({
       name: 'web',
-      description: 'Browse the web. Provide a URL to read a page, or a query to search Google.',
+      description: 'Browse the web. Provide a URL to read a page, or a query to search the web.',
       inputSchema: z.object({
         url: z.string().optional().describe('URL to navigate to'),
-        query: z.string().optional().describe('Search query for Google'),
+        query: z.string().optional().describe('Search query'),
       }),
       callback: async (input) => {
         try {
+          // Direct URL — always use browser
+          if (input.url) {
+            if (!browserManager) throw new Error('Browser not available');
+            if (!browserManager.sessionId) {
+              onStatus?.('Starting browser session...');
+              await browserManager.startSession();
+            }
+            onStatus?.(`Navigating to ${input.url}...`);
+            const nav = await browserManager.navigate(input.url);
+            onStatus?.('Extracting page content...');
+            const content = await browserManager.getPageContent();
+            const truncated = content.length > 15000 ? content.substring(0, 15000) + '\n\n[Content truncated]' : content;
+            return JSON.stringify({ url: input.url, title: nav.title, content: truncated });
+          }
+
+          // Search query — use Jina if key available, else DuckDuckGo via browser
+          if (settings?.jinaApiKey) {
+            onStatus?.(`Searching (Jina): ${input.query}...`);
+            const res = await fetch(`https://s.jina.ai/${encodeURIComponent(input.query)}`, {
+              headers: { 'Authorization': `Bearer ${settings.jinaApiKey}`, 'Accept': 'application/json' },
+            });
+            if (!res.ok) throw new Error(`Jina search failed: ${res.status}`);
+            const data = await res.json();
+            const results = (data.data || []).slice(0, 5).map(r => ({
+              title: r.title, url: r.url, content: (r.content || '').substring(0, 3000),
+            }));
+            return JSON.stringify({ query: input.query, source: 'jina', results });
+          }
+
+          // Fallback: DuckDuckGo via browser
           if (!browserManager) throw new Error('Browser not available');
           if (!browserManager.sessionId) {
             onStatus?.('Starting browser session...');
             await browserManager.startSession();
           }
-          const targetUrl = input.url || `https://www.google.com/search?q=${encodeURIComponent(input.query)}`;
-          onStatus?.(input.url ? `Navigating to ${input.url}...` : `Searching: ${input.query}...`);
+          const targetUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(input.query)}`;
+          onStatus?.(`Searching: ${input.query}...`);
           const nav = await browserManager.navigate(targetUrl);
-          onStatus?.('Extracting page content...');
+          onStatus?.('Extracting search results...');
           const content = await browserManager.getPageContent();
-          const maxLen = input.url ? 15000 : 10000;
-          const truncated = content.length > maxLen ? content.substring(0, maxLen) + '\n\n[Content truncated]' : content;
+          const truncated = content.length > 10000 ? content.substring(0, 10000) + '\n\n[Content truncated]' : content;
           return JSON.stringify({ url: targetUrl, title: nav.title, content: truncated });
         } catch (err) {
           onStatus?.(`Web error: ${err.message}`);
