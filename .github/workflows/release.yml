@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
 jobs:
   build-mac:
     runs-on: macos-latest
@@ -19,6 +23,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
       - name: Import Apple certificate
         env:
           APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
@@ -26,9 +36,7 @@ jobs:
         run: |
           CERT_PATH=$RUNNER_TEMP/certificate.p12
           KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
-
           echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$CERT_PATH"
-
           security create-keychain -p "" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "" "$KEYCHAIN_PATH"
@@ -36,14 +44,32 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
 
-      - name: Build & publish macOS
+      - name: Build macOS (universal)
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: npx electron-builder --mac --universal --publish always
+        run: npx electron-builder --mac --universal --publish never
+
+      - name: Notarize
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          DMG=$(ls dist/temp/*.dmg | head -1)
+          xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$DMG"
+
+      - name: Upload to S3
+        run: |
+          DMG=$(ls dist/temp/*.dmg | head -1)
+          aws s3 cp "$DMG" s3://transcribely-releases/releases/$(basename $DMG)
+          aws s3 cp dist/temp/latest-mac.yml s3://transcribely-releases/releases/latest-mac.yml
 
       - name: Clean up keychain
         if: always()
@@ -62,14 +88,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
       - name: Build & publish Windows x64
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: npx electron-builder --win --x64 --publish always
 
       - name: Build & publish Windows arm64
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: npx electron-builder --win --arm64 --publish always
