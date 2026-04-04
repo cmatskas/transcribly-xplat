@@ -52,3 +52,6 @@ ts-gen
 patches/mtime-cache.json
 
 spec/fixtures/logo.png.kiro/
+
+# Apple signing secrets
+build-scripts/.apple-env
