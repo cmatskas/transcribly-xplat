@@ -6,75 +6,10 @@ on:
       - 'v*'
 
 permissions:
-  id-token: write   # required for OIDC
+  id-token: write
   contents: read
 
 jobs:
-  build-mac:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: lts/*
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Import Apple certificate
-        env:
-          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-        run: |
-          CERT_PATH=$RUNNER_TEMP/certificate.p12
-          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
-          echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$CERT_PATH"
-          security create-keychain -p "" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "" "$KEYCHAIN_PATH"
-          security import "$CERT_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple: -k "" "$KEYCHAIN_PATH"
-          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
-
-      - name: Build macOS (universal)
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npx electron-builder --mac --universal --publish never
-
-      - name: Notarize
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          DMG=$(ls dist/temp/*.dmg | head -1)
-          xcrun notarytool submit "$DMG" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait
-          xcrun stapler staple "$DMG"
-
-      - name: Upload to S3
-        run: |
-          DMG=$(ls dist/temp/*.dmg | head -1)
-          aws s3 cp "$DMG" s3://transcribely-releases/releases/$(basename $DMG)
-          aws s3 cp dist/temp/latest-mac.yml s3://transcribely-releases/releases/latest-mac.yml
-
-      - name: Clean up keychain
-        if: always()
-        run: security delete-keychain $RUNNER_TEMP/build.keychain-db || true
-
   build-win:
     runs-on: windows-latest
     steps:
@@ -94,8 +29,15 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Build & publish Windows x64
-        run: npx electron-builder --win --x64 --publish always
+      - name: Build Windows x64
+        run: npx electron-builder --win --x64 --publish never
 
-      - name: Build & publish Windows arm64
-        run: npx electron-builder --win --arm64 --publish always
+      - name: Build Windows arm64
+        run: npx electron-builder --win --arm64 --publish never
+
+      - name: Upload to S3
+        shell: bash
+        run: |
+          aws s3 cp dist/temp/Transcribely-*-Setup-x64.exe s3://transcribely-releases/releases/
+          aws s3 cp dist/temp/Transcribely-*-Setup-arm64.exe s3://transcribely-releases/releases/
+          aws s3 cp dist/temp/latest.yml s3://transcribely-releases/releases/latest.yml
