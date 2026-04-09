@@ -1,6 +1,6 @@
 {
   "name": "Transcribely",
-  "version": "2.7.4",
+  "version": "2.7.5",
   "description": "Electron app for Bedrock models and media transcription",
   "main": "main.js",
   "author": "Transcribely Team",
@@ -140,10 +140,9 @@
       "allowToChangeInstallationDirectory": true
     },
     "publish": {
-      "provider": "s3",
-      "bucket": "transcribely-releases",
-      "region": "us-east-1",
-      "path": "/releases"
+      "provider": "github",
+      "owner": "cmatskas",
+      "repo": "transcribly-xplat"
     }
   }
 }

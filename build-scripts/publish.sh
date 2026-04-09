@@ -1,10 +1,10 @@
 #!/bin/bash
-# publish.sh — Build, sign, and publish Transcribely to S3 for auto-updates
+# publish.sh — Build, sign, notarize, and publish Transcribely to GitHub Releases
 #
 # Prerequisites:
-#   - AWS credentials in ~/.aws/credentials (default profile)
-#   - For macOS signing: Apple Developer ID cert in Keychain
-#   - Apple env vars in build-scripts/.apple-env (see below)
+#   - Apple Developer ID cert in Keychain (for macOS signing)
+#   - Apple env vars in build-scripts/.apple-env
+#   - GITHUB_TOKEN env var with repo write access
 #
 # Apple env file (build-scripts/.apple-env):
 #   APPLE_ID=your@email.com
@@ -12,26 +12,20 @@
 #   APPLE_TEAM_ID=XXXXXXXXXX
 #
 # Usage:
-#   ./build-scripts/publish.sh [mac|win|all]
+#   GITHUB_TOKEN=ghp_xxx ./build-scripts/publish.sh [mac|win|all]
 
 set -e
 
 PLATFORM=${1:-all}
-BUCKET="transcribely-releases"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# ── Load AWS credentials from ~/.aws/credentials ──────────
-AWS_CREDS="$HOME/.aws/credentials"
-if [ -f "$AWS_CREDS" ]; then
-  export AWS_ACCESS_KEY_ID=$(grep -A5 '^\[default\]' "$AWS_CREDS" | grep 'AWS_ACCESS_KEY_ID' | head -1 | cut -d= -f2- | tr -d ' ')
-  export AWS_SECRET_ACCESS_KEY=$(grep -A5 '^\[default\]' "$AWS_CREDS" | grep 'AWS_SECRET_ACCESS_KEY' | head -1 | cut -d= -f2- | tr -d ' ')
-  SESSION_TOKEN=$(grep -A5 '^\[default\]' "$AWS_CREDS" | grep 'AWS_SESSION_TOKEN' | head -1 | cut -d= -f2- | tr -d ' ')
-  [ -n "$SESSION_TOKEN" ] && export AWS_SESSION_TOKEN="$SESSION_TOKEN"
-  echo "✓ AWS credentials loaded from ~/.aws/credentials"
-else
-  echo "✗ No ~/.aws/credentials found — S3 publish will fail"
+# ── Validate GITHUB_TOKEN ─────────────────────────────────
+if [ -z "$GITHUB_TOKEN" ]; then
+  echo "✗ GITHUB_TOKEN is required. Set it before running:"
+  echo "  export GITHUB_TOKEN=ghp_..."
   exit 1
 fi
+echo "✓ GitHub token found"
 
 # ── Load Apple signing env vars ───────────────────────────
 APPLE_ENV="$SCRIPT_DIR/.apple-env"
@@ -39,15 +33,15 @@ if [ -f "$APPLE_ENV" ]; then
   set -a
   source "$APPLE_ENV"
   set +a
-  echo "✓ Apple signing config loaded from $APPLE_ENV"
+  echo "✓ Apple signing config loaded"
 else
   if [ "$PLATFORM" = "mac" ] || [ "$PLATFORM" = "all" ]; then
-    echo "⚠ No build-scripts/.apple-env found — macOS build will be ad-hoc signed (not notarized)"
+    echo "⚠ No build-scripts/.apple-env found — macOS build will not be notarized"
   fi
 fi
 
 echo ""
-echo "Publishing Transcribely to s3://$BUCKET/releases/"
+echo "Publishing Transcribely to GitHub Releases..."
 echo ""
 
 if [ "$PLATFORM" = "mac" ] || [ "$PLATFORM" = "all" ]; then
@@ -76,26 +70,20 @@ if [ "$PLATFORM" = "mac" ] || [ "$PLATFORM" = "all" ]; then
       echo "✗ Notarization failed — check output above"
       exit 1
     fi
-  else
-    echo "⚠ Apple env vars not set — skipping notarization"
   fi
 
-  echo "▸ Uploading macOS DMG to S3..."
-  aws s3 cp "$DMG" "s3://$BUCKET/releases/$(basename $DMG)"
-  # Upload latest-mac.yml for auto-updater
-  YML=$(ls dist/temp/latest-mac.yml 2>/dev/null)
-  [ -n "$YML" ] && aws s3 cp "$YML" "s3://$BUCKET/releases/latest-mac.yml"
+  echo "▸ Publishing macOS to GitHub Release..."
+  npx electron-builder --mac --universal --publish always --prepackaged dist/temp
   echo ""
 fi
 
 if [ "$PLATFORM" = "win" ] || [ "$PLATFORM" = "all" ]; then
-  echo "▸ Building Windows x64..."
+  echo "▸ Building & publishing Windows x64..."
   npx electron-builder --win --x64 --publish always
   echo ""
-  echo "▸ Building Windows arm64..."
+  echo "▸ Building & publishing Windows arm64..."
   npx electron-builder --win --arm64 --publish always
   echo ""
 fi
 
-echo "✓ Done. Artifacts published to s3://$BUCKET/releases/"
-echo "  Users will receive the update notification within 4 hours."
+echo "✓ Done. Release published to https://github.com/cmatskas/transcribly-xplat/releases"

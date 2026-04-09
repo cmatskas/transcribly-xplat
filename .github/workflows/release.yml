@@ -6,8 +6,7 @@ on:
       - 'v*'
 
 permissions:
-  id-token: write
-  contents: read
+  contents: write   # required to create GitHub releases
 
 jobs:
   build-mac:
@@ -22,12 +21,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
 
       - name: Import Apple certificate
         env:
@@ -65,11 +58,10 @@ jobs:
             --wait
           xcrun stapler staple "$DMG"
 
-      - name: Upload macOS to S3
-        run: |
-          DMG=$(ls dist/temp/*.dmg | head -1)
-          aws s3 cp "$DMG" s3://transcribely-releases/releases/$(basename $DMG)
-          aws s3 cp dist/temp/latest-mac.yml s3://transcribely-releases/releases/latest-mac.yml
+      - name: Publish macOS to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --mac --universal --publish always --prepackaged dist/temp
 
       - name: Clean up keychain
         if: always()
@@ -88,21 +80,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
+      - name: Build & publish Windows x64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --x64 --publish always
 
-      - name: Build Windows x64
-        run: npx electron-builder --win --x64 --publish never
-
-      - name: Build Windows arm64
-        run: npx electron-builder --win --arm64 --publish never
-
-      - name: Upload to S3
-        shell: bash
-        run: |
-          aws s3 cp dist/temp/Transcribely-*-Setup-x64.exe s3://transcribely-releases/releases/
-          aws s3 cp dist/temp/Transcribely-*-Setup-arm64.exe s3://transcribely-releases/releases/
-          aws s3 cp dist/temp/latest.yml s3://transcribely-releases/releases/latest.yml
+      - name: Build & publish Windows arm64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --arm64 --publish always

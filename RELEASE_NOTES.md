@@ -1,5 +1,12 @@
 # Release Notes
 
+## v2.7.5
+
+### Infrastructure
+- **Switched to GitHub Releases for distribution** — Replaced S3 as the publish target. Artifacts (DMG, Windows installers, update manifests) are now attached to GitHub Releases. Auto-updater checks GitHub directly — no AWS credentials required for updates.
+- **Simplified CI workflow** — Removed OIDC/S3 steps; both macOS and Windows jobs now use `GITHUB_TOKEN` (built-in, no secrets needed).
+- **Simplified auto-updater** — Removed AWS credential injection; GitHub releases are public.
+
 ## v2.7.4
 
 ### Bug Fixes

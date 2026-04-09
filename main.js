@@ -182,12 +182,6 @@ app.whenReady().then(async () => {
         {
           label: 'Check for Updates...',
           click: () => {
-            if (currentCredentials) {
-              process.env.AWS_ACCESS_KEY_ID = currentCredentials.accessKeyId;
-              process.env.AWS_SECRET_ACCESS_KEY = currentCredentials.secretAccessKey;
-              process.env.AWS_REGION = currentCredentials.region;
-              if (currentCredentials.sessionToken) process.env.AWS_SESSION_TOKEN = currentCredentials.sessionToken;
-            }
             autoUpdater.checkForUpdates().catch(err => logger.warn('Manual update check failed:', err.message));
           },
         },
@@ -234,21 +228,8 @@ app.whenReady().then(async () => {
     });
 
     // Check for updates 10 seconds after launch, then every 4 hours
-    // Inject AWS credentials so electron-updater can read from the private S3 bucket
-    const scheduleUpdateCheck = () => {
-      if (currentCredentials) {
-        process.env.AWS_ACCESS_KEY_ID = currentCredentials.accessKeyId;
-        process.env.AWS_SECRET_ACCESS_KEY = currentCredentials.secretAccessKey;
-        process.env.AWS_REGION = currentCredentials.region;
-        if (currentCredentials.sessionToken) {
-          process.env.AWS_SESSION_TOKEN = currentCredentials.sessionToken;
-        }
-      }
-      autoUpdater.checkForUpdates();
-    };
-
-    setTimeout(scheduleUpdateCheck, 10000);
-    setInterval(scheduleUpdateCheck, 4 * 60 * 60 * 1000);
+    setTimeout(() => autoUpdater.checkForUpdates(), 10000);
+    setInterval(() => autoUpdater.checkForUpdates(), 4 * 60 * 60 * 1000);
   }
 });
 
