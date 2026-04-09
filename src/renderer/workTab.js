@@ -123,11 +123,18 @@
       if (dir) {
         workingDirectory = dir;
         const badge = document.getElementById('workDirBadge');
-        badge.textContent = dir.split('/').pop() || dir;
+        document.getElementById('workDirBadgeText').textContent = dir.split('/').pop() || dir;
         badge.title = dir;
         badge.classList.remove('d-none');
         showToast(`Workspace: ${dir}`, 'info');
       }
+    });
+
+    // Remove workspace directory
+    document.getElementById('workDirRemoveBtn').addEventListener('click', () => {
+      workingDirectory = null;
+      const badge = document.getElementById('workDirBadge');
+      badge.classList.add('d-none');
     });
 
     // New Chat button

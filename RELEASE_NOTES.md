@@ -1,6 +1,14 @@
 # Release Notes
 
-## v2.7.3
+## v2.7.4
+
+### Bug Fixes
+- **Work tab file/workspace removal** — Added remove button to workspace directory badge; files and workspace can now be cleared from the prompt input.
+- **Transcription error recovery** — On failure, the upload zone is restored immediately so users can retry without refreshing. Error message now includes a "Try again" button. Modal no longer blocks the UI after an error.
+- **Auto-updater credentials** — AWS credentials are now injected before each update check so the app can read from the private S3 bucket.
+- **Check for Updates menu** — Added "Check for Updates..." to the macOS app menu.
+
+
 
 ### Web Search Fix
 - **Replaced Google search with Jina + DuckDuckGo** — Google was blocking automated searches from AgentCore Browser. Web search now uses Jina Search API (when configured) for high-quality results with full article content, or DuckDuckGo as a zero-config fallback. Affects both Work and Swarm agents.

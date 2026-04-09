@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Notification, Menu } = require('electron');
 const path = require('path');
 const config = require('./config.js');
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
@@ -172,6 +172,35 @@ app.whenReady().then(async () => {
   createWindow();
   mainWindow.loadFile('src/pages/index.html');
 
+  // Application menu with Check for Updates
+  const menuTemplate = [
+    ...(process.platform === 'darwin' ? [{
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        {
+          label: 'Check for Updates...',
+          click: () => {
+            if (currentCredentials) {
+              process.env.AWS_ACCESS_KEY_ID = currentCredentials.accessKeyId;
+              process.env.AWS_SECRET_ACCESS_KEY = currentCredentials.secretAccessKey;
+              process.env.AWS_REGION = currentCredentials.region;
+              if (currentCredentials.sessionToken) process.env.AWS_SESSION_TOKEN = currentCredentials.sessionToken;
+            }
+            autoUpdater.checkForUpdates().catch(err => logger.warn('Manual update check failed:', err.message));
+          },
+        },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    }] : []),
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
+
   // If no credentials, tell renderer to show settings page
   if (!hasCredentials) {
     mainWindow.webContents.once('did-finish-load', () => {
@@ -205,8 +234,21 @@ app.whenReady().then(async () => {
     });
 
     // Check for updates 10 seconds after launch, then every 4 hours
-    setTimeout(() => autoUpdater.checkForUpdates(), 10000);
-    setInterval(() => autoUpdater.checkForUpdates(), 4 * 60 * 60 * 1000);
+    // Inject AWS credentials so electron-updater can read from the private S3 bucket
+    const scheduleUpdateCheck = () => {
+      if (currentCredentials) {
+        process.env.AWS_ACCESS_KEY_ID = currentCredentials.accessKeyId;
+        process.env.AWS_SECRET_ACCESS_KEY = currentCredentials.secretAccessKey;
+        process.env.AWS_REGION = currentCredentials.region;
+        if (currentCredentials.sessionToken) {
+          process.env.AWS_SESSION_TOKEN = currentCredentials.sessionToken;
+        }
+      }
+      autoUpdater.checkForUpdates();
+    };
+
+    setTimeout(scheduleUpdateCheck, 10000);
+    setInterval(scheduleUpdateCheck, 4 * 60 * 60 * 1000);
   }
 });
 

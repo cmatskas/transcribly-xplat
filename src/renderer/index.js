@@ -113,6 +113,7 @@ if (typeof window !== 'undefined') {
     window.downloadTranscript = downloadTranscript;
     window.copyTranscript = copyTranscript;
     window.clearTranscription = clearTranscription;
+    window.resetTranscriptionUI = resetTranscriptionUI;
 
     // Expose currentAnalysis as a getter/setter to keep it synchronized
     Object.defineProperty(window, 'currentAnalysis', {
@@ -998,6 +999,18 @@ function clearTranscription() {
     modal.show();
 }
 
+function resetTranscriptionUI() {
+    fileInput.value = '';
+    videoPlayer.src = '';
+    videoContainer.classList.add('d-none');
+    uploadZone.classList.remove('d-none');
+    uploadZone.style.borderColor = '#ccc';
+    transcriptionText.innerHTML = 'Upload a file to see transcription';
+    document.getElementById('downloadTranscript').classList.add('d-none');
+    document.getElementById('copyTranscript').classList.add('d-none');
+    document.getElementById('clearTranscriptionBtn').classList.add('d-none');
+}
+
 function performClearTranscription() {
     // Reset the file input
     fileInput.value = '';
@@ -1070,15 +1083,27 @@ async function uploadFile(file) {
         // Show error in the modal with dismiss button
         modalManager.showError(error.message || 'Transcription failed');
 
-        // Show error in transcription area
+        // Show error in transcription area with a retry button
         transcriptionText.innerHTML = `<div class="alert alert-danger" role="alert">
             <i class="bi bi-exclamation-triangle me-2"></i>
             <strong>Transcription Failed:</strong> ${error.message || 'An unexpected error occurred'}
+            <div class="mt-2">
+                <button class="btn btn-sm btn-outline-danger" onclick="resetTranscriptionUI()">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Try again
+                </button>
+            </div>
         </div>`;
 
         showErrorToast(`Transcription failed: ${error.message}`);
-        
-        // Don't hide modal immediately - let user dismiss it
+
+        // Restore upload zone so user can retry without dismissing the modal
+        uploadZone.classList.remove('d-none');
+        videoContainer.classList.add('d-none');
+        fileInput.value = '';
+
+        // Restore modal to loading state for next use, then hide
+        modalManager.hide();
+        setTimeout(() => modalManager.restoreLoadingState('Processing Transcription', 'Starting transcription job...'), 300);
     }
 }
 function displayTranscript(timestampedTranscript) {
