@@ -61,7 +61,14 @@ jobs:
       - name: Publish macOS to GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --mac --universal --publish always --prepackaged dist/temp
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          DMG=$(ls dist/temp/*.dmg | head -1)
+          BLOCKMAP="${DMG}.blockmap"
+          YML="dist/temp/latest-mac.yml"
+          # Create release if it doesn't exist, then upload assets
+          gh release create "$TAG" --title "$TAG" --notes "" 2>/dev/null || true
+          gh release upload "$TAG" "$DMG" "$BLOCKMAP" "$YML" --clobber
 
       - name: Clean up keychain
         if: always()
@@ -80,12 +87,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build & publish Windows x64
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win --x64 --publish always
+      - name: Build Windows x64
+        run: npx electron-builder --win --x64 --publish never
 
-      - name: Build & publish Windows arm64
+      - name: Build Windows arm64
+        run: npx electron-builder --win --arm64 --publish never
+
+      - name: Publish Windows to GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win --arm64 --publish always
+        shell: bash
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          gh release create "$TAG" --title "$TAG" --notes "" 2>/dev/null || true
+          gh release upload "$TAG" \
+            dist/temp/Transcribely-*-Setup-x64.exe \
+            dist/temp/Transcribely-*-Setup-x64.exe.blockmap \
+            dist/temp/Transcribely-*-Setup-arm64.exe \
+            dist/temp/Transcribely-*-Setup-arm64.exe.blockmap \
+            dist/temp/latest.yml \
+            --clobber

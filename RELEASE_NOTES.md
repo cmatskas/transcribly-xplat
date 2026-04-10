@@ -1,5 +1,10 @@
 # Release Notes
 
+## v2.7.6
+
+### Bug Fixes
+- **Fixed corrupt macOS DMG in CI** — The publish step was rebuilding the DMG after notarization, stripping the notarization ticket. Now uploads the already-notarized DMG directly via `gh release upload`.
+
 ## v2.7.5
 
 ### Infrastructure
