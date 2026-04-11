@@ -1,5 +1,10 @@
 # Release Notes
 
+## v2.7.7
+
+### UI
+- **Credentials tab** — Swapped button order: Paste is now first (left), Save & Test is second (right).
+
 ## v2.7.6
 
 ### Bug Fixes
