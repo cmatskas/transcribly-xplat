@@ -73,7 +73,12 @@ if [ "$PLATFORM" = "mac" ] || [ "$PLATFORM" = "all" ]; then
   fi
 
   echo "▸ Publishing macOS to GitHub Release..."
-  npx electron-builder --mac --universal --publish always --prepackaged dist/temp
+  TAG=$(node -p "require('./package.json').version")
+  DMG=$(ls dist/temp/*.dmg 2>/dev/null | head -1)
+  ZIP=$(ls dist/temp/*.zip 2>/dev/null | head -1)
+  YML="dist/temp/latest-mac.yml"
+  gh release create "v$TAG" --title "v$TAG" --notes "" 2>/dev/null || true
+  gh release upload "v$TAG" "$DMG" "${DMG}.blockmap" "$ZIP" "${ZIP}.blockmap" "$YML" --clobber
   echo ""
 fi
 

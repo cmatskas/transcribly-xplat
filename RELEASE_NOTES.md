@@ -1,5 +1,10 @@
 # Release Notes
 
+## v2.7.8
+
+### Bug Fixes
+- **Fixed macOS auto-update download** — `electron-updater` on macOS requires a `.zip` of the app bundle, not the DMG. Added `zip` as a build target; the zip is now included in GitHub releases alongside the DMG. The DMG remains for fresh installs; the zip is used for in-app updates.
+
 ## v2.7.7
 
 ### UI
