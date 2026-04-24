@@ -49,13 +49,13 @@ Your IAM user/role needs access to:
 - **Bedrock**: `InvokeModel`, `InvokeModelWithResponseStream`, `ListFoundationModels`
 - **Transcribe**: `StartTranscriptionJob`, `GetTranscriptionJob` (for Transcribe tab)
 - **S3**: `GetObject`, `PutObject`, `DeleteObject` on your bucket (for Transcribe tab)
+- **AgentCore**: `bedrock-agentcore:StartCodeInterpreterSession`, `bedrock-agentcore:InvokeCodeInterpreter`, `bedrock-agentcore:StopCodeInterpreterSession`, `bedrock-agentcore:StartBrowserSession`, `bedrock-agentcore:StopBrowserSession` (for Work/Swarm code execution and web browsing)
 
 <details>
 <summary>Optional permissions</summary>
 
 - **Knowledge Base**: `ListKnowledgeBases`, `RetrieveAndGenerate`
 - **SageMaker**: `InvokeEndpoint` (for SDXL image generation)
-- **AgentCore**: Code Interpreter and Browser access (for Work/Swarm tools)
 </details>
 
 ## Which Tab Should I Use?

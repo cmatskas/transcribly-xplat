@@ -438,12 +438,33 @@ print("\\n\\n".join(slides))
           await this.codeInterpreter.startSession(7200);
           this.onStatus({ tool: 'sandbox', detail: 'Sandbox ready', state: 'done' });
         }
-        const result = await this.codeInterpreter.executeCode(input.code);
-        if (!result.success) return { error: result.errors.join('\n'), output: result.text };
-        // Track any /tmp/ files mentioned in code or output
-        const tmpMatches = (input.code + (result.text || '')).match(/\/tmp\/[\w.\-]+/g) || [];
-        tmpMatches.forEach(f => this._sandboxFiles.add(f));
-        return { output: result.text };
+        try {
+          const result = await this.codeInterpreter.executeCode(input.code);
+          if (!result.success) return { error: result.errors.join('\n'), output: result.text };
+          // Track any /tmp/ files mentioned in code or output
+          const tmpMatches = (input.code + (result.text || '')).match(/\/tmp\/[\w.\-]+/g) || [];
+          tmpMatches.forEach(f => this._sandboxFiles.add(f));
+          return { output: result.text };
+        } catch (err) {
+          // Session may have expired — reset and retry once
+          const isSessionError = err.name === 'ResourceNotFoundException' ||
+            err.name === 'ValidationException' ||
+            err.$fault === 'client' ||
+            (err.message || '').toLowerCase().includes('session');
+          if (isSessionError && this.codeInterpreter.sessionId) {
+            log.warn('[work] Code interpreter session error, restarting:', err.message);
+            this.codeInterpreter.sessionId = null;
+            this.onStatus({ tool: 'sandbox', detail: 'Restarting sandbox...', state: 'running' });
+            await this.codeInterpreter.startSession(7200);
+            this.onStatus({ tool: 'sandbox', detail: 'Sandbox ready', state: 'done' });
+            const retryResult = await this.codeInterpreter.executeCode(input.code);
+            if (!retryResult.success) return { error: retryResult.errors.join('\n'), output: retryResult.text };
+            const tmpMatches = (input.code + (retryResult.text || '')).match(/\/tmp\/[\w.\-]+/g) || [];
+            tmpMatches.forEach(f => this._sandboxFiles.add(f));
+            return { output: retryResult.text };
+          }
+          return { error: `Code execution failed: ${err.message}` };
+        }
 
       case 'save_file_locally':
         return this._handleSaveFile(input.sandbox_path, input.local_path);
@@ -528,6 +549,8 @@ with open("${sandboxPath}", "wb") as f:
 print(f"Wrote {len(data)} bytes to ${sandboxPath}")
 `;
     const result = await this.codeInterpreter.executeCode(code);
+    // Input files already exist locally (user provided them) — skip auto-save to Downloads
+    this._savedLocally.add(sandboxPath);
     return { success: result.success, output: result.text };
   }
 

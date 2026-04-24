@@ -134,6 +134,11 @@ class SettingsManager {
     if (typeof settings.sagemakerImageComponent === 'string') {
       validated.sagemakerImageComponent = settings.sagemakerImageComponent.trim();
     }
+
+    // Preserve bedrockModels array
+    if (Array.isArray(settings.bedrockModels)) {
+      validated.bedrockModels = settings.bedrockModels;
+    }
     
     return validated;
   }

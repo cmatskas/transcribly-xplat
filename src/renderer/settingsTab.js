@@ -600,6 +600,8 @@
     document.getElementById('newModelId').value = '';
     document.getElementById('newModelRole').value = '';
     window.electronAPI.showToast('Models updated', 'success');
+    // Refresh model dropdowns in Work and Chat tabs
+    if (typeof loadBedrockModels === 'function') await loadBedrockModels();
   }
 
   function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }

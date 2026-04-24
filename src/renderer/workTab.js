@@ -78,7 +78,7 @@
     }
   }
 
-  function init() {
+  async function init() {
     workFiles.setup(showToast);
 
     const sendBtn = document.getElementById('workSendBtn');
@@ -155,15 +155,40 @@
     initContextMenu();
     initRenameModal();
 
-    // Initialize the active session's container with greeting
+    // Initialize the active session's container
+    // Try to restore from disk first; fall back to greeting for new sessions
     const session = getActiveSession();
-    session.container.innerHTML = `
-      <div id="workPlaceholder" class="work-greeting">
-        <div class="work-greeting-icon"><img src="../assets/agentic-tool-icon-light.svg" alt="Agent" class="greeting-icon-img greeting-icon-light"><img src="../assets/agentic-tool-icon-dark.svg" alt="Agent" class="greeting-icon-img greeting-icon-dark"></div>
-        <div class="work-greeting-text">What can I help you build today?</div>
-      </div>`;
+    try {
+      const data = await window.electronAPI.invoke('work-history-load', { id: activeSessionId });
+      if (data && data.messages && data.messages.length > 0) {
+        session.messages = data.messages;
+        session.container.innerHTML = '';
+        session.messages.forEach(msg => {
+          CR.appendChatMessage(session.container, msg, {
+            onCopy: () => navigator.clipboard.writeText(msg.content).then(
+              () => showToast('Copied to clipboard', 'success'),
+              () => showToast('Failed to copy', 'error')
+            ),
+          });
+        });
+      } else {
+        session.container.innerHTML = `
+          <div id="workPlaceholder" class="work-greeting">
+            <div class="work-greeting-icon"><img src="../assets/agentic-tool-icon-light.svg" alt="Agent" class="greeting-icon-img greeting-icon-light"><img src="../assets/agentic-tool-icon-dark.svg" alt="Agent" class="greeting-icon-img greeting-icon-dark"></div>
+            <div class="work-greeting-text">What can I help you build today?</div>
+          </div>`;
+      }
+    } catch {
+      session.container.innerHTML = `
+        <div id="workPlaceholder" class="work-greeting">
+          <div class="work-greeting-icon"><img src="../assets/agentic-tool-icon-light.svg" alt="Agent" class="greeting-icon-img greeting-icon-light"><img src="../assets/agentic-tool-icon-dark.svg" alt="Agent" class="greeting-icon-img greeting-icon-dark"></div>
+          <div class="work-greeting-text">What can I help you build today?</div>
+        </div>`;
+    }
     showSession(activeSessionId);
     refreshSidebar();
+    // Scroll to bottom after restoring history
+    setTimeout(() => { getHost().scrollTop = getHost().scrollHeight; }, 50);
 
     // ── IPC listeners — route by sessionId ──────────────────
     window.electronAPI.receive('agent-status', (data) => {
@@ -400,6 +425,8 @@
       </div>`;
     showSession(newId);
     workFiles.clearFiles();
+    workingDirectory = null;
+    document.getElementById('workDirBadge').classList.add('d-none');
     promptInput.value = '';
     promptInput.style.height = 'auto';
     refreshSidebar();

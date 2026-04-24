@@ -1,5 +1,16 @@
 # Release Notes
 
+## v2.7.12
+
+### Bug Fixes
+- **Work tab — New Chat no longer inherits workspace** — Starting a new conversation now resets `workingDirectory` and hides the workspace badge. Previously, the workspace directory from the previous chat persisted.
+- **Settings → Credentials tab fully functional** — Credentials failed to load, paste, and save because `SettingsTab.init()` was silently skipped when an earlier tab init threw. Tab initialization is now isolated with per-tab try/catch so one failure doesn't cascade.
+- **Work tab — fixed attach/workspace regression** — `init()` is now `async`, fixing a syntax error that prevented the entire `workTab.js` module from loading and broke all attach buttons.
+- **Work tab — stop copying input files to ~/Downloads** — Files the agent reads via `read_local_file` are no longer auto-saved to the Downloads folder at the end of a run. The auto-save safety net now only captures agent-generated outputs.
+
+### Features
+- **Work tab — conversation history restore** — Opening a saved conversation now rehydrates messages from disk instead of showing a greeting.
+
 ## v2.7.8
 
 ### Bug Fixes

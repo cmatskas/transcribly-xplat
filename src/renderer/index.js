@@ -574,16 +574,15 @@ async function loadPromptTemplates() {
 document.addEventListener('DOMContentLoaded', async () => {
     loadPromptTemplates();
     loadBedrockModels();
+    window.loadBedrockModels = loadBedrockModels;
     setupFileUpload();
     setupCustomPromptsManagement();
     await renderConversationList();
 
-    // Initialize Work tab
-    if (window.WorkTab) {
-        window.WorkTab.init();
-        if (window.SwarmTab) window.SwarmTab.init();
-        if (window.SettingsTab) window.SettingsTab.init();
-    }
+    // Initialize tabs independently so one failure doesn't block the others
+    try { if (window.WorkTab) window.WorkTab.init(); } catch (e) { console.error('WorkTab init failed:', e); }
+    try { if (window.SwarmTab) window.SwarmTab.init(); } catch (e) { console.error('SwarmTab init failed:', e); }
+    try { if (window.SettingsTab) window.SettingsTab.init(); } catch (e) { console.error('SettingsTab init failed:', e); }
 
     // If main process says no credentials, show settings page
     window.electronAPI.receive('show-settings', () => {
