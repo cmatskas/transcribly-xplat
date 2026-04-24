@@ -58,6 +58,9 @@
     "jest": "^30.0.4",
     "jest-environment-jsdom": "^30.0.4"
   },
+  "overrides": {
+    "uuid": "^14.0.0"
+  },
   "jest": {
     "testEnvironment": "jest-environment-jsdom",
     "setupFilesAfterEnv": [
